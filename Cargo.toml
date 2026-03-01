@@ -1,0 +1,40 @@
+[package]
+name = "stream_recorder"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["discord"]
+discord = ["discord-webhook2"]
+
+[dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["multipart", "stream", "json", "rustls-tls"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.40", features = ["macros", "rt-multi-thread", "process", "signal", "fs"] }
+keyring = { version = "3.6", features = ["windows-native", "linux-native"] }
+toml = "0.9"
+dirs = "6.0"
+anyhow = "1.0"
+discord-webhook2 = { version = "0.4", optional = true }
+iso8601-timestamp = "0.1"
+clap = { version = "4.5", features = ["derive"] }
+bunkr-client = { version = "0.1.4", default-features = false }
+chrono = "0.4"
+tokio-util = { version = "0.7", features = ["io"] }
+tempfile = "3.0"
+scopeguard = "1.2"
+regex = "1.10"
+uuid = { version = "1.0", features = ["v4"] }
+cookie = "0.18"
+fs2 = "0.4"
+walkdir = "2.5"
+async-trait = "0.1"
+paste = "1.0"
+semver = "1.0"
+
+[profile.release]
+opt-level = 3
+lto = true
+panic = "abort"
+strip = true

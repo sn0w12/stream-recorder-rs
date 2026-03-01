@@ -1,0 +1,31 @@
+{
+    "$schema": "https://raw.githubusercontent.com/sn0w12/stream-recorder-rs/refs/heads/main/platforms/schema.json",
+    "id": "example",
+    "name": "Example Platform",
+    "version": "1.0.0",
+    "stream_recorder_version": "^0.1",
+    "title_clean_regex": [":\\w+:"],
+    "base_url": "https://api.example.com/v1/",
+    "token_name": "example_api_token",
+    "headers": {
+        "Authorization": "Bearer {token}",
+        "Accept": "application/json"
+    },
+    "steps": [
+        {
+            "endpoint": "streams/{username}",
+            "live_check": "data.is_live",
+            "extract": {
+                "stream_id": "data.id",
+                "stream_title": "data.title",
+                "user_id": "data.user_id"
+            }
+        },
+        {
+            "endpoint": "streams/{stream_id}/playback",
+            "extract": {
+                "playback_url": "data.hls_url"
+            }
+        }
+    ]
+}

@@ -1,0 +1,88 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "PlatformConfig",
+    "type": "object",
+    "required": ["id", "name", "base_url", "headers", "steps", "version"],
+    "additionalProperties": false,
+    "properties": {
+        "$schema": { "type": "string" },
+        "id": {
+            "type": "string",
+            "description": "Unique identifier for the platform (used in `platform_id:username` monitor entries)."
+        },
+        "name": {
+            "type": "string",
+            "description": "Human‑readable display name."
+        },
+        "base_url": {
+            "type": "string",
+            "pattern": "^.*\\/$",
+            "description": "Base URL prepended to relative endpoints; must end with '/'."
+        },
+        "token_name": {
+            "type": ["string", "null"],
+            "description": "Keyring key for the auth token, or null/absent if authentication is not required."
+        },
+        "headers": {
+            "type": "object",
+            "description": "HTTP headers sent with every request. Use '{token}' as a placeholder for the auth token.",
+            "additionalProperties": {
+                "type": "string"
+            }
+        },
+        "steps": {
+            "type": "array",
+            "minItems": 1,
+            "description": "Ordered pipeline steps executed in sequence to determine stream state. At least one step is required.",
+            "items": {
+                "$ref": "#/definitions/pipelineStep"
+            }
+        },
+        "version": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Platform config version string (e.g. '1.0.0'). Semver is conventional but any non-empty string is accepted."
+        },
+        "stream_recorder_version": {
+            "type": ["string", "null"],
+            "description": "Semver version requirement for stream_recorder compatibility (e.g. '^0.1', '>=0.1.0, <2.0'). When present, stream_recorder validates this against its own version and rejects incompatible configs."
+        },
+        "source_url": {
+            "type": ["string", "null"],
+            "description": "URL the config was originally downloaded from. Set automatically by `platform install`; used by `platform update` to re-fetch the config. Absent for manually placed configs."
+        },
+        "title_clean_regex": {
+            "type": ["array", "null"],
+            "description": "List of regex patterns applied in order to the extracted `stream_title` before it is used for output file naming. Each match is replaced with an empty string. Absent or empty means the title is used unchanged.",
+            "items": {
+                "type": "string",
+                "description": "A regex pattern (Rust regex syntax) whose matches are stripped from the stream title."
+            }
+        }
+    },
+    "definitions": {
+        "pipelineStep": {
+            "type": "object",
+            "required": ["endpoint"],
+            "additionalProperties": false,
+            "properties": {
+                "endpoint": {
+                    "type": "string",
+                    "description": "Endpoint template; relative paths are joined to base_url. Supports '{variable}' placeholders."
+                },
+                "live_check": {
+                    "type": ["string", "null"],
+                    "description": "Optional dot-notation JSON path that must resolve to a non-null value for the stream to be considered live."
+                },
+                "extract": {
+                    "type": "object",
+                    "description": "Map of variable names to dot-notation JSON paths extracted from the response. Extracted variables are available in subsequent steps.",
+                    "default": {},
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    }
+}
