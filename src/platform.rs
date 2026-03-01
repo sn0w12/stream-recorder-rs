@@ -323,7 +323,22 @@ impl PlatformConfig {
             id
         ))?;
 
-        Self::install_from_url(&url).await
+        let old_version = existing.version.clone();
+        let updated = Self::install_from_url(&url).await?;
+
+        // Print a version diff only when both versions are valid semver.
+        if let (Ok(old), Ok(new)) = (
+            Version::parse(old_version.trim()),
+            Version::parse(updated.version.trim()),
+        ) {
+            if old != new {
+                println!("  {} -> {}", old, new);
+            } else {
+                println!("  Already up to date ({})", old);
+            }
+        }
+
+        Ok(updated)
     }
 
     /// Updates all installed platforms that have a saved `source_url`.
