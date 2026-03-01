@@ -243,21 +243,28 @@ impl PlatformConfig {
     /// Returns an error if the download fails, the JSON is malformed, or
     /// the config is invalid (bad `base_url`, empty `steps`).
     pub async fn install_from_url(url: &str) -> Result<Self> {
+        // If the caller supplied a GitHub repo/tree URL, resolve it to the
+        // raw platform.json URL automatically.
+        let fetch_url = resolve_github_url(url);
+        if fetch_url != url {
+            println!("Resolved GitHub URL to: {}", fetch_url);
+        }
+
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()
             .map_err(|e| anyhow::anyhow!("Failed to build HTTP client: {}", e))?;
 
         let response = client
-            .get(url)
+            .get(&fetch_url)
             .send()
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to download platform config from '{}': {}", url, e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to download platform config from '{}': {}", fetch_url, e))?;
 
         if !response.status().is_success() {
             return Err(anyhow::anyhow!(
                 "Failed to download platform config from '{}': HTTP {}",
-                url,
+                fetch_url,
                 response.status()
             ));
         }
@@ -270,9 +277,10 @@ impl PlatformConfig {
         let mut config: PlatformConfig = serde_json::from_str(&content)
             .map_err(|e| anyhow::anyhow!("Downloaded file is not valid platform JSON: {}", e))?;
 
-        config.validate(url)?;
+        config.validate(&fetch_url)?;
 
-        // Inject the source URL so updates know where to fetch from.
+        // Persist the original URL supplied by the user as the source so that
+        // `update_by_id` re-uses it unchanged (GitHub repo links remain tidy).
         config.source_url = Some(url.to_string());
 
         let dir = Self::platforms_dir();
@@ -352,6 +360,50 @@ impl PlatformConfig {
         fs::remove_file(&file_path)
             .map_err(|e| anyhow::anyhow!("Failed to remove platform config {:?}: {}", file_path, e))?;
         Ok(())
+    }
+}
+
+/// Converts a GitHub repository or tree URL into the raw content URL for
+/// `platform.json` inside that repository.
+///
+/// Handled patterns:
+/// - `https://github.com/{owner}/{repo}`                      → `.../HEAD/platform.json`
+/// - `https://github.com/{owner}/{repo}/tree/{branch}`        → `.../{branch}/platform.json`
+/// - `https://github.com/{owner}/{repo}/tree/{branch}/{path}` → `.../{branch}/{path}/platform.json`
+///
+/// Any other URL (non-GitHub, direct blob links, raw URLs, etc.) is returned
+/// unchanged.
+fn resolve_github_url(url: &str) -> String {
+    let prefix = "https://github.com/";
+    if !url.starts_with(prefix) {
+        return url.to_string();
+    }
+
+    let path = url[prefix.len()..].trim_end_matches('/');
+    // Use splitn(5) so that a sub-path after the branch is kept as one segment.
+    let segments: Vec<&str> = path.splitn(5, '/').collect();
+
+    match segments.as_slice() {
+        [owner, repo] => {
+            format!(
+                "https://raw.githubusercontent.com/{}/{}/HEAD/platform.json",
+                owner, repo
+            )
+        }
+        [owner, repo, tree, branch] if *tree == "tree" => {
+            format!(
+                "https://raw.githubusercontent.com/{}/{}/{}/platform.json",
+                owner, repo, branch
+            )
+        }
+        [owner, repo, tree, branch, subpath] if *tree == "tree" => {
+            let subpath = subpath.trim_end_matches('/');
+            format!(
+                "https://raw.githubusercontent.com/{}/{}/{}/{}/platform.json",
+                owner, repo, branch, subpath
+            )
+        }
+        _ => url.to_string(),
     }
 }
 
@@ -668,5 +720,50 @@ mod tests {
         let mut p = make_minimal_platform("tcr_ok");
         p.title_clean_regex = Some(vec![r":\w+:".to_string(), r"\[.*?\]".to_string()]);
         assert!(p.validate("test").is_ok());
+    }
+
+    // --- resolve_github_url tests ---
+
+    #[test]
+    fn test_resolve_github_repo_root() {
+        let result = resolve_github_url("https://github.com/owner/repo");
+        assert_eq!(result, "https://raw.githubusercontent.com/owner/repo/HEAD/platform.json");
+    }
+
+    #[test]
+    fn test_resolve_github_repo_root_trailing_slash() {
+        let result = resolve_github_url("https://github.com/owner/repo/");
+        assert_eq!(result, "https://raw.githubusercontent.com/owner/repo/HEAD/platform.json");
+    }
+
+    #[test]
+    fn test_resolve_github_tree_branch() {
+        let result = resolve_github_url("https://github.com/owner/repo/tree/main");
+        assert_eq!(result, "https://raw.githubusercontent.com/owner/repo/main/platform.json");
+    }
+
+    #[test]
+    fn test_resolve_github_tree_branch_subpath() {
+        let result = resolve_github_url("https://github.com/owner/repo/tree/main/platforms/mypkg");
+        assert_eq!(result, "https://raw.githubusercontent.com/owner/repo/main/platforms/mypkg/platform.json");
+    }
+
+    #[test]
+    fn test_resolve_github_blob_unchanged() {
+        // Direct blob links are not repo/tree URLs — they should pass through.
+        let url = "https://github.com/owner/repo/blob/main/platform.json";
+        assert_eq!(resolve_github_url(url), url);
+    }
+
+    #[test]
+    fn test_resolve_non_github_unchanged() {
+        let url = "https://example.com/platform.json";
+        assert_eq!(resolve_github_url(url), url);
+    }
+
+    #[test]
+    fn test_resolve_raw_github_unchanged() {
+        let url = "https://raw.githubusercontent.com/owner/repo/main/platform.json";
+        assert_eq!(resolve_github_url(url), url);
     }
 }
