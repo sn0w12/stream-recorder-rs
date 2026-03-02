@@ -2,6 +2,8 @@ use keyring::Entry;
 use std::path::PathBuf;
 use std::fs;
 
+pub const SERVICE_NAME: &str = "stream_recorder";
+
 fn env_path() -> PathBuf {
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
@@ -47,7 +49,7 @@ fn load_env_var(key: &str) -> Option<String> {
 /// Checks the system keyring first, then falls back to a matching
 /// `KEY_NAME` (uppercased) environment variable in the `.env` file.
 pub fn get_token_by_name(key_name: &str) -> Option<String> {
-    if let Ok(entry) = Entry::new("stream_recorder", key_name) {
+    if let Ok(entry) = Entry::new(SERVICE_NAME, key_name) {
         if let Ok(password) = entry.get_password() {
             return Some(password);
         }
@@ -59,7 +61,7 @@ pub fn get_token_by_name(key_name: &str) -> Option<String> {
 
 pub fn get_bunkr_token() -> Option<String> {
     // Try keyring first
-    if let Ok(entry) = Entry::new("stream_recorder", "bunkr_token") {
+    if let Ok(entry) = Entry::new(SERVICE_NAME, "bunkr_token") {
         if let Ok(password) = entry.get_password() {
             return Some(password);
         }
@@ -71,7 +73,7 @@ pub fn get_bunkr_token() -> Option<String> {
 
 pub fn get_gofile_token() -> Option<String> {
     // Try keyring first
-    if let Ok(entry) = Entry::new("stream_recorder", "gofile_token") {
+    if let Ok(entry) = Entry::new(SERVICE_NAME, "gofile_token") {
         if let Ok(password) = entry.get_password() {
             return Some(password);
         }
@@ -83,7 +85,7 @@ pub fn get_gofile_token() -> Option<String> {
 
 pub fn get_filester_token() -> Option<String> {
     // Try keyring first
-    if let Ok(entry) = Entry::new("stream_recorder", "filester_token") {
+    if let Ok(entry) = Entry::new(SERVICE_NAME, "filester_token") {
         if let Ok(password) = entry.get_password() {
             return Some(password);
         }

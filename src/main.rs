@@ -195,14 +195,14 @@ fn handle_token_command(action: TokenAction) -> Result<()> {
 }
 
 fn save_token(key: &str, token: &str, display_name: &str) -> Result<()> {
-    let entry = Entry::new("stream_recorder", key)?;
+    let entry = Entry::new(utils::SERVICE_NAME, key)?;
     entry.set_password(token)?;
     println!("{} saved securely.", display_name);
     Ok(())
 }
 
 fn remove_token(key: &str, display_name: &str) -> Result<()> {
-    let entry = Entry::new("stream_recorder", key)?;
+    let entry = Entry::new(utils::SERVICE_NAME, key)?;
     match entry.delete_credential() {
         Ok(_) => println!("{} removed.", display_name),
         Err(e) => eprintln!("Error removing {}: {}", display_name.to_lowercase(), e),
