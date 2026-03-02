@@ -533,8 +533,12 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
 
     let bitrate = config.get_bitrate();
     match crate::stream::monitor::detect_best_hw_encoder(&bitrate).await {
-        Some((enc, _)) => { print!("\r"); item_ok(&enc, "hardware acceleration"); }
-        None =>           { print!("\r"); item_warn("libx264", "no hardware encoder found, using software"); }
+        Some((enc, _)) => {
+            item_ok(&enc, "hardware acceleration");
+        }
+        None => {
+            item_warn("libx264", "no hardware encoder found, using software");
+        }
     }
 
     println!();
