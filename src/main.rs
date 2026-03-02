@@ -545,7 +545,7 @@ async fn run_recording(config: &crate::config::Config, platforms: &[PlatformConf
 
     let monitors = config.get_monitors();
     if monitors.is_empty() {
-        println!("No monitors configured. Use 'stream_recorder config monitors add <platform_id>:<username>' to add users to monitor.");
+        println!("No monitors configured. Use 'stream-recorder config monitors add <platform_id>:<username>' to add users to monitor.");
         return Ok(());
     }
 
