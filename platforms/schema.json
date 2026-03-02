@@ -33,7 +33,7 @@
         "steps": {
             "type": "array",
             "minItems": 1,
-            "description": "Ordered pipeline steps executed in sequence to determine stream state. At least one step is required.",
+            "description": "Ordered pipeline steps executed in sequence to determine stream state. At least one step is required. At some point the `playback_url` variable must be extracted for the stream to be recordable.",
             "items": {
                 "$ref": "#/definitions/pipelineStep"
             }
