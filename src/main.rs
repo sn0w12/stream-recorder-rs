@@ -11,6 +11,7 @@ mod platform;
 
 use clap::{Parser, Subcommand};
 use anyhow::Result;
+use colour::{green, println_bold, red, yellow, yellow_ln};
 use keyring::Entry;
 use std::collections::HashMap;
 use crate::template::TemplateValue;
@@ -461,30 +462,42 @@ async fn handle_upload_command(file: String, uploader: Option<String>) -> Result
 
 async fn print_startup_info(config: &crate::config::Config, platforms: &[PlatformConfig]) {
     fn section(title: &str) {
-        println!("\n  \x1b[1m{}\x1b[0m", title);
-        println!("  \x1b[2m{}\x1b[0m", "─".repeat(title.len()));
+        println_bold!("\n  {}", title);
+        println!("  {}", "─".repeat(title.len()));
     }
 
     fn item_ok(name: &str, note: &str) {
-        println!("  \x1b[32m✓\x1b[0m {:<12}  \x1b[2m{}\x1b[0m", name, note);
+        green!("  ✓");
+        println!(" {:<12}  {}", name, note)
     }
 
     fn item_err(name: &str, note: &str) {
-        println!("  \x1b[31m✗\x1b[0m {:<12}  \x1b[2m{}\x1b[0m", name, note);
+        red!("  ✗");
+        println!(" {:<12}  {}", name, note)
     }
 
     fn item_warn(name: &str, note: &str) {
-        println!("  \x1b[33m→\x1b[0m {:<12}  \x1b[2m{}\x1b[0m", name, note);
+        yellow!("  →");
+        println!(" {:<12}  {}", name, note);
+    }
+
+    fn item_dot(name: &str, note: &str) {
+        print!("  • {:<12}", name);
+        if !note.is_empty() {
+            println!(" - {}", note);
+        } else {
+            println!();
+        }
     }
 
     // Header
-    println!("\x1b[1m┌─────────────────────────────────────┐\x1b[0m");
-    println!("\x1b[1m│            Stream Recorder          │\x1b[0m");
-    println!("\x1b[1m└─────────────────────────────────────┘\x1b[0m");
+    println!("┌─────────────────────────────────────┐");
+    println!("│            Stream Recorder          │");
+    println!("└─────────────────────────────────────┘");
 
     section("Platforms");
     if platforms.is_empty() {
-        println!("  \x1b[33mNo platforms configured\x1b[0m");
+        yellow_ln!("  No platforms configured");
     } else {
         for p in platforms {
             let token_status = if let Some(token_name) = &p.token_name {
@@ -496,7 +509,7 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
             } else {
                 "no token required"
             };
-            println!("  \x1b[36m•\x1b[0m \x1b[1m{}\x1b[0m - {}", p.name, token_status);
+            item_dot(&p.name, token_status);
         }
     }
 
@@ -504,10 +517,10 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
     section("Monitored Users");
     let monitors = config.get_monitors();
     if monitors.is_empty() {
-        println!("  \x1b[33mNo users configured\x1b[0m");
+        yellow_ln!("  No users configured");
     } else {
         for user in &monitors {
-            println!("  \x1b[36m•\x1b[0m \x1b[1m{}\x1b[0m", user);
+            item_dot(user, "");
         }
     }
 
