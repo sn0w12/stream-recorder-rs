@@ -660,7 +660,7 @@ mod tests {
         // Require a version far in the future — should fail against 0.1.0.
         p.stream_recorder_version = Some(">=99.0.0".to_string());
         let err = p.validate("test").unwrap_err().to_string();
-        assert!(err.contains("requires stream_recorder"), "got: {}", err);
+        assert!(err.contains("requires stream recorder"), "got: {}", err);
         assert!(err.contains(">=99.0.0"), "got: {}", err);
     }
 
