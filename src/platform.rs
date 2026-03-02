@@ -7,6 +7,7 @@ use serde_json::Value;
 use reqwest::Client;
 use semver::{Version, VersionReq};
 use regex::Regex;
+use crate::utils::app_config_dir;
 
 /// A single step in the platform fetch pipeline.
 ///
@@ -116,10 +117,7 @@ pub struct PlatformConfig {
 impl PlatformConfig {
     /// Returns the path to the user's platforms configuration directory.
     pub fn platforms_dir() -> PathBuf {
-        dirs::config_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("stream_recorder")
-            .join("platforms")
+        app_config_dir().join("platforms")
     }
 
     /// Validates a parsed `PlatformConfig`.

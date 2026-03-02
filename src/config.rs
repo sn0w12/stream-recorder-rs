@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use anyhow::Result;
+use crate::utils::app_config_dir;
 
 // ============================================================================
 // MACRO-BASED CONFIG - Define everything in ONE place!
@@ -238,9 +239,6 @@ impl Config {
     }
 
     pub fn config_path() -> PathBuf {
-        dirs::config_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("stream_recorder")
-            .join("config.toml")
+        app_config_dir().join("config.toml")
     }
 }

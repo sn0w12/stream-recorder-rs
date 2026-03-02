@@ -4,11 +4,16 @@ use std::fs;
 
 pub const SERVICE_NAME: &str = "stream_recorder";
 
-fn env_path() -> PathBuf {
+/// Returns the base application configuration directory:
+/// `<system_config_dir>/stream_recorder`.
+pub fn app_config_dir() -> PathBuf {
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("stream_recorder")
-        .join(".env")
+}
+
+fn env_path() -> PathBuf {
+    app_config_dir().join(".env")
 }
 
 fn load_env_var(key: &str) -> Option<String> {
