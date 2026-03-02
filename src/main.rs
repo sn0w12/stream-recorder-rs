@@ -18,7 +18,7 @@ use crate::stream::monitor::{build_uploaders, try_upload};
 use crate::platform::PlatformConfig;
 
 #[derive(Parser)]
-#[command(name = "stream_recorder", about = "CLI tool for recording streams")]
+#[command(name = "stream-recorder", about = "CLI tool for recording streams")]
 struct Cli {
     #[arg(short, long)]
     token: Option<String>,

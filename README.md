@@ -24,7 +24,7 @@ To begin recording streams, you need to either install or create a platform json
 To install an already existing one, you can use the cli.
 
 ```bash
-stream_recorder platform install {url}
+stream-recorder platform install {url}
 ```
 
 ## Installation
@@ -37,7 +37,7 @@ cd stream-recorder-rs
 cargo build --release
 ```
 
-The binary will be available at `target/release/stream_recorder.exe` (Windows) or `target/release/stream_recorder` (Linux/macOS).
+The binary will be available at `target/release/stream-recorder.exe` (Windows) or `target/release/stream-recorder` (Linux/macOS).
 
 ### Pre-built Binaries
 
@@ -48,7 +48,7 @@ Download the latest release from the [releases page](https://github.com/sn0w12/s
 For additional help, run:
 
 ```bash
-stream_recorder -h
+stream-recorder -h
 ```
 
 1. **Save a platform API token** (if required by the platform):
@@ -56,10 +56,10 @@ stream_recorder -h
     Using keyring (recommended):
 
     ```bash
-    stream_recorder token save-platform PLATFORM_ID YOUR_TOKEN_HERE
+    stream-recorder token save-platform PLATFORM_ID YOUR_TOKEN_HERE
     ```
 
-    Or define tokens in a `.env` file at `~/.config/stream_recorder/.env`:
+    Or define tokens in a `.env` file at `~/.config/stream-recorder/.env`:
 
     ```env
     PLATFORM_API_TOKEN=YOUR_TOKEN_HERE
@@ -68,30 +68,30 @@ stream_recorder -h
 2. **Configure monitored accounts** (use `platform_id:username` format):
 
     ```bash
-    stream_recorder config monitors add platform1:user1
-    stream_recorder config monitors add platform2:user2
+    stream-recorder config monitors add platform1:user1
+    stream-recorder config monitors add platform2:user2
     ```
 
 3. **Set output directory (optional):**
 
     ```bash
-    stream_recorder config set output_directory ./my_recordings
+    stream-recorder config set output_directory ./my_recordings
     ```
 
 4. **Start monitoring:**
     ```bash
-    stream_recorder --token YOUR_TOKEN
+    stream-recorder --token YOUR_TOKEN
     ```
     Or if tokens are saved:
     ```bash
-    stream_recorder
+    stream-recorder
     ```
 
 The tool will run continuously, monitoring for live streams and recording them automatically.
 
 ## Configuration
 
-Configuration is stored in `~/.config/stream_recorder/config.toml` (Linux/macOS) or `%APPDATA%\stream_recorder\config.toml` (Windows).
+Configuration is stored in `~/.config/stream-recorder/config.toml` (Linux/macOS) or `%APPDATA%\stream-recorder\config.toml` (Windows).
 
 ### Available Settings
 
@@ -109,21 +109,21 @@ Configuration is stored in `~/.config/stream_recorder/config.toml` (Linux/macOS)
 
 ```bash
 # View all configuration
-stream_recorder config get
+stream-recorder config get
 
 # Get specific setting
-stream_recorder config get output_directory
+stream-recorder config get output_directory
 
 # Set a configuration value
-stream_recorder config set output_directory /path/to/recordings
+stream-recorder config set output_directory /path/to/recordings
 
 # Get config file path
-stream_recorder config get-path
+stream-recorder config get-path
 
 # Manage monitored users
-stream_recorder config monitors add username
-stream_recorder config monitors remove username
-stream_recorder config monitors list
+stream-recorder config monitors add username
+stream-recorder config monitors remove username
+stream-recorder config monitors list
 ```
 
 ## Token Management
@@ -136,15 +136,15 @@ Store tokens securely using the system keyring:
 
 ```bash
 # Bunkr upload token
-stream_recorder token save-bunkr YOUR_BUNKR_TOKEN
+stream-recorder token save-bunkr YOUR_BUNKR_TOKEN
 
 # GoFile upload token
-stream_recorder token save-gofile YOUR_GOFILE_TOKEN
+stream-recorder token save-gofile YOUR_GOFILE_TOKEN
 ```
 
 ### Option 2: .env File
 
-Alternatively, you can store tokens in a `.env` file located at `~/.config/stream_recorder/.env` (Linux/macOS) or `%APPDATA%\stream_recorder\.env` (Windows).
+Alternatively, you can store tokens in a `.env` file located at `~/.config/stream-recorder/.env` (Linux/macOS) or `%APPDATA%\stream-recorder\.env` (Windows).
 
 Create the file with the following format:
 
@@ -162,7 +162,7 @@ Set up Discord notifications:
 1. Create a webhook in your Discord server
 2. Set the webhook URL:
     ```bash
-    stream_recorder config set discord_webhook_url https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN
+    stream-recorder config set discord_webhook_url https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN
     ```
 
 The tool will send notifications when:
@@ -219,7 +219,7 @@ Customize notification messages using templates. Templates support variables, co
 Render a test message with mock data:
 
 ```bash
-stream_recorder template render
+stream-recorder template render
 ```
 
 ## Upload Services

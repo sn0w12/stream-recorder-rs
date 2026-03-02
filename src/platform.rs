@@ -92,11 +92,11 @@ pub struct PlatformConfig {
     /// prefer (semver is conventional).  Displayed in `platform list` and
     /// stored verbatim in the installed JSON.
     pub version: String,
-    /// Semver requirement for the compatible stream_recorder version
+    /// Semver requirement for the compatible stream recorder version
     /// (e.g. `"^0.1"`, `">=0.1.0, <2.0"`).
     ///
     /// If present it is validated at both install-time and load-time against
-    /// the running stream_recorder version (`CARGO_PKG_VERSION`).  Platforms
+    /// the running stream recorder version (`CARGO_PKG_VERSION`).  Platforms
     /// that specify a requirement incompatible with the running binary will be
     /// rejected with a descriptive error.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -162,8 +162,8 @@ impl PlatformConfig {
             let app_version = Version::parse(env!("CARGO_PKG_VERSION")).expect("CARGO_PKG_VERSION is always valid semver");
             if !req.matches(&app_version) {
                 return Err(anyhow::anyhow!(
-                    "Platform config {}: requires stream_recorder '{}' but running version is '{}'. \
-                     Update stream_recorder or re-install this platform.",
+                    "Platform config {}: requires stream recorder '{}' but running version is '{}'. \
+                     Update stream recorder or re-install this platform.",
                     source, req_str, app_version
                 ));
             }
@@ -319,7 +319,7 @@ impl PlatformConfig {
 
         let url = existing.source_url.ok_or_else(|| anyhow::anyhow!(
             "Platform '{}' has no source URL saved. \
-             Re-install it with: stream_recorder platform install <url>",
+             Re-install it with: stream-recorder platform install <url>",
             id
         ))?;
 
@@ -611,7 +611,7 @@ mod tests {
         // are caught here as well.
         let result: Result<()> = p.source_url.clone().ok_or_else(|| anyhow::anyhow!(
             "Platform '{}' has no source URL saved. \
-             Re-install it with: stream_recorder platform install <url>",
+             Re-install it with: stream-recorder platform install <url>",
             p.id
         )).map(|_| ());
         assert!(result.is_err());
