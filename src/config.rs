@@ -211,6 +211,7 @@ define_config! {
     max_upload_retries: Option<u32> = Some(3) => Some(3), u32,
     min_stream_duration: Option<f64> = None => None, f64_opt,
     bitrate: Option<String> = Some("3M".to_string()) => Some("3M".to_string()), str,
+    stream_reconnect_delay_minutes: Option<f64> = None => None, f64_opt,
 }
 
 // ============================================================================

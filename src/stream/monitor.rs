@@ -447,11 +447,10 @@ async fn send_recording_start_webhook(
     Ok(())
 }
 
-/// Records a stream using ffmpeg.
-/// Runs the ffmpeg command with the provided playback URL and saves to the output path.
-/// Waits for the command to finish, which indicates the stream has ended.
-/// Then spawns a new task to post-process the recorded file.
-pub async fn record_stream(stream_info: StreamInfo) -> Result<(StreamInfo, String), Box<dyn std::error::Error + Send + Sync>> {
+/// Core recording logic: starts ffmpeg, waits for the stream to end, and returns
+/// the stream info together with the output file path.  Does NOT spawn any
+/// post-processing — callers are responsible for that.
+async fn record_stream_raw(stream_info: StreamInfo) -> Result<(StreamInfo, String), Box<dyn std::error::Error + Send + Sync>> {
     println!("Starting recording for stream: {} (user_id: {}, title: {})", stream_info.username, stream_info.user_id, stream_info.stream_title);
 
     let config = Config::load()?;
@@ -484,6 +483,16 @@ pub async fn record_stream(stream_info: StreamInfo) -> Result<(StreamInfo, Strin
     let recorder = StreamRecorder::new(&mut cmd).await?;
     recorder.wait().await?;
 
+    Ok((stream_info, output_path))
+}
+
+/// Records a stream using ffmpeg.
+/// Runs the ffmpeg command with the provided playback URL and saves to the output path.
+/// Waits for the command to finish, which indicates the stream has ended.
+/// Then spawns a new task to post-process the recorded file.
+pub async fn record_stream(stream_info: StreamInfo) -> Result<(StreamInfo, String), Box<dyn std::error::Error + Send + Sync>> {
+    let (stream_info, output_path) = record_stream_raw(stream_info).await?;
+
     // Spawn post-processing on a new task
     let stream_info_clone = stream_info.clone();
     let output_path_clone = output_path.clone();
@@ -496,11 +505,115 @@ pub async fn record_stream(stream_info: StreamInfo) -> Result<(StreamInfo, Strin
     Ok((stream_info, output_path))
 }
 
+/// Concatenates multiple MP4 files into a single file using ffmpeg's concat demuxer.
+/// The output file is placed in the same directory as the first segment.
+/// Returns the path of the combined output file.
+async fn concat_video_files(files: &[String]) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    use std::io::Write;
+
+    // Build the ffmpeg concat file list in a temp file that stays alive for the
+    // duration of the ffmpeg call.
+    let mut concat_list = tempfile::NamedTempFile::new()?;
+    {
+        let mut writer = std::io::BufWriter::new(concat_list.as_file_mut());
+        for file in files {
+            // Escape single quotes so paths with apostrophes don't break the
+            // concat file format.
+            writeln!(writer, "file '{}'", file.replace('\'', r"'\''"))?;
+        }
+    }
+
+    // Place the combined file next to the first segment, adding a _combined suffix.
+    let first_path = std::path::Path::new(&files[0]);
+    let parent_dir = first_path.parent()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|| ".".to_string());
+    let file_stem = first_path.file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "combined".to_string());
+    let combined_path = format!("{}/{}_combined.mp4", parent_dir, file_stem);
+
+    let status = tokio::process::Command::new("ffmpeg")
+        .args([
+            "-f", "concat",
+            "-safe", "0",
+            "-i", concat_list.path().to_str().ok_or("invalid concat file path")?,
+            "-c", "copy",
+            "-y",
+            &combined_path,
+        ])
+        .status()
+        .await?;
+
+    // concat_list is still in scope here, keeping the temp file alive while ffmpeg
+    // reads it.
+    if !status.success() {
+        return Err(format!("ffmpeg concat failed for {} segment(s)", files.len()).into());
+    }
+
+    Ok(combined_path)
+}
+
+/// Post-processes a complete recording session that may consist of multiple
+/// segment files (when stream continuation is enabled).
+///
+/// * Single segment  → passed directly to `post_process_stream`.
+/// * Multiple segments → combined with ffmpeg concat first; individual segments
+///   are deleted after a successful merge.  On merge failure, each segment is
+///   processed individually as a fallback.
+async fn post_process_session(stream_info: StreamInfo, session_files: Vec<String>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    if session_files.is_empty() {
+        return Ok(());
+    }
+
+    if session_files.len() == 1 {
+        return post_process_stream(stream_info, session_files.into_iter().next().unwrap()).await;
+    }
+
+    println!(
+        "Combining {} stream segments for {}...",
+        session_files.len(),
+        stream_info.username
+    );
+
+    match concat_video_files(&session_files).await {
+        Ok(combined_path) => {
+            println!("Successfully combined stream segments into: {}", combined_path);
+            // Remove the individual segment files now that they are merged.
+            for file in &session_files {
+                if let Err(e) = tokio::fs::remove_file(file).await {
+                    eprintln!("Failed to delete segment {}: {}", file, e);
+                }
+            }
+            post_process_stream(stream_info, combined_path).await
+        }
+        Err(e) => {
+            eprintln!(
+                "Failed to combine stream segments ({}), processing files individually...",
+                e
+            );
+            // Fall back: process each segment on its own.
+            for file in session_files {
+                if let Err(e2) = post_process_stream(stream_info.clone(), file).await {
+                    eprintln!("Error post-processing segment: {}", e2);
+                }
+            }
+            Ok(())
+        }
+    }
+}
+
 
 /// Monitors the stream for a specific user.
 /// Runs in a loop, executing the platform pipeline at each interval.
 /// When the pipeline returns Live the stream is recorded; when Offline the
 /// loop simply waits for the next interval.
+///
+/// When `stream_reconnect_delay_minutes` is configured the monitor enters a
+/// **continuation window** after each recording ends.  During that window it
+/// keeps polling; if a new stream starts the recording is resumed.  After the
+/// window closes all accumulated segment files are merged and post-processed
+/// together as one session.
 pub async fn monitor_stream(username: &str, platform: &PlatformConfig, token: &str, fetch_interval: Duration) {
     loop {
         match run_pipeline(username, platform, token).await {
@@ -519,8 +632,109 @@ pub async fn monitor_stream(username: &str, platform: &PlatformConfig, token: &s
                         stream_title,
                         playback_url: url,
                     };
-                    if let Err(e) = record_stream(stream_info).await {
-                        eprintln!("Error recording stream: {}", e);
+
+                    let config = Config::load().unwrap_or_default();
+                    let reconnect_delay = config.get_stream_reconnect_delay_minutes();
+
+                    if let Some(delay_minutes) = reconnect_delay {
+                        // ── Continuation mode ─────────────────────────────────────
+                        // Record the first stream of the session.
+                        let primary_stream_info = stream_info.clone();
+                        match record_stream_raw(stream_info).await {
+                            Ok((_, first_path)) => {
+                                let mut session_files = vec![first_path];
+                                let mut deadline = tokio::time::Instant::now()
+                                    + Duration::from_secs_f64(delay_minutes * 60.0);
+
+                                println!(
+                                    "Stream ended for {}. Waiting up to {:.0} minute(s) for a continuation before post-processing...",
+                                    username, delay_minutes
+                                );
+
+                                // Continuation polling loop.
+                                loop {
+                                    let now = tokio::time::Instant::now();
+                                    if now >= deadline {
+                                        break;
+                                    }
+
+                                    let remaining = deadline - now;
+                                    let sleep_duration = fetch_interval.min(remaining);
+                                    sleep(sleep_duration).await;
+
+                                    match run_pipeline(username, platform, token).await {
+                                        Ok(PipelineOutcome::Live(new_vars)) => {
+                                            if let Some(new_url) = new_vars.get("playback_url").cloned() {
+                                                let new_stream_info = StreamInfo {
+                                                    username: username.to_string(),
+                                                    user_id: new_vars.get("user_id")
+                                                        .cloned()
+                                                        .unwrap_or_else(|| username.to_string()),
+                                                    stream_title: new_vars.get("stream_title")
+                                                        .map(|s| platform.clean_title(s))
+                                                        .unwrap_or_default(),
+                                                    playback_url: new_url,
+                                                };
+                                                println!(
+                                                    "Continuation stream detected for {}, recording...",
+                                                    username
+                                                );
+                                                match record_stream_raw(new_stream_info).await {
+                                                    Ok((_, new_path)) => {
+                                                        session_files.push(new_path);
+                                                        // Reset the deadline so we keep watching
+                                                        // after this segment ends too.
+                                                        deadline = tokio::time::Instant::now()
+                                                            + Duration::from_secs_f64(delay_minutes * 60.0);
+                                                        println!(
+                                                            "Continuation stream ended for {}. Waiting up to {:.0} minute(s) for another continuation...",
+                                                            username, delay_minutes
+                                                        );
+                                                    }
+                                                    Err(e) => eprintln!(
+                                                        "Error recording continuation stream for {}: {}",
+                                                        username, e
+                                                    ),
+                                                }
+                                            }
+                                        }
+                                        Ok(PipelineOutcome::Offline) => {
+                                            // Streamer still offline — keep waiting.
+                                        }
+                                        Err(e) => {
+                                            eprintln!(
+                                                "Error running pipeline for {} during continuation window: {}",
+                                                username, e
+                                            );
+                                        }
+                                    }
+                                }
+
+                                // Continuation window closed — post-process the full session.
+                                println!(
+                                    "Continuation window expired for {}, post-processing {} segment(s)...",
+                                    username,
+                                    session_files.len()
+                                );
+                                let info = primary_stream_info;
+                                let files = session_files;
+                                tokio::spawn(async move {
+                                    if let Err(e) = post_process_session(info, files).await {
+                                        eprintln!("Error post-processing session: {}", e);
+                                    }
+                                });
+
+                                // We have already spent the delay window waiting; skip
+                                // the standard fetch_interval sleep at the bottom.
+                                continue;
+                            }
+                            Err(e) => eprintln!("Error recording stream for {}: {}", username, e),
+                        }
+                    } else {
+                        // ── Standard mode (original behaviour) ────────────────────
+                        if let Err(e) = record_stream(stream_info).await {
+                            eprintln!("Error recording stream: {}", e);
+                        }
                     }
                 } else {
                     eprintln!("Pipeline returned Live but 'playback_url' was not extracted");

@@ -727,4 +727,55 @@ mod tests {
         }
         assert!(platforms.is_empty(), "empty dir must yield an empty platform list");
     }
+
+    // ── stream_reconnect_delay_minutes config tests ───────────────────────────
+
+    #[test]
+    fn test_stream_reconnect_delay_defaults_to_none() {
+        let config = crate::config::Config::default();
+        assert!(
+            config.get_stream_reconnect_delay_minutes().is_none(),
+            "stream_reconnect_delay_minutes should default to None (disabled)"
+        );
+    }
+
+    #[test]
+    fn test_stream_reconnect_delay_round_trips_through_toml() {
+        let toml_input = "stream_reconnect_delay_minutes = 5.0\n";
+        let config: crate::config::Config = toml::from_str(toml_input)
+            .expect("failed to parse TOML with stream_reconnect_delay_minutes");
+        assert_eq!(config.get_stream_reconnect_delay_minutes(), Some(5.0));
+    }
+
+    #[test]
+    fn test_stream_reconnect_delay_none_when_absent_from_toml() {
+        let config: crate::config::Config = toml::from_str("")
+            .expect("failed to parse empty TOML");
+        assert!(config.get_stream_reconnect_delay_minutes().is_none());
+    }
+
+    #[test]
+    fn test_stream_reconnect_delay_key_recognised_by_config() {
+        use crate::config::ConfigKey;
+        assert!(
+            ConfigKey::from_str("stream_reconnect_delay_minutes").is_some(),
+            "stream_reconnect_delay_minutes should be a recognised config key"
+        );
+    }
+
+    #[test]
+    fn test_stream_reconnect_delay_set_and_get_via_config_methods() {
+        let mut config = crate::config::Config::default();
+        config.set_value("stream_reconnect_delay_minutes", "3.5")
+            .expect("set_value should accept a valid float");
+        assert_eq!(config.get_stream_reconnect_delay_minutes(), Some(3.5));
+    }
+
+    #[test]
+    fn test_stream_reconnect_delay_cleared_with_none_string() {
+        let mut config = crate::config::Config::default();
+        config.set_value("stream_reconnect_delay_minutes", "10.0").unwrap();
+        config.set_value("stream_reconnect_delay_minutes", "none").unwrap();
+        assert!(config.get_stream_reconnect_delay_minutes().is_none());
+    }
 }
