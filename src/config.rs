@@ -92,12 +92,28 @@ macro_rules! define_config {
             }
 
             pub fn print_all(&self) {
+                let reset = "\x1b[0m";
+                let green = "\x1b[32m";
+                let gray = "\x1b[90m";
+                let italic = "\x1b[3m";
+
                 println!("Key                                Value     | Default");
                 println!("─────────────────────────────────────────────────────");
                 for key in ConfigKey::all() {
                     let current = self.get_value(key.as_str());
                     let default = self.get_default_string(*key);
-                    println!("{:<34} {:<9} | \x1b[3m{}\x1b[0m", key.as_str(), current, default);
+
+                    let default_display = format!("{}{}{}{}", gray, italic, default, reset);
+
+                    let current_display = if current == default {
+                        // If current equals the runtime default, render it dim/gray to indicate it's the default
+                        format!("{}{}{}", gray, current, reset)
+                    } else {
+                        // If current differs from default, highlight it in green
+                        format!("{}{}{}", green, current, reset)
+                    };
+
+                    println!("{:<34} {:<9} | {}", key.as_str(), current_display, default_display);
                 }
             }
         }
