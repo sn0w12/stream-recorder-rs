@@ -533,8 +533,9 @@ async fn concat_video_files(files: &[String]) -> Result<String, Box<dyn std::err
         .unwrap_or_else(|| "combined".to_string());
     let combined_path = format!("{}/{}_combined.mp4", parent_dir, file_stem);
 
-    let status = tokio::process::Command::new("ffmpeg")
+    let output = tokio::process::Command::new("ffmpeg")
         .args([
+            "-loglevel", "error",
             "-f", "concat",
             "-safe", "0",
             "-i", concat_list.path().to_str().ok_or("invalid concat file path")?,
@@ -542,13 +543,13 @@ async fn concat_video_files(files: &[String]) -> Result<String, Box<dyn std::err
             "-y",
             &combined_path,
         ])
-        .status()
+        .stderr(std::process::Stdio::piped())
+        .output()
         .await?;
 
-    // concat_list is still in scope here, keeping the temp file alive while ffmpeg
-    // reads it.
-    if !status.success() {
-        return Err(format!("ffmpeg concat failed for {} segment(s)", files.len()).into());
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(format!("ffmpeg concat failed for {} segment(s): {}", files.len(), err).into());
     }
 
     Ok(combined_path)
