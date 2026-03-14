@@ -53,6 +53,12 @@ macro_rules! define_config {
             pub const fn all() -> &'static [Self] {
                 &[$(ConfigKey::$field,)*]
             }
+
+            pub fn is_array(&self) -> bool {
+                match self {
+                    $(ConfigKey::$field => impl_is_array!($kind),)*
+                }
+            }
         }
 
         // Generate typed getters
@@ -85,7 +91,7 @@ macro_rules! define_config {
                 Ok(())
             }
 
-            fn get_default_string(&self, key: ConfigKey) -> String {
+            pub fn get_default_string(&self, key: ConfigKey) -> String {
                 match key {
                     $(ConfigKey::$field => impl_default_str!($kind, $runtime_default),)*
                 }
@@ -271,6 +277,15 @@ macro_rules! impl_default_str {
     };
     (f64_opt, $default:expr) => {
         "none".to_string()
+    };
+}
+
+macro_rules! impl_is_array {
+    (vec) => {
+        true
+    };
+    ($other:tt) => {
+        false
     };
 }
 

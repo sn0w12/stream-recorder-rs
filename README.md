@@ -64,8 +64,8 @@ stream-recorder -h
 2. **Configure monitored accounts** (use `platform_id:username` format):
 
     ```bash
-    stream-recorder config monitors add platform1:user1
-    stream-recorder config monitors add platform2:user2
+    stream-recorder config add monitors platform1:user1
+    stream-recorder config add monitors platform2:user2
     ```
 
 3. **Set output directory (optional):**

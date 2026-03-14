@@ -1,4 +1,4 @@
-use crate::platform::PlatformConfig;
+use crate::config::ConfigKey;
 use anyhow::Result;
 use clap::Subcommand;
 
@@ -12,15 +12,18 @@ pub enum ConfigAction {
     },
     /// Set configuration value
     Set { key: String, value: String },
+    /// Add a value to an array setting
+    #[clap(alias = "a")]
+    Add { key: String, value: String },
+    /// Remove a value from an array setting
+    #[clap(alias = "rm")]
+    Remove { key: String, value: String },
+    /// Reset a setting to its default value
+    #[clap(alias = "r")]
+    Reset { key: String },
     /// Get the path to the config file
     #[clap(alias = "gp")]
     GetPath,
-    /// Manage monitored users
-    #[clap(alias = "m")]
-    Monitors {
-        #[command(subcommand)]
-        action: MonitorsAction,
-    },
 }
 
 #[derive(Subcommand)]
@@ -57,80 +60,65 @@ pub fn handle_config_command(action: ConfigAction) -> Result<()> {
             config.save()?;
             println!("Config updated.");
         }
+        ConfigAction::Add { key, value } => {
+            let config_key =
+                ConfigKey::from_str(&key).ok_or_else(|| anyhow::anyhow!("Unknown key: {}", key))?;
+            if !config_key.is_array() {
+                return Err(anyhow::anyhow!("Key '{}' is not an array setting", key));
+            }
+            let current = config.get_value(&key);
+            let mut vec: Vec<String> = if current == "none" {
+                vec![]
+            } else {
+                current.split(", ").map(|s| s.trim().to_string()).collect()
+            };
+            if !vec.contains(&value) {
+                vec.push(value.clone());
+                let new_value = vec.join(", ");
+                config.set_value(&key, &new_value)?;
+                config.save()?;
+                println!("Added '{}' to '{}'", value, key);
+            } else {
+                println!("'{}' is already in '{}'", value, key);
+            }
+        }
+        ConfigAction::Remove { key, value } => {
+            let config_key =
+                ConfigKey::from_str(&key).ok_or_else(|| anyhow::anyhow!("Unknown key: {}", key))?;
+            if !config_key.is_array() {
+                return Err(anyhow::anyhow!("Key '{}' is not an array setting", key));
+            }
+            let current = config.get_value(&key);
+            if current == "none" {
+                println!("'{}' is empty", key);
+                return Ok(());
+            }
+            let mut vec: Vec<String> = current.split(", ").map(|s| s.trim().to_string()).collect();
+            if let Some(pos) = vec.iter().position(|v| v == &value) {
+                vec.remove(pos);
+                let new_value = if vec.is_empty() {
+                    "none".to_string()
+                } else {
+                    vec.join(", ")
+                };
+                config.set_value(&key, &new_value)?;
+                config.save()?;
+                println!("Removed '{}' from '{}'", value, key);
+            } else {
+                println!("'{}' not found in '{}'", value, key);
+            }
+        }
+        ConfigAction::Reset { key } => {
+            let config_key =
+                ConfigKey::from_str(&key).ok_or_else(|| anyhow::anyhow!("Unknown key: {}", key))?;
+            let default = config.get_default_string(config_key);
+            config.set_value(&key, &default)?;
+            config.save()?;
+            println!("Reset '{}' to default: {}", key, default);
+        }
         ConfigAction::GetPath => {
             let path = crate::config::Config::config_path();
             println!("{}", path.display());
-        }
-        ConfigAction::Monitors { action } => {
-            handle_monitors_command(action, &mut config)?;
-        }
-    }
-    Ok(())
-}
-
-fn handle_monitors_command(
-    action: MonitorsAction,
-    config: &mut crate::config::Config,
-) -> Result<()> {
-    match action {
-        MonitorsAction::Add { monitor } => {
-            // Validate that the monitor string uses the required platform_id:username format.
-            if !monitor.contains(':') {
-                return Err(anyhow::anyhow!(
-                    "Monitor must be in 'platform_id:username' format. \
-                     Got: '{}'",
-                    monitor
-                ));
-            }
-            let (platform_id, username) = monitor
-                .split_once(':')
-                .expect("monitor string was validated to contain ':' above");
-            if platform_id.is_empty() || username.is_empty() {
-                return Err(anyhow::anyhow!(
-                    "Both platform_id and username must be non-empty. Got: '{}'",
-                    monitor
-                ));
-            }
-            // Check that the platform is actually installed.
-            let platforms = PlatformConfig::load_all()?;
-            if PlatformConfig::find_by_id(&platforms, platform_id).is_none() {
-                return Err(anyhow::anyhow!(
-                    "Unknown platform '{}'. Install it first with: platform install <url>",
-                    platform_id
-                ));
-            }
-            let monitors = config.monitors.get_or_insert(Vec::new());
-            if !monitors.contains(&monitor) {
-                monitors.push(monitor.clone());
-                config.save()?;
-                println!("Added {}:{} to monitors.", platform_id, username);
-            } else {
-                println!("{}:{} is already in monitors.", platform_id, username);
-            }
-        }
-        MonitorsAction::Remove { monitor } => {
-            if let Some(monitors) = &mut config.monitors {
-                if let Some(pos) = monitors.iter().position(|u| u == &monitor) {
-                    monitors.remove(pos);
-                    config.save()?;
-                    println!("Removed {} from monitors.", monitor);
-                } else {
-                    println!("{} not found in monitors.", monitor);
-                }
-            } else {
-                println!("No monitors configured.");
-            }
-        }
-        MonitorsAction::List => {
-            let monitors = config.get_monitors();
-            if monitors.is_empty() {
-                println!("No users are being monitored.");
-            } else {
-                println!("Monitored users:");
-                for user in monitors {
-                    println!("- {}", user);
-                }
-            }
         }
     }
     Ok(())
