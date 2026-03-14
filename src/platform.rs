@@ -1,13 +1,13 @@
+use crate::utils::app_config_dir;
+use anyhow::Result;
+use regex::Regex;
+use reqwest::Client;
+use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use anyhow::Result;
-use serde_json::Value;
-use reqwest::Client;
-use semver::{Version, VersionReq};
-use regex::Regex;
-use crate::utils::app_config_dir;
 
 /// A single step in the platform fetch pipeline.
 ///
@@ -157,7 +157,8 @@ impl PlatformConfig {
                 "Platform config {}: `stream_recorder_version` '{}' is not a valid semver requirement: {}",
                 source, req_str, e
             ))?;
-            let app_version = Version::parse(env!("CARGO_PKG_VERSION")).expect("CARGO_PKG_VERSION is always valid semver");
+            let app_version = Version::parse(env!("CARGO_PKG_VERSION"))
+                .expect("CARGO_PKG_VERSION is always valid semver");
             if !req.matches(&app_version) {
                 return Err(anyhow::anyhow!(
                     "Platform config {}: requires stream recorder '{}' but running version is '{}'. \
@@ -168,10 +169,12 @@ impl PlatformConfig {
         }
         if let Some(ref patterns) = self.title_clean_regex {
             for pattern in patterns {
-                Regex::new(pattern).map_err(|e| anyhow::anyhow!(
+                Regex::new(pattern).map_err(|e| {
+                    anyhow::anyhow!(
                     "Platform config {}: `title_clean_regex` pattern '{}' is not a valid regex: {}",
                     source, pattern, e
-                ))?;
+                )
+                })?;
             }
         }
         Ok(())
@@ -213,10 +216,12 @@ impl PlatformConfig {
                 let entry = entry?;
                 let path = entry.path();
                 if path.extension().and_then(|e| e.to_str()) == Some("json") {
-                    let content = fs::read_to_string(&path)
-                        .map_err(|e| anyhow::anyhow!("Failed to read platform config {:?}: {}", path, e))?;
-                    let config: PlatformConfig = serde_json::from_str(&content)
-                        .map_err(|e| anyhow::anyhow!("Failed to parse platform config {:?}: {}", path, e))?;
+                    let content = fs::read_to_string(&path).map_err(|e| {
+                        anyhow::anyhow!("Failed to read platform config {:?}: {}", path, e)
+                    })?;
+                    let config: PlatformConfig = serde_json::from_str(&content).map_err(|e| {
+                        anyhow::anyhow!("Failed to parse platform config {:?}: {}", path, e)
+                    })?;
                     config.validate(&format!("{:?}", path))?;
                     platforms.push(config);
                 }
@@ -253,11 +258,13 @@ impl PlatformConfig {
             .build()
             .map_err(|e| anyhow::anyhow!("Failed to build HTTP client: {}", e))?;
 
-        let response = client
-            .get(&fetch_url)
-            .send()
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to download platform config from '{}': {}", fetch_url, e))?;
+        let response = client.get(&fetch_url).send().await.map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to download platform config from '{}': {}",
+                fetch_url,
+                e
+            )
+        })?;
 
         if !response.status().is_success() {
             return Err(anyhow::anyhow!(
@@ -288,8 +295,9 @@ impl PlatformConfig {
         let file_path = dir.join(format!("{}.json", config.id));
         let serialized = serde_json::to_string_pretty(&config)
             .map_err(|e| anyhow::anyhow!("Failed to serialize platform config: {}", e))?;
-        fs::write(&file_path, &serialized)
-            .map_err(|e| anyhow::anyhow!("Failed to write platform config to {:?}: {}", file_path, e))?;
+        fs::write(&file_path, &serialized).map_err(|e| {
+            anyhow::anyhow!("Failed to write platform config to {:?}: {}", file_path, e)
+        })?;
 
         Ok(config)
     }
@@ -310,16 +318,24 @@ impl PlatformConfig {
             ));
         }
 
-        let existing_content = fs::read_to_string(&file_path)
-            .map_err(|e| anyhow::anyhow!("Failed to read platform config {:?}: {}", file_path, e))?;
-        let existing: PlatformConfig = serde_json::from_str(&existing_content)
-            .map_err(|e| anyhow::anyhow!("Failed to parse existing platform config {:?}: {}", file_path, e))?;
+        let existing_content = fs::read_to_string(&file_path).map_err(|e| {
+            anyhow::anyhow!("Failed to read platform config {:?}: {}", file_path, e)
+        })?;
+        let existing: PlatformConfig = serde_json::from_str(&existing_content).map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to parse existing platform config {:?}: {}",
+                file_path,
+                e
+            )
+        })?;
 
-        let url = existing.source_url.ok_or_else(|| anyhow::anyhow!(
-            "Platform '{}' has no source URL saved. \
+        let url = existing.source_url.ok_or_else(|| {
+            anyhow::anyhow!(
+                "Platform '{}' has no source URL saved. \
              Re-install it with: stream-recorder platform install <url>",
-            id
-        ))?;
+                id
+            )
+        })?;
 
         let old_version = existing.version.clone();
         let updated = Self::install_from_url(&url).await?;
@@ -370,8 +386,9 @@ impl PlatformConfig {
                 file_path
             ));
         }
-        fs::remove_file(&file_path)
-            .map_err(|e| anyhow::anyhow!("Failed to remove platform config {:?}: {}", file_path, e))?;
+        fs::remove_file(&file_path).map_err(|e| {
+            anyhow::anyhow!("Failed to remove platform config {:?}: {}", file_path, e)
+        })?;
         Ok(())
     }
 }
@@ -464,7 +481,7 @@ fn parse_path_segments(path: &str) -> Vec<PathSegment> {
 
         // Collect the next key token (until `.` or `[`).
         let key_end = remaining
-            .find(|c: char| c == '.' || c == '[')
+            .find(['.', '['])
             .unwrap_or(remaining.len());
         let key = &remaining[..key_end];
         remaining = &remaining[key_end..];
@@ -497,7 +514,10 @@ mod tests {
     #[test]
     fn test_extract_simple_key() {
         let v = json!({"id": "123"});
-        assert_eq!(extract_json_value(&v, "id").and_then(|v| v.as_str()), Some("123"));
+        assert_eq!(
+            extract_json_value(&v, "id").and_then(|v| v.as_str()),
+            Some("123")
+        );
     }
 
     #[test]
@@ -571,7 +591,10 @@ mod tests {
 
         let serialized = serde_json::to_string(&p).unwrap();
         let deserialized: PlatformConfig = serde_json::from_str(&serialized).unwrap();
-        assert_eq!(deserialized.source_url.as_deref(), Some("https://raw.example.com/testplat.json"));
+        assert_eq!(
+            deserialized.source_url.as_deref(),
+            Some("https://raw.example.com/testplat.json")
+        );
     }
 
     #[test]
@@ -579,7 +602,10 @@ mod tests {
         let p = make_minimal_platform("testplat");
         let serialized = serde_json::to_string(&p).unwrap();
         // When source_url is None it must be omitted entirely (skip_serializing_if).
-        assert!(!serialized.contains("source_url"), "source_url should be absent when None");
+        assert!(
+            !serialized.contains("source_url"),
+            "source_url should be absent when None"
+        );
     }
 
     #[test]
@@ -594,7 +620,10 @@ mod tests {
             "version": "1.0.0"
         }"#;
         let p: PlatformConfig = serde_json::from_str(json).unwrap();
-        assert!(p.source_url.is_none(), "source_url must default to None for old configs");
+        assert!(
+            p.source_url.is_none(),
+            "source_url must default to None for old configs"
+        );
     }
 
     #[test]
@@ -607,11 +636,17 @@ mod tests {
 
         // Mirror the exact error produced by update_by_id so changes to the message
         // are caught here as well.
-        let result: Result<()> = p.source_url.clone().ok_or_else(|| anyhow::anyhow!(
-            "Platform '{}' has no source URL saved. \
+        let result: Result<()> = p
+            .source_url
+            .clone()
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Platform '{}' has no source URL saved. \
              Re-install it with: stream-recorder platform install <url>",
-            p.id
-        )).map(|_| ());
+                    p.id
+                )
+            })
+            .map(|_| ());
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
         assert!(
@@ -643,7 +678,11 @@ mod tests {
         p.stream_recorder_version = Some("not a semver req!!!".to_string());
         let err = p.validate("test").unwrap_err().to_string();
         assert!(err.contains("`stream_recorder_version`"), "got: {}", err);
-        assert!(err.contains("not a valid semver requirement"), "got: {}", err);
+        assert!(
+            err.contains("not a valid semver requirement"),
+            "got: {}",
+            err
+        );
     }
 
     #[test]
@@ -668,7 +707,11 @@ mod tests {
     fn test_stream_recorder_version_omitted_when_none() {
         let p = make_minimal_platform("omit");
         let serialized = serde_json::to_string(&p).unwrap();
-        assert!(!serialized.contains("stream_recorder_version"), "field should be absent when None: {}", serialized);
+        assert!(
+            !serialized.contains("stream_recorder_version"),
+            "field should be absent when None: {}",
+            serialized
+        );
     }
 
     #[test]
@@ -684,7 +727,11 @@ mod tests {
     fn test_title_clean_regex_omitted_when_none() {
         let p = make_minimal_platform("tcr_none");
         let serialized = serde_json::to_string(&p).unwrap();
-        assert!(!serialized.contains("title_clean_regex"), "field should be absent when None: {}", serialized);
+        assert!(
+            !serialized.contains("title_clean_regex"),
+            "field should be absent when None: {}",
+            serialized
+        );
     }
 
     #[test]
@@ -701,7 +748,10 @@ mod tests {
     #[test]
     fn test_clean_title_no_regex_returns_unchanged() {
         let p = make_minimal_platform("tcr_noop");
-        assert_eq!(p.clean_title("Hello :world: stream"), "Hello :world: stream");
+        assert_eq!(
+            p.clean_title("Hello :world: stream"),
+            "Hello :world: stream"
+        );
     }
 
     #[test]
@@ -716,7 +766,10 @@ mod tests {
         let mut p = make_minimal_platform("tcr_multi");
         p.title_clean_regex = Some(vec![r":\w+:".to_string(), r"\[.*?\]".to_string()]);
         // First `:smile:` is stripped, then `[tag]` is stripped
-        assert_eq!(p.clean_title(":smile: Hello [VOD] World :tada:"), " Hello  World ");
+        assert_eq!(
+            p.clean_title(":smile: Hello [VOD] World :tada:"),
+            " Hello  World "
+        );
     }
 
     #[test]
@@ -740,25 +793,37 @@ mod tests {
     #[test]
     fn test_resolve_github_repo_root() {
         let result = resolve_github_url("https://github.com/owner/repo");
-        assert_eq!(result, "https://raw.githubusercontent.com/owner/repo/HEAD/platform.json");
+        assert_eq!(
+            result,
+            "https://raw.githubusercontent.com/owner/repo/HEAD/platform.json"
+        );
     }
 
     #[test]
     fn test_resolve_github_repo_root_trailing_slash() {
         let result = resolve_github_url("https://github.com/owner/repo/");
-        assert_eq!(result, "https://raw.githubusercontent.com/owner/repo/HEAD/platform.json");
+        assert_eq!(
+            result,
+            "https://raw.githubusercontent.com/owner/repo/HEAD/platform.json"
+        );
     }
 
     #[test]
     fn test_resolve_github_tree_branch() {
         let result = resolve_github_url("https://github.com/owner/repo/tree/main");
-        assert_eq!(result, "https://raw.githubusercontent.com/owner/repo/main/platform.json");
+        assert_eq!(
+            result,
+            "https://raw.githubusercontent.com/owner/repo/main/platform.json"
+        );
     }
 
     #[test]
     fn test_resolve_github_tree_branch_subpath() {
         let result = resolve_github_url("https://github.com/owner/repo/tree/main/platforms/mypkg");
-        assert_eq!(result, "https://raw.githubusercontent.com/owner/repo/main/platforms/mypkg/platform.json");
+        assert_eq!(
+            result,
+            "https://raw.githubusercontent.com/owner/repo/main/platforms/mypkg/platform.json"
+        );
     }
 
     #[test]

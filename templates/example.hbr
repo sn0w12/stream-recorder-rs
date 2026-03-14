@@ -1,0 +1,9 @@
+[CENTER][B][SIZE=6]{{date}}[/SIZE][/B][/CENTER]
+[HR][/HR]
+[CENTER]{{stream_title}}[/CENTER]
+[HR][/HR]
+{{#if bunkr_urls}}[CENTER][SIZE=5]{{#each bunkr_urls}}[URL='{{this}}'][COLOR=rgb(147, 101, 184)]Bunkr{{#if (gt ../bunkr_urls_len 1)}} {{add @index 1}}{{/if}}[/COLOR][/URL]{{#if (ne (add @index 1) ../bunkr_urls_len)}} | {{/if}}{{/each}}[/SIZE][/CENTER]{{/if}}
+{{#if fileditch_urls}}[CENTER][SIZE=5]{{#each fileditch_urls}}[URL='{{this}}'][COLOR=rgb(163, 143, 132)]Fileditch{{#if (gt ../fileditch_urls_len 1)}} {{add @index 1}}{{/if}}[/COLOR][/URL]{{#if (ne (add @index 1) ../fileditch_urls_len)}} | {{/if}}{{/each}}[/SIZE][/CENTER]{{/if}}
+{{#if filester_urls}}[CENTER][SIZE=5]{{#each filester_urls}}[URL='{{this}}'][COLOR=rgb(243, 121, 52)]Filester{{#if (gt ../filester_urls_len 1)}} {{add @index 1}}{{/if}}[/COLOR][/URL]{{#if (ne (add @index 1) ../filester_urls_len)}} | {{/if}}{{/each}}[/SIZE][/CENTER]{{/if}}
+[HR][/HR]
+[CENTER]thumb[/CENTER]

@@ -53,21 +53,22 @@
 //! }
 //! ```
 
-pub mod error;
-pub mod gofile;
 pub mod bunkr;
+pub mod error;
 pub mod fileditch;
 pub mod filester;
+pub mod gofile;
 
 use async_trait::async_trait;
-use serde_json::Value;
 use error::UploadError;
+use serde_json::Value;
 
 /// Configuration options for uploaders.
 ///
 /// This struct contains common configuration options that may be used by different uploaders.
 /// Not all fields are used by all uploaders - each uploader uses only the fields it needs.
 #[derive(Clone, Debug)]
+#[derive(Default)]
 pub struct UploaderConfig {
     /// Authentication token (used by gofile, bunkr)
     pub token: Option<String>,
@@ -77,15 +78,6 @@ pub struct UploaderConfig {
     pub server: Option<String>,
 }
 
-impl Default for UploaderConfig {
-    fn default() -> Self {
-        Self {
-            token: None,
-            folder_id: None,
-            server: None,
-        }
-    }
-}
 
 /// Result of an upload operation.
 ///
@@ -122,7 +114,11 @@ pub trait Uploader: Send + Sync {
     /// # Errors
     ///
     /// Returns `UploadError` if the upload fails for any reason (network, authentication, etc.)
-    async fn upload_file(&self, file_path: &str, config: &UploaderConfig) -> Result<UploadResult, UploadError>;
+    async fn upload_file(
+        &self,
+        file_path: &str,
+        config: &UploaderConfig,
+    ) -> Result<UploadResult, UploadError>;
 
     /// Optional: Get album ID by name (if the service supports albums/folders)
     ///
@@ -131,7 +127,10 @@ pub trait Uploader: Send + Sync {
     /// override this method and provide a concrete implementation. Returning
     /// `Err` signals an unexpected failure when querying the service.
     #[allow(unused_variables)]
-    async fn get_folder_id_by_name(&self, folder_name: &str) -> Result<Option<String>, UploadError> {
+    async fn get_folder_id_by_name(
+        &self,
+        folder_name: &str,
+    ) -> Result<Option<String>, UploadError> {
         Ok(None)
     }
 

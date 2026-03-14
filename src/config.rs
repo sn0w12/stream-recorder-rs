@@ -1,8 +1,8 @@
+use crate::utils::app_config_dir;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use anyhow::Result;
-use crate::utils::app_config_dir;
 
 // ============================================================================
 // MACRO-BASED CONFIG - Define everything in ONE place!
@@ -152,32 +152,69 @@ macro_rules! impl_getter {
 }
 
 macro_rules! impl_cli_get {
-    (str, $field:expr) => { $field.clone().unwrap_or_else(|| "none".into()) };
-    (str_opt, $field:expr) => { $field.clone().unwrap_or_else(|| "none".into()) };
-    (vec, $field:expr) => { $field.as_ref().map(|v| v.join(", ")).unwrap_or_else(|| "none".into()) };
-    (f64, $field:expr) => { $field.map(|v| v.to_string()).unwrap_or_else(|| "none".into()) };
-    (u32, $field:expr) => { $field.map(|v| v.to_string()).unwrap_or_else(|| "none".into()) };
-    (f64_opt, $field:expr) => { $field.map(|v| v.to_string()).unwrap_or_else(|| "none".into()) };
+    (str, $field:expr) => {
+        $field.clone().unwrap_or_else(|| "none".into())
+    };
+    (str_opt, $field:expr) => {
+        $field.clone().unwrap_or_else(|| "none".into())
+    };
+    (vec, $field:expr) => {
+        $field
+            .as_ref()
+            .map(|v| v.join(", "))
+            .unwrap_or_else(|| "none".into())
+    };
+    (f64, $field:expr) => {
+        $field
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "none".into())
+    };
+    (u32, $field:expr) => {
+        $field
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "none".into())
+    };
+    (f64_opt, $field:expr) => {
+        $field
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "none".into())
+    };
 }
 
 macro_rules! impl_cli_set {
     (str, $value:expr) => {{
-        let result: Option<String> = if $value == "none" { None } else { Some($value.to_string()) };
+        let result: Option<String> = if $value == "none" {
+            None
+        } else {
+            Some($value.to_string())
+        };
         Ok::<Option<String>, anyhow::Error>(result)
     }};
     (str_opt, $value:expr) => {{
-        let result: Option<String> = if $value == "none" { None } else { Some($value.to_string()) };
+        let result: Option<String> = if $value == "none" {
+            None
+        } else {
+            Some($value.to_string())
+        };
         Ok::<Option<String>, anyhow::Error>(result)
     }};
     (vec, $value:expr) => {{
-        let result: Option<Vec<String>> = if $value == "none" { None } else { Some($value.split(',').map(|s| s.trim().to_string()).collect()) };
+        let result: Option<Vec<String>> = if $value == "none" {
+            None
+        } else {
+            Some($value.split(',').map(|s| s.trim().to_string()).collect())
+        };
         Ok::<Option<Vec<String>>, anyhow::Error>(result)
     }};
     (f64, $value:expr) => {{
         let result: Option<f64> = if $value == "none" {
             None
         } else {
-            Some($value.parse::<f64>().map_err(|_| anyhow::anyhow!("Invalid number"))?)
+            Some(
+                $value
+                    .parse::<f64>()
+                    .map_err(|_| anyhow::anyhow!("Invalid number"))?,
+            )
         };
         Ok::<Option<f64>, anyhow::Error>(result)
     }};
@@ -185,7 +222,11 @@ macro_rules! impl_cli_set {
         let result: Option<u32> = if $value == "none" {
             None
         } else {
-            Some($value.parse::<u32>().map_err(|_| anyhow::anyhow!("Invalid number"))?)
+            Some(
+                $value
+                    .parse::<u32>()
+                    .map_err(|_| anyhow::anyhow!("Invalid number"))?,
+            )
         };
         Ok::<Option<u32>, anyhow::Error>(result)
     }};
@@ -193,24 +234,44 @@ macro_rules! impl_cli_set {
         let result: Option<f64> = if $value == "none" {
             None
         } else {
-            Some($value.parse::<f64>().map_err(|_| anyhow::anyhow!("Invalid number"))?)
+            Some(
+                $value
+                    .parse::<f64>()
+                    .map_err(|_| anyhow::anyhow!("Invalid number"))?,
+            )
         };
         Ok::<Option<f64>, anyhow::Error>(result)
     }};
 }
 
 macro_rules! impl_default_str {
-    (str, $default:expr) => { $default.clone().unwrap_or_else(|| "none".to_string()) };
-    (str_opt, $default:expr) => { "none".to_string() };
-    (vec, $default:expr) => {
-        {
-            let v: Vec<String> = $default;
-            if v.is_empty() { "none".to_string() } else { v.join(", ") }
-        }
+    (str, $default:expr) => {
+        $default.clone().unwrap_or_else(|| "none".to_string())
     };
-    (f64, $default:expr) => { $default.map(|v| v.to_string()).unwrap_or_else(|| "none".to_string()) };
-    (u32, $default:expr) => { $default.map(|v| v.to_string()).unwrap_or_else(|| "none".to_string()) };
-    (f64_opt, $default:expr) => { "none".to_string() };
+    (str_opt, $default:expr) => {
+        "none".to_string()
+    };
+    (vec, $default:expr) => {{
+        let v: Vec<String> = $default;
+        if v.is_empty() {
+            "none".to_string()
+        } else {
+            v.join(", ")
+        }
+    }};
+    (f64, $default:expr) => {
+        $default
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "none".to_string())
+    };
+    (u32, $default:expr) => {
+        $default
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "none".to_string())
+    };
+    (f64_opt, $default:expr) => {
+        "none".to_string()
+    };
 }
 
 // ============================================================================

@@ -1,6 +1,6 @@
 use keyring::Entry;
-use std::path::PathBuf;
 use std::fs;
+use std::path::PathBuf;
 
 pub const SERVICE_NAME: &str = "stream_recorder";
 
@@ -36,9 +36,10 @@ fn load_env_var(key: &str) -> Option<String> {
             let v = v.trim();
             if k == key {
                 // Remove matching surrounding quotes if present
-                let v = if (v.starts_with('"') && v.ends_with('"')) ||
-                           (v.starts_with('\'') && v.ends_with('\'')) {
-                    &v[1..v.len()-1]
+                let v = if (v.starts_with('"') && v.ends_with('"'))
+                    || (v.starts_with('\'') && v.ends_with('\''))
+                {
+                    &v[1..v.len() - 1]
                 } else {
                     v
                 };

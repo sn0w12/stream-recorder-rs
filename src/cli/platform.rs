@@ -1,6 +1,6 @@
-use clap::{Subcommand};
-use anyhow::Result;
 use crate::platform::PlatformConfig;
+use anyhow::Result;
+use clap::Subcommand;
 
 #[derive(Subcommand)]
 pub enum PlatformAction {
@@ -47,8 +47,20 @@ pub async fn handle_platform_command(action: PlatformAction) -> Result<()> {
                     } else {
                         "no token required"
                     };
-                    let update_status = if p.source_url.is_some() { "updatable" } else { "no source URL" };
-                    println!("  {} ({}) v{} — {} steps, {}, {}", p.id, p.name, p.version, p.steps.len(), token_status, update_status);
+                    let update_status = if p.source_url.is_some() {
+                        "updatable"
+                    } else {
+                        "no source URL"
+                    };
+                    println!(
+                        "  {} ({}) v{} — {} steps, {}, {}",
+                        p.id,
+                        p.name,
+                        p.version,
+                        p.steps.len(),
+                        token_status,
+                        update_status
+                    );
                 }
             }
             Ok(())

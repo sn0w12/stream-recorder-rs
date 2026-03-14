@@ -1,26 +1,26 @@
-mod config;
-mod utils;
-mod thumb;
-mod template;
 mod cli;
+mod config;
+mod template;
+mod thumb;
+mod utils;
 mod stream {
     pub mod api;
     pub mod monitor;
 }
-mod uploaders;
 mod platform;
+mod uploaders;
 
-use clap::{Parser, Subcommand};
+use crate::platform::PlatformConfig;
+use crate::template::{get_template_string, render_template, TemplateValue};
 use anyhow::Result;
+use clap::{Parser, Subcommand};
 use colour::{green, println_bold, red, yellow, yellow_ln};
 use std::collections::HashMap;
-use crate::template::TemplateValue;
-use crate::platform::PlatformConfig;
 
-use crate::cli::token::{TokenAction, handle_token_command};
-use crate::cli::config::{ConfigAction, handle_config_command};
-use crate::cli::platform::{PlatformAction, handle_platform_command};
-use crate::cli::upload::{handle_upload_command};
+use crate::cli::config::{handle_config_command, ConfigAction};
+use crate::cli::platform::{handle_platform_command, PlatformAction};
+use crate::cli::token::{handle_token_command, TokenAction};
+use crate::cli::upload::handle_upload_command;
 
 #[derive(Parser)]
 #[command(name = "stream-recorder", about = "CLI tool for recording streams")]
@@ -90,22 +90,57 @@ async fn main() -> Result<()> {
         Some(Commands::Token { action }) => handle_token_command(action)?,
         Some(Commands::Template { action }) => match action {
             TemplateAction::Render => {
-                let config = crate::config::Config::load()?;
-                if let Some(template) = config.get_upload_complete_message_template() {
+                if let Some(template) = get_template_string() {
                     let mut context = HashMap::new();
-                    context.insert("date".to_string(), TemplateValue::String("2025-11-09".to_string()));
-                    context.insert("username".to_string(), TemplateValue::String("example_user".to_string()));
-                    context.insert("user_id".to_string(), TemplateValue::String("12345".to_string()));
-                    context.insert("output_path".to_string(), TemplateValue::String("/path/to/recording.mp4".to_string()));
-                    context.insert("thumbnail_path".to_string(), TemplateValue::String("/path/to/thumbnail.jpg".to_string()));
-                    context.insert("stream_title".to_string(), TemplateValue::String("Example Stream Title".to_string()));
-                    context.insert("bunkr_urls".to_string(), TemplateValue::Array(vec!["https://bunkr.example.com/file1".to_string(), "https://bunkr.example.com/file2".to_string()]));
-                    context.insert("gofile_urls".to_string(), TemplateValue::Array(vec!["https://gofile.example.com/download".to_string()]));
-                    context.insert("fileditch_urls".to_string(), TemplateValue::Array(vec!["https://fileditch.example.com/file".to_string()]));
-                    let rendered = crate::template::render_template(template, &context);
+                    context.insert(
+                        "date".to_string(),
+                        TemplateValue::String("2025-11-09".to_string()),
+                    );
+                    context.insert(
+                        "username".to_string(),
+                        TemplateValue::String("example_user".to_string()),
+                    );
+                    context.insert(
+                        "user_id".to_string(),
+                        TemplateValue::String("12345".to_string()),
+                    );
+                    context.insert(
+                        "output_path".to_string(),
+                        TemplateValue::String("/path/to/recording.mp4".to_string()),
+                    );
+                    context.insert(
+                        "thumbnail_path".to_string(),
+                        TemplateValue::String("/path/to/thumbnail.jpg".to_string()),
+                    );
+                    context.insert(
+                        "stream_title".to_string(),
+                        TemplateValue::String("Example Stream Title".to_string()),
+                    );
+                    context.insert(
+                        "bunkr_urls".to_string(),
+                        TemplateValue::Array(vec![
+                            "https://bunkr.example.com/file1".to_string(),
+                            "https://bunkr.example.com/file2".to_string(),
+                        ]),
+                    );
+                    context.insert(
+                        "gofile_urls".to_string(),
+                        TemplateValue::Array(vec![
+                            "https://gofile.example.com/download".to_string()
+                        ]),
+                    );
+                    context.insert(
+                        "fileditch_urls".to_string(),
+                        TemplateValue::Array(
+                            vec!["https://fileditch.example.com/file".to_string()],
+                        ),
+                    );
+                    context.insert(
+                        "filester_urls".to_string(),
+                        TemplateValue::Array(vec!["https://filester.example.com/file".to_string()]),
+                    );
+                    let rendered = render_template(template, &context);
                     println!("{}", rendered);
-                } else {
-                    println!("No template configured.");
                 }
             }
         },
@@ -119,11 +154,11 @@ async fn main() -> Result<()> {
             EncoderAction::Test => {
                 // run the encoder probe and print diagnostics
                 match crate::stream::monitor::probe_hw_encoders().await {
-                    Ok(_) => {},
+                    Ok(_) => {}
                     Err(e) => return Err(anyhow::anyhow!(e.to_string())),
                 }
             }
-        }
+        },
         Some(Commands::Upload { file, uploader }) => {
             handle_upload_command(file, uploader).await?;
         }
@@ -207,14 +242,27 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
     let has_filester = crate::utils::get_filester_token().is_some();
 
     let uploaders: &[(&str, bool, &str, &str)] = &[
-        ("Bunkr",     has_bunkr,  "token configured", "token required"),
-        ("GoFile",    has_gofile, "token configured", "token required"),
-        ("Fileditch", true,       "always available", ""),
-        ("Filester",  true,       if has_filester { "token configured" } else { "no token, public limits" }, ""),
+        ("Bunkr", has_bunkr, "token configured", "token required"),
+        ("GoFile", has_gofile, "token configured", "token required"),
+        ("Fileditch", true, "always available", ""),
+        (
+            "Filester",
+            true,
+            if has_filester {
+                "token configured"
+            } else {
+                "no token, public limits"
+            },
+            "",
+        ),
     ];
 
     for (name, available, ok_note, err_note) in uploaders {
-        if *available { item_ok(name, ok_note); } else { item_err(name, err_note); }
+        if *available {
+            item_ok(name, ok_note);
+        } else {
+            item_err(name, err_note);
+        }
     }
 
     // Encoder
@@ -233,7 +281,11 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
     println!();
 }
 
-async fn run_recording(config: &crate::config::Config, platforms: &[PlatformConfig], cli_token: Option<String>) -> Result<()> {
+async fn run_recording(
+    config: &crate::config::Config,
+    platforms: &[PlatformConfig],
+    cli_token: Option<String>,
+) -> Result<()> {
     print_startup_info(config, platforms).await;
 
     let monitors = config.get_monitors();
@@ -251,7 +303,10 @@ async fn run_recording(config: &crate::config::Config, platforms: &[PlatformConf
         let platform = match PlatformConfig::find_by_id(platforms, &platform_id) {
             Some(p) => p.clone(),
             None => {
-                eprintln!("Unknown platform '{}' for monitor '{}', skipping.", platform_id, monitor_str);
+                eprintln!(
+                    "Unknown platform '{}' for monitor '{}', skipping.",
+                    platform_id, monitor_str
+                );
                 continue;
             }
         };
@@ -340,8 +395,9 @@ async fn spawn_monitor_task(username: &str, token: &str, platform: PlatformConfi
             &username_owned,
             &platform,
             &token_owned,
-            std::time::Duration::from_secs(30)
-        ).await;
+            std::time::Duration::from_secs(30),
+        )
+        .await;
     });
 
     Ok(())
@@ -354,7 +410,10 @@ mod tests {
     #[test]
     fn test_parse_monitor_string_valid() {
         let result = parse_monitor_string("platform:somecreator");
-        assert_eq!(result, Some(("platform".to_string(), "somecreator".to_string())));
+        assert_eq!(
+            result,
+            Some(("platform".to_string(), "somecreator".to_string()))
+        );
     }
 
     #[test]
@@ -380,7 +439,10 @@ mod tests {
     fn test_parse_monitor_string_colon_in_username() {
         // Only the first colon separates platform from username; the rest is part of the name.
         let result = parse_monitor_string("myplatform:user:extra");
-        assert_eq!(result, Some(("myplatform".to_string(), "user:extra".to_string())));
+        assert_eq!(
+            result,
+            Some(("myplatform".to_string(), "user:extra".to_string()))
+        );
     }
 
     #[test]
@@ -401,7 +463,10 @@ mod tests {
                 platforms.push(config);
             }
         }
-        assert!(platforms.is_empty(), "empty dir must yield an empty platform list");
+        assert!(
+            platforms.is_empty(),
+            "empty dir must yield an empty platform list"
+        );
     }
 
     // ── stream_reconnect_delay_minutes config tests ───────────────────────────
@@ -425,8 +490,7 @@ mod tests {
 
     #[test]
     fn test_stream_reconnect_delay_none_when_absent_from_toml() {
-        let config: crate::config::Config = toml::from_str("")
-            .expect("failed to parse empty TOML");
+        let config: crate::config::Config = toml::from_str("").expect("failed to parse empty TOML");
         assert!(config.get_stream_reconnect_delay_minutes().is_none());
     }
 
@@ -442,7 +506,8 @@ mod tests {
     #[test]
     fn test_stream_reconnect_delay_set_and_get_via_config_methods() {
         let mut config = crate::config::Config::default();
-        config.set_value("stream_reconnect_delay_minutes", "3.5")
+        config
+            .set_value("stream_reconnect_delay_minutes", "3.5")
             .expect("set_value should accept a valid float");
         assert_eq!(config.get_stream_reconnect_delay_minutes(), Some(3.5));
     }
@@ -450,8 +515,12 @@ mod tests {
     #[test]
     fn test_stream_reconnect_delay_cleared_with_none_string() {
         let mut config = crate::config::Config::default();
-        config.set_value("stream_reconnect_delay_minutes", "10.0").unwrap();
-        config.set_value("stream_reconnect_delay_minutes", "none").unwrap();
+        config
+            .set_value("stream_reconnect_delay_minutes", "10.0")
+            .unwrap();
+        config
+            .set_value("stream_reconnect_delay_minutes", "none")
+            .unwrap();
         assert!(config.get_stream_reconnect_delay_minutes().is_none());
     }
 }

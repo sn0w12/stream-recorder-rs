@@ -1,6 +1,6 @@
-use clap::{Subcommand};
-use anyhow::Result;
 use crate::platform::PlatformConfig;
+use anyhow::Result;
+use clap::Subcommand;
 
 #[derive(Subcommand)]
 pub enum ConfigAction {
@@ -11,10 +11,7 @@ pub enum ConfigAction {
         key: Option<String>,
     },
     /// Set configuration value
-    Set {
-        key: String,
-        value: String,
-    },
+    Set { key: String, value: String },
     /// Get the path to the config file
     #[clap(alias = "gp")]
     GetPath,
@@ -71,7 +68,10 @@ pub fn handle_config_command(action: ConfigAction) -> Result<()> {
     Ok(())
 }
 
-fn handle_monitors_command(action: MonitorsAction, config: &mut crate::config::Config) -> Result<()> {
+fn handle_monitors_command(
+    action: MonitorsAction,
+    config: &mut crate::config::Config,
+) -> Result<()> {
     match action {
         MonitorsAction::Add { monitor } => {
             // Validate that the monitor string uses the required platform_id:username format.
@@ -82,7 +82,8 @@ fn handle_monitors_command(action: MonitorsAction, config: &mut crate::config::C
                     monitor
                 ));
             }
-            let (platform_id, username) = monitor.split_once(':')
+            let (platform_id, username) = monitor
+                .split_once(':')
                 .expect("monitor string was validated to contain ':' above");
             if platform_id.is_empty() || username.is_empty() {
                 return Err(anyhow::anyhow!(

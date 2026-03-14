@@ -1,8 +1,8 @@
-use clap::{Subcommand};
-use anyhow::Result;
-use keyring::Entry;
-use crate::utils;
 use crate::platform::PlatformConfig;
+use crate::utils;
+use anyhow::Result;
+use clap::Subcommand;
+use keyring::Entry;
 
 #[derive(Subcommand)]
 pub enum TokenAction {
@@ -36,13 +36,21 @@ pub fn handle_token_command(action: TokenAction) -> Result<()> {
     match action {
         TokenAction::SaveBunkr { token } => save_token("bunkr_token", &token, "Bunkr token"),
         TokenAction::SaveGofile { token } => save_token("gofile_token", &token, "GoFile token"),
-        TokenAction::SaveFilester { token } => save_token("filester_token", &token, "Filester token"),
+        TokenAction::SaveFilester { token } => {
+            save_token("filester_token", &token, "Filester token")
+        }
         TokenAction::SavePlatform { platform_id, token } => {
             let platforms = PlatformConfig::load_all()?;
-            let platform = PlatformConfig::find_by_id(&platforms, &platform_id)
-                .ok_or_else(|| anyhow::anyhow!("Unknown platform '{}'. Check your platforms directory.", platform_id))?;
-            let token_name = platform.token_name.as_deref()
-                .ok_or_else(|| anyhow::anyhow!("Platform '{}' does not use a token.", platform_id))?;
+            let platform =
+                PlatformConfig::find_by_id(&platforms, &platform_id).ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "Unknown platform '{}'. Check your platforms directory.",
+                        platform_id
+                    )
+                })?;
+            let token_name = platform.token_name.as_deref().ok_or_else(|| {
+                anyhow::anyhow!("Platform '{}' does not use a token.", platform_id)
+            })?;
             save_token(token_name, &token, &format!("{} token", platform.name))
         }
         TokenAction::RemoveBunkr => remove_token("bunkr_token", "Bunkr token"),
@@ -50,10 +58,16 @@ pub fn handle_token_command(action: TokenAction) -> Result<()> {
         TokenAction::RemoveFilester => remove_token("filester_token", "Filester token"),
         TokenAction::RemovePlatform { platform_id } => {
             let platforms = PlatformConfig::load_all()?;
-            let platform = PlatformConfig::find_by_id(&platforms, &platform_id)
-                .ok_or_else(|| anyhow::anyhow!("Unknown platform '{}'. Check your platforms directory.", platform_id))?;
-            let token_name = platform.token_name.as_deref()
-                .ok_or_else(|| anyhow::anyhow!("Platform '{}' does not use a token.", platform_id))?;
+            let platform =
+                PlatformConfig::find_by_id(&platforms, &platform_id).ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "Unknown platform '{}'. Check your platforms directory.",
+                        platform_id
+                    )
+                })?;
+            let token_name = platform.token_name.as_deref().ok_or_else(|| {
+                anyhow::anyhow!("Platform '{}' does not use a token.", platform_id)
+            })?;
             remove_token(token_name, &format!("{} token", platform.name))
         }
     }

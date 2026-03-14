@@ -1,9 +1,9 @@
+use crate::platform::{extract_json_value, PipelineOutcome, PlatformConfig};
 use reqwest::Client;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::time::sleep;
-use crate::platform::{PlatformConfig, PipelineOutcome, extract_json_value};
 
 /// Builds a `HeaderMap` from the platform's header configuration, substituting
 /// `{token}` with the actual authentication token value.
@@ -67,7 +67,9 @@ pub async fn fetch_with_platform(
                 return Err("429 status after max retries".into());
             }
             retry_count += 1;
-            let retry_after = response.headers().get("retry-after")
+            let retry_after = response
+                .headers()
+                .get("retry-after")
                 .and_then(|h| h.to_str().ok())
                 .and_then(|s| s.parse::<f64>().ok())
                 .unwrap_or(delay);
@@ -127,7 +129,9 @@ pub async fn run_pipeline(
 
         // Extract variables from the response.
         for (var_name, json_path) in &step.extract {
-            if let Some(value_str) = extract_json_value(&data, json_path).and_then(json_value_to_string) {
+            if let Some(value_str) =
+                extract_json_value(&data, json_path).and_then(json_value_to_string)
+            {
                 vars.insert(var_name.clone(), value_str);
             }
         }
