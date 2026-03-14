@@ -26,24 +26,6 @@ pub enum ConfigAction {
     GetPath,
 }
 
-#[derive(Subcommand)]
-pub enum MonitorsAction {
-    /// Add a user to monitor (format: platform_id:username)
-    Add {
-        /// Monitor entry in `platform_id:username` format
-        monitor: String,
-    },
-    /// Remove a user from monitor (format: platform_id:username)
-    #[clap(alias = "rm")]
-    Remove {
-        /// Monitor entry in `platform_id:username` format
-        monitor: String,
-    },
-    /// List monitored users
-    #[clap(alias = "ls")]
-    List,
-}
-
 pub fn handle_config_command(action: ConfigAction) -> Result<()> {
     let mut config = crate::config::Config::load()?;
     match action {
