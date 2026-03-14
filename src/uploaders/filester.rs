@@ -41,7 +41,8 @@ pub struct FilesterUploader {
 }
 
 impl FilesterUploader {
-    pub fn new(token: Option<String>) -> Self {
+    pub fn new() -> Self {
+        let token = crate::utils::get_filester_token();
         Self {
             client: Client::new(),
             token,

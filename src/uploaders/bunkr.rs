@@ -9,12 +9,21 @@ pub struct BunkrUploader {
 }
 
 impl BunkrUploader {
-    pub async fn new(token: String) -> Result<Self, UploadError> {
-        let client = BunkrClient::new(token).await.map_err(|e| UploadError {
-            message: e.to_string(),
-            status_code: None,
-        })?;
-        Ok(Self { client })
+    pub async fn new() -> Result<Self, UploadError> {
+        let token = crate::utils::get_bunkr_token();
+        if let Some(token) = token {
+            let client = BunkrClient::new(token).await.map_err(|e| UploadError {
+                message: e.to_string(),
+                status_code: None,
+            })?;
+            Ok(Self { client })
+        } else {
+            Err(UploadError {
+                message: "Bunkr API token not found in environment variable BUNKR_API_TOKEN"
+                    .to_string(),
+                status_code: None,
+            })
+        }
     }
 }
 

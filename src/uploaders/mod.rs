@@ -63,12 +63,13 @@ use async_trait::async_trait;
 use error::UploadError;
 use serde_json::Value;
 
+use crate::config::Config;
+
 /// Configuration options for uploaders.
 ///
 /// This struct contains common configuration options that may be used by different uploaders.
 /// Not all fields are used by all uploaders - each uploader uses only the fields it needs.
-#[derive(Clone, Debug)]
-#[derive(Default)]
+#[derive(Clone, Debug, Default)]
 pub struct UploaderConfig {
     /// Authentication token (used by gofile, bunkr)
     pub token: Option<String>,
@@ -77,7 +78,6 @@ pub struct UploaderConfig {
     /// Server to upload to (used by gofile)
     pub server: Option<String>,
 }
-
 
 /// Result of an upload operation.
 ///
@@ -144,4 +144,55 @@ pub trait Uploader: Send + Sync {
     /// Returns `true` if the uploader has all necessary credentials and configuration
     /// to perform uploads, `false` otherwise.
     async fn is_ready(&self) -> bool;
+}
+
+/// A list of boxed uploaders.
+pub type UploaderList = Vec<Box<dyn Uploader>>;
+
+/// Get a list of available uploaders that are configured and ready to use.
+async fn get_uploaders() -> UploaderList {
+    let mut uploaders: UploaderList = Vec::new();
+
+    if let Ok(uploader) = bunkr::BunkrUploader::new().await {
+        uploaders.push(Box::new(uploader))
+    }
+
+    uploaders.push(Box::new(gofile::GoFileUploader::new()));
+    uploaders.push(Box::new(fileditch::FileditchUploader::new()));
+    uploaders.push(Box::new(filester::FilesterUploader::new()));
+
+    uploaders
+}
+
+/// Build a list of uploaders based on user configuration and readiness.
+pub async fn build_uploaders() -> Vec<(Box<dyn Uploader>, UploaderConfig)> {
+    let config = Config::load().unwrap_or_default();
+    let disabled_uploaders: Vec<String> = config
+        .get_disabled_uploaders()
+        .into_iter()
+        .map(|u| u.to_lowercase())
+        .collect();
+    let all_uploaders = get_uploaders().await;
+
+    let mut uploaders: Vec<(Box<dyn Uploader>, UploaderConfig)> = Vec::new();
+    for uploader in all_uploaders {
+        if disabled_uploaders.contains(&uploader.name().to_string().to_lowercase()) {
+            println!(
+                "Uploader '{}' is disabled in config, skipping",
+                uploader.name()
+            );
+            continue;
+        }
+
+        if uploader.is_ready().await {
+            uploaders.push((uploader, UploaderConfig::default()));
+        } else {
+            println!(
+                "Uploader '{}' is not ready/configured, skipping",
+                uploader.name()
+            );
+        }
+    }
+
+    uploaders
 }
