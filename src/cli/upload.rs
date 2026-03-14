@@ -1,7 +1,23 @@
 use crate::uploaders::{build_uploaders, Uploader, UploaderConfig};
 use anyhow::Result;
+use clap::Subcommand;
 use std::{collections::HashMap, time::Duration};
 use tokio::time::sleep;
+
+#[derive(Subcommand)]
+pub enum UploadAction {
+    /// Upload a file
+    File {
+        /// Path to the file to upload
+        file: String,
+        /// Only upload to this specific service (e.g. bunkr, gofile, fileditch, filester)
+        #[arg(short, long)]
+        uploader: Option<String>,
+    },
+    /// List available uploaders
+    #[clap(alias = "ls")]
+    List,
+}
 
 pub async fn handle_upload_command(file: String, uploader: Option<String>) -> Result<()> {
     if !std::path::Path::new(&file).is_file() {
@@ -124,6 +140,15 @@ pub async fn try_upload(
             }
         }
     }
+}
+
+/// Handle the list uploaders command
+pub async fn handle_list_command() -> Result<()> {
+    let uploaders = build_uploaders().await;
+    for (uploader, _) in uploaders {
+        println!("{}", uploader.name());
+    }
+    Ok(())
 }
 
 /// Checks if an HTTP status code is a 5xx server error

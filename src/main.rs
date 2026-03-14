@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use crate::cli::config::{handle_config_command, ConfigAction};
 use crate::cli::platform::{handle_platform_command, PlatformAction};
 use crate::cli::token::{handle_token_command, TokenAction};
-use crate::cli::upload::handle_upload_command;
+use crate::cli::upload::{handle_list_command, handle_upload_command, UploadAction};
 
 #[derive(Parser)]
 #[command(name = "stream-recorder", about = "CLI tool for recording streams")]
@@ -61,11 +61,8 @@ enum Commands {
     },
     /// Upload a file to configured hosting services
     Upload {
-        /// Path to the file to upload
-        file: String,
-        /// Only upload to this specific service (e.g. bunkr, gofile, fileditch, filester)
-        #[arg(short, long)]
-        uploader: Option<String>,
+        #[command(subcommand)]
+        action: UploadAction,
     },
 }
 
@@ -159,9 +156,14 @@ async fn main() -> Result<()> {
                 }
             }
         },
-        Some(Commands::Upload { file, uploader }) => {
-            handle_upload_command(file, uploader).await?;
-        }
+        Some(Commands::Upload { action }) => match action {
+            UploadAction::File { file, uploader } => {
+                handle_upload_command(file, uploader).await?;
+            }
+            UploadAction::List => {
+                handle_list_command().await?;
+            }
+        },
         None => {
             let platforms = PlatformConfig::load_all()?;
             run_recording(&config, &platforms, cli.token).await?;
