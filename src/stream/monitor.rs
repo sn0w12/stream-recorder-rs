@@ -3,7 +3,7 @@ use crate::platform::{PlatformConfig, PipelineOutcome};
 use crate::config::Config;
 use crate::utils::slugify;
 use crate::thumb::create_video_thumbnail_grid;
-use crate::template::{render_template, TemplateValue};
+use crate::template::{render_template, get_template_string, TemplateValue};
 use crate::uploaders::{Uploader, UploaderConfig, bunkr::BunkrUploader, fileditch::FileditchUploader, gofile::GoFileUploader, filester::FilesterUploader};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -974,7 +974,7 @@ async fn post_process_stream(stream_info: StreamInfo, output_path: String) -> Re
         template_context.insert(format!("{}_urls", uploader), TemplateValue::Array(urls.clone()));
     }
 
-    if let Some(template) = config.get_upload_complete_message_template() {
+    if let Some(template) = get_template_string() {
         let content = render_template(template, &template_context);
         #[cfg(feature = "discord")]
         {

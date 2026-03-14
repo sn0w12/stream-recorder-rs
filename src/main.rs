@@ -14,7 +14,7 @@ use clap::{Parser, Subcommand};
 use anyhow::Result;
 use colour::{green, println_bold, red, yellow, yellow_ln};
 use std::collections::HashMap;
-use crate::template::TemplateValue;
+use crate::template::{render_template, get_template_string, TemplateValue};
 use crate::platform::PlatformConfig;
 
 use crate::cli::token::{TokenAction, handle_token_command};
@@ -90,8 +90,7 @@ async fn main() -> Result<()> {
         Some(Commands::Token { action }) => handle_token_command(action)?,
         Some(Commands::Template { action }) => match action {
             TemplateAction::Render => {
-                let config = crate::config::Config::load()?;
-                if let Some(template) = config.get_upload_complete_message_template() {
+                if let Some(template) = get_template_string() {
                     let mut context = HashMap::new();
                     context.insert("date".to_string(), TemplateValue::String("2025-11-09".to_string()));
                     context.insert("username".to_string(), TemplateValue::String("example_user".to_string()));
@@ -102,10 +101,9 @@ async fn main() -> Result<()> {
                     context.insert("bunkr_urls".to_string(), TemplateValue::Array(vec!["https://bunkr.example.com/file1".to_string(), "https://bunkr.example.com/file2".to_string()]));
                     context.insert("gofile_urls".to_string(), TemplateValue::Array(vec!["https://gofile.example.com/download".to_string()]));
                     context.insert("fileditch_urls".to_string(), TemplateValue::Array(vec!["https://fileditch.example.com/file".to_string()]));
-                    let rendered = crate::template::render_template(template, &context);
+                    context.insert("filester_urls".to_string(), TemplateValue::Array(vec!["https://filester.example.com/file".to_string()]));
+                    let rendered = render_template(template, &context);
                     println!("{}", rendered);
-                } else {
-                    println!("No template configured.");
                 }
             }
         },

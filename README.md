@@ -39,10 +39,6 @@ cargo build --release
 
 The binary will be available at `target/release/stream-recorder.exe` (Windows) or `target/release/stream-recorder` (Linux/macOS).
 
-### Pre-built Binaries
-
-Download the latest release from the [releases page](https://github.com/sn0w12/stream-recorder-rs/releases).
-
 ## Quick Start
 
 For additional help, run:
@@ -95,16 +91,16 @@ Configuration is stored in `~/.config/stream-recorder/config.toml` (Linux/macOS)
 
 ### Available Settings
 
-| Setting                            | Description                              | Default        |
-| ---------------------------------- | ---------------------------------------- | -------------- |
-| `output_directory`                 | Directory to save recordings             | `./recordings` |
-| `monitors`                         | List of usernames to monitor             | None           |
-| `discord_webhook_url`              | Discord webhook URL for notifications    | None           |
-| `min_free_space_gb`                | Minimum free disk space before cleanup   | 20.0           |
-| `upload_complete_message_template` | Template for upload completion messages  | None           |
-| `max_upload_retries`               | Maximum number of upload retries         | 3              |
-| `min_stream_duration`              | Minimum stream duration before recording | None           |
-| `stream_reconnect_delay_minutes`   | Delay in minutes to wait for stream continuation before post-processing. Streams resumed within this window are merged into a single recording. | None |
+| Setting                            | Description                                                                                                                                     | Default        |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `output_directory`                 | Directory to save recordings                                                                                                                    | `./recordings` |
+| `monitors`                         | List of usernames to monitor                                                                                                                    | None           |
+| `discord_webhook_url`              | Discord webhook URL for notifications                                                                                                           | None           |
+| `min_free_space_gb`                | Minimum free disk space before cleanup                                                                                                          | 20.0           |
+| `upload_complete_message_template` | Template for upload completion messages                                                                                                         | None           |
+| `max_upload_retries`               | Maximum number of upload retries                                                                                                                | 3              |
+| `min_stream_duration`              | Minimum stream duration before recording                                                                                                        | None           |
+| `stream_reconnect_delay_minutes`   | Delay in minutes to wait for stream continuation before post-processing. Streams resumed within this window are merged into a single recording. | None           |
 
 ### Configuration Commands
 
@@ -174,46 +170,34 @@ The tool will send notifications when:
 
 ## Template System
 
-Customize notification messages using templates. Templates support variables, conditionals, and loops.
+Templates are rendered using [Handlebars](https://handlebarsjs.com/), a powerful templating engine. You can use all standard Handlebars features: variables, conditionals, loops, and block helpers. See the [Handlebars documentation](https://handlebarsjs.com/guide/) for syntax and advanced usage.
 
-### Available Variables
+### Built-in Helpers
 
-- `{{date}}` - Current date (YYYY-MM-DD)
-- `{{username}}` - Streamer's username
-- `{{user_id}}` - Streamer's user ID
-- `{{output_path}}` - Path to recorded video file
-- `{{thumbnail_path}}` - Path to generated thumbnail
-- `{{stream_title}}` - Title of the stream
-- `{{bunkr_urls}}` - Array of Bunkr upload URLs
-- `{{jpg6_urls}}` - Array of JPG6 upload URLs
-- `{{gofile_urls}}` - Array of GoFile upload URLs
+The following helpers are registered and available in all templates:
 
-### Template Syntax
+| Helper | Description                                                                                  |
+| ------ | -------------------------------------------------------------------------------------------- |
+| `add`  | Adds two numbers. <br>Usage: `{{add a b}}`                                                   |
+| `gt`   | Returns true if first number is greater than second. <br>Usage: `{{#if (gt a b)}}...{{/if}}` |
+| `ne`   | Returns true if two values are not equal. <br>Usage: `{{#if (ne a b)}}...{{/if}}`            |
 
-- **Variables**: `{{variable}}`
-- **Conditionals**: `{{if condition: content}}`
-- **Loops**: `{{for array: content with {{item}} and {{i}}}}`
-- **Array length**: `{{array_len}}`
+For real-world usage, see the example template: [templates/example.hbr](templates/example.hbr)
 
-### Example Template
+### Template Variables
 
-```
-🎥 **Stream Recorded: {{stream_title}}**
-👤 User: {{username}}
-📅 Date: {{date}}
+The following variables are available in the template context:
 
-{{if bunkr_urls: **Bunkr Links:**
-{{for bunkr_urls: • {{item}}
-}}}}
-
-{{if jpg6_urls: **JPG6 Links:**
-{{for jpg6_urls: • {{item}}
-}}}}
-
-{{if gofile_urls: **GoFile Links:**
-{{for gofile_urls: • {{item}}
-}}}}
-```
+| Variable              | Type   | Description                                          |
+| --------------------- | ------ | ---------------------------------------------------- |
+| `date`                | String | Current date (YYYY-MM-DD)                            |
+| `username`            | String | Streamer's username                                  |
+| `user_id`             | String | Streamer's user ID                                   |
+| `output_path`         | String | Path to recorded video file                          |
+| `thumbnail_path`      | String | Path to generated thumbnail                          |
+| `stream_title`        | String | Title of the stream                                  |
+| `<uploader>_urls`     | Array  | Array of an uploaders uploaded URLs                  |
+| `<uploader>_urls_len` | Number | Length of any array variable (e.g. `bunkr_urls_len`) |
 
 ### Testing Templates
 
