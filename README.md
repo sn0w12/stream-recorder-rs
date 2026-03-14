@@ -104,6 +104,7 @@ Configuration is stored in `~/.config/stream-recorder/config.toml` (Linux/macOS)
 | `upload_complete_message_template` | Template for upload completion messages  | None           |
 | `max_upload_retries`               | Maximum number of upload retries         | 3              |
 | `min_stream_duration`              | Minimum stream duration before recording | None           |
+| `stream_reconnect_delay_minutes`   | Delay in minutes to wait for stream continuation before post-processing. Streams resumed within this window are merged into a single recording. | None |
 
 ### Configuration Commands
 
