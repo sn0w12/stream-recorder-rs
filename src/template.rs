@@ -1,4 +1,4 @@
-use handlebars::{Handlebars, handlebars_helper};
+use handlebars::{handlebars_helper, Handlebars};
 use serde_json::{Map, Number, Value};
 use std::collections::HashMap;
 
@@ -11,7 +11,9 @@ pub enum TemplateValue {
 fn to_json_value(tv: &TemplateValue) -> Value {
     match tv {
         TemplateValue::String(s) => Value::String(s.clone()),
-        TemplateValue::Array(arr) => Value::Array(arr.iter().map(|s| Value::String(s.clone())).collect()),
+        TemplateValue::Array(arr) => {
+            Value::Array(arr.iter().map(|s| Value::String(s.clone())).collect())
+        }
     }
 }
 

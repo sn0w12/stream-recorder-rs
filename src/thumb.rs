@@ -30,9 +30,7 @@ pub async fn create_video_thumbnail_grid(
     let effective_duration = duration * 0.9;
     let step = effective_duration / 8.0;
 
-    let timestamps: Vec<f64> = (0..9)
-        .map(|i| start_offset + step * i as f64)
-        .collect();
+    let timestamps: Vec<f64> = (0..9).map(|i| start_offset + step * i as f64).collect();
 
     let temp_dir = tempfile::tempdir()?;
     let temp_dir_path = temp_dir.path().to_path_buf();
@@ -62,8 +60,10 @@ pub async fn create_video_thumbnail_grid(
 async fn get_video_duration(input_path: &Path) -> Result<f64> {
     let output = Command::new("ffprobe")
         .args(&[
-            "-v", "quiet",
-            "-print_format", "json",
+            "-v",
+            "quiet",
+            "-print_format",
+            "json",
             "-show_format",
             input_path.to_str().unwrap(),
         ])
@@ -79,7 +79,8 @@ async fn get_video_duration(input_path: &Path) -> Result<f64> {
         .as_str()
         .ok_or_else(|| anyhow::anyhow!("Could not parse duration"))?;
 
-    duration_str.parse::<f64>()
+    duration_str
+        .parse::<f64>()
         .map_err(|_| anyhow::anyhow!("Invalid duration format"))
 }
 
@@ -95,11 +96,16 @@ async fn extract_frame_at_time(
 
     let status = Command::new("ffmpeg")
         .args(&[
-            "-ss", &timestamp_str,
-            "-i", input_path.to_str().unwrap(),
-            "-vf", &format!("scale={}:{}", width, height),
-            "-frames:v", "1",
-            "-q:v", "2",
+            "-ss",
+            &timestamp_str,
+            "-i",
+            input_path.to_str().unwrap(),
+            "-vf",
+            &format!("scale={}:{}", width, height),
+            "-frames:v",
+            "1",
+            "-q:v",
+            "2",
             output_path.to_str().unwrap(),
         ])
         .stdout(Stdio::null())
@@ -122,14 +128,20 @@ async fn create_grid_from_frames(
     frame_height: u32,
 ) -> Result<()> {
     if frame_paths.len() != 9 {
-        return Err(anyhow::anyhow!("Expected 9 frames, got {}", frame_paths.len()));
+        return Err(anyhow::anyhow!(
+            "Expected 9 frames, got {}",
+            frame_paths.len()
+        ));
     }
 
     let mut filter_parts = Vec::new();
 
     // Add each frame as an input
     for (i, _frame_path) in frame_paths.iter().enumerate() {
-        filter_parts.push(format!("[{}:v]scale={}:{}[v{}];", i, frame_width, frame_height, i));
+        filter_parts.push(format!(
+            "[{}:v]scale={}:{}[v{}];",
+            i, frame_width, frame_height, i
+        ));
     }
 
     // Arrange in 3x3 grid
@@ -145,9 +157,12 @@ async fn create_grid_from_frames(
     }
 
     cmd.args(&[
-        "-filter_complex", &filter,
-        "-map", "[v]",
-        "-q:v", "2",
+        "-filter_complex",
+        &filter,
+        "-map",
+        "[v]",
+        "-q:v",
+        "2",
         output_path.to_str().unwrap(),
     ]);
 
