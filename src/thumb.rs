@@ -59,7 +59,7 @@ pub async fn create_video_thumbnail_grid(
 /// Gets the duration of a video file in seconds using ffprobe
 async fn get_video_duration(input_path: &Path) -> Result<f64> {
     let output = Command::new("ffprobe")
-        .args(&[
+        .args([
             "-v",
             "quiet",
             "-print_format",
@@ -95,7 +95,7 @@ async fn extract_frame_at_time(
     let timestamp_str = format!("{:.3}", timestamp);
 
     let status = Command::new("ffmpeg")
-        .args(&[
+        .args([
             "-ss",
             &timestamp_str,
             "-i",
@@ -145,9 +145,7 @@ async fn create_grid_from_frames(
     }
 
     // Arrange in 3x3 grid
-    filter_parts.push(format!(
-        "[v0][v1][v2]hstack=3[top];[v3][v4][v5]hstack=3[middle];[v6][v7][v8]hstack=3[bottom];[top][middle][bottom]vstack=3[v]"
-    ));
+    filter_parts.push("[v0][v1][v2]hstack=3[top];[v3][v4][v5]hstack=3[middle];[v6][v7][v8]hstack=3[bottom];[top][middle][bottom]vstack=3[v]".to_string());
 
     let filter = filter_parts.join("");
     let mut cmd = Command::new("ffmpeg");
@@ -156,7 +154,7 @@ async fn create_grid_from_frames(
         cmd.arg("-i").arg(frame_path);
     }
 
-    cmd.args(&[
+    cmd.args([
         "-filter_complex",
         &filter,
         "-map",

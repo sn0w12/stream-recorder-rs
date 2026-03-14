@@ -481,7 +481,7 @@ fn parse_path_segments(path: &str) -> Vec<PathSegment> {
 
         // Collect the next key token (until `.` or `[`).
         let key_end = remaining
-            .find(|c: char| c == '.' || c == '[')
+            .find(['.', '['])
             .unwrap_or(remaining.len());
         let key = &remaining[..key_end];
         remaining = &remaining[key_end..];

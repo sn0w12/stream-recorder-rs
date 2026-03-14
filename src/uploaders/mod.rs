@@ -68,6 +68,7 @@ use serde_json::Value;
 /// This struct contains common configuration options that may be used by different uploaders.
 /// Not all fields are used by all uploaders - each uploader uses only the fields it needs.
 #[derive(Clone, Debug)]
+#[derive(Default)]
 pub struct UploaderConfig {
     /// Authentication token (used by gofile, bunkr)
     pub token: Option<String>,
@@ -77,15 +78,6 @@ pub struct UploaderConfig {
     pub server: Option<String>,
 }
 
-impl Default for UploaderConfig {
-    fn default() -> Self {
-        Self {
-            token: None,
-            folder_id: None,
-            server: None,
-        }
-    }
-}
 
 /// Result of an upload operation.
 ///
