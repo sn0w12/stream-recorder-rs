@@ -217,20 +217,11 @@ pub async fn build_uploaders() -> Vec<(Box<dyn Uploader>, UploaderConfig)> {
     let mut uploaders: Vec<(Box<dyn Uploader>, UploaderConfig)> = Vec::new();
     for uploader in all_uploaders {
         if disabled_uploaders.contains(&uploader.name().to_string().to_lowercase()) {
-            println!(
-                "Uploader '{}' is disabled in config, skipping",
-                uploader.name()
-            );
             continue;
         }
 
         if uploader.is_ready().await {
             uploaders.push((uploader, UploaderConfig::default()));
-        } else {
-            println!(
-                "Uploader '{}' is not ready/configured, skipping",
-                uploader.name()
-            );
         }
     }
 
