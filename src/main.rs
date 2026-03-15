@@ -12,6 +12,7 @@ mod uploaders;
 
 use crate::platform::PlatformConfig;
 use crate::template::{get_template_string, render_template, TemplateValue};
+use crate::uploaders::UploaderType;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use colour::{green, println_bold, red, yellow, yellow_ln};
@@ -210,35 +211,38 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
         ConfigError(String),
     }
 
-    fn get_uploader_status(name: &str, disabled: &[String]) -> UploaderStatus {
+    fn get_uploader_status(
+        uploader_type: UploaderType,
+        name: &str,
+        disabled: &[String],
+    ) -> UploaderStatus {
         let disabled_set: std::collections::HashSet<_> = disabled.iter().cloned().collect();
         if disabled_set.contains(&name.to_lowercase()) {
             return UploaderStatus::UserDisabled;
         }
-        match name {
-            "fileditch" => UploaderStatus::Enabled("always available".to_string()),
-            "bunkr" => {
+        match uploader_type {
+            UploaderType::Fileditch => UploaderStatus::Enabled("always available".to_string()),
+            UploaderType::Bunkr => {
                 if crate::utils::get_bunkr_token().is_some() {
                     UploaderStatus::Enabled("token configured".to_string())
                 } else {
                     UploaderStatus::ConfigError("token required".to_string())
                 }
             }
-            "gofile" => {
+            UploaderType::GoFile => {
                 if crate::utils::get_gofile_token().is_some() {
                     UploaderStatus::Enabled("token configured".to_string())
                 } else {
                     UploaderStatus::ConfigError("token required".to_string())
                 }
             }
-            "filester" => {
+            UploaderType::Filester => {
                 if crate::utils::get_filester_token().is_some() {
                     UploaderStatus::Enabled("token configured".to_string())
                 } else {
                     UploaderStatus::Enabled("no token, public limits".to_string())
                 }
             }
-            _ => UploaderStatus::ConfigError("unknown uploader".to_string()),
         }
     }
 
@@ -279,9 +283,9 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
     // Uploaders
     section("Uploaders");
     let disabled_uploaders = config.get_disabled_uploaders();
-    let uploader_names = crate::uploaders::get_all_uploader_names().await;
-    for name in uploader_names {
-        match get_uploader_status(&name, &disabled_uploaders) {
+    let uploader_types_and_names = crate::uploaders::get_all_uploader_types_and_names().await;
+    for (uploader_type, name) in uploader_types_and_names {
+        match get_uploader_status(uploader_type, &name, &disabled_uploaders) {
             UploaderStatus::Enabled(note) => item_ok(&name, &note),
             UploaderStatus::UserDisabled => item_warn(&name, "disabled by user"),
             UploaderStatus::ConfigError(note) => item_err(&name, &note),

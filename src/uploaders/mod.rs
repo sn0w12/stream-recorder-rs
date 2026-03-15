@@ -150,7 +150,15 @@ pub trait Uploader: Send + Sync {
 pub type UploaderList = Vec<Box<dyn Uploader>>;
 
 macro_rules! uploader_list {
-    ($( $async:ident $name:ident => $module:ident ),* $(,)?) => {
+    ($( $async:ident $name:ident => $module:ident => $enum:ident ),* $(,)?) => {
+        /// Enum representing the different uploader types.
+        #[derive(Clone, Debug)]
+        pub enum UploaderType {
+            $(
+                $enum,
+            )*
+        }
+
         /// Get a list of available uploaders that are configured and ready to use.
         pub async fn get_uploaders() -> UploaderList {
             let mut uploaders: UploaderList = Vec::new();
@@ -160,14 +168,14 @@ macro_rules! uploader_list {
             uploaders
         }
 
-        /// Get a list of all possible uploader names for display purposes.
-        pub async fn get_all_uploader_names() -> Vec<String> {
-            let mut names = Vec::new();
+        /// Get a list of all possible uploader types and names for display purposes.
+        pub async fn get_all_uploader_types_and_names() -> Vec<(UploaderType, String)> {
+            let mut list = Vec::new();
             $(
                 let uploader = uploader_list!(@new $async, $module, $name);
-                names.push(uploader.name().to_string());
+                list.push((UploaderType::$enum, uploader.name().to_string()));
             )*
-            names
+            list
         }
     };
 
@@ -190,10 +198,10 @@ macro_rules! uploader_list {
 }
 
 uploader_list! {
-    async BunkrUploader => bunkr,
-    sync GoFileUploader => gofile,
-    sync FileditchUploader => fileditch,
-    sync FilesterUploader => filester,
+    async BunkrUploader => bunkr => Bunkr,
+    sync GoFileUploader => gofile => GoFile,
+    sync FileditchUploader => fileditch => Fileditch,
+    sync FilesterUploader => filester => Filester,
 }
 
 /// Build a list of uploaders based on user configuration and readiness.
