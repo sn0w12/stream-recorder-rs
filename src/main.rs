@@ -203,6 +203,45 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
         }
     }
 
+    #[derive(Debug)]
+    enum UploaderStatus {
+        Enabled(String),
+        UserDisabled,
+        ConfigError(String),
+    }
+
+    fn get_uploader_status(name: &str, disabled: &[String]) -> UploaderStatus {
+        let disabled_set: std::collections::HashSet<_> = disabled.iter().cloned().collect();
+        if disabled_set.contains(&name.to_lowercase()) {
+            return UploaderStatus::UserDisabled;
+        }
+        match name {
+            "Fileditch" => UploaderStatus::Enabled("always available".to_string()),
+            "Bunkr" => {
+                if crate::utils::get_bunkr_token().is_some() {
+                    UploaderStatus::Enabled("token configured".to_string())
+                } else {
+                    UploaderStatus::ConfigError("token required".to_string())
+                }
+            }
+            "GoFile" => {
+                if crate::utils::get_gofile_token().is_some() {
+                    UploaderStatus::Enabled("token configured".to_string())
+                } else {
+                    UploaderStatus::ConfigError("token required".to_string())
+                }
+            }
+            "Filester" => {
+                if crate::utils::get_filester_token().is_some() {
+                    UploaderStatus::Enabled("token configured".to_string())
+                } else {
+                    UploaderStatus::Enabled("no token, public limits".to_string())
+                }
+            }
+            _ => UploaderStatus::ConfigError("unknown uploader".to_string()),
+        }
+    }
+
     // Header
     println!("┌─────────────────────────────────────┐");
     println!("│            Stream Recorder          │");
@@ -239,31 +278,13 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
 
     // Uploaders
     section("Uploaders");
-    let has_bunkr = crate::utils::get_bunkr_token().is_some();
-    let has_gofile = crate::utils::get_gofile_token().is_some();
-    let has_filester = crate::utils::get_filester_token().is_some();
-
-    let uploaders: &[(&str, bool, &str, &str)] = &[
-        ("Bunkr", has_bunkr, "token configured", "token required"),
-        ("GoFile", has_gofile, "token configured", "token required"),
-        ("Fileditch", true, "always available", ""),
-        (
-            "Filester",
-            true,
-            if has_filester {
-                "token configured"
-            } else {
-                "no token, public limits"
-            },
-            "",
-        ),
-    ];
-
-    for (name, available, ok_note, err_note) in uploaders {
-        if *available {
-            item_ok(name, ok_note);
-        } else {
-            item_err(name, err_note);
+    let disabled_uploaders = config.get_disabled_uploaders();
+    let uploader_names = crate::uploaders::get_all_uploader_names().await;
+    for name in uploader_names {
+        match get_uploader_status(&name, &disabled_uploaders) {
+            UploaderStatus::Enabled(note) => item_ok(&name, &note),
+            UploaderStatus::UserDisabled => item_warn(&name, "disabled by user"),
+            UploaderStatus::ConfigError(note) => item_err(&name, &note),
         }
     }
 
