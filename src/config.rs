@@ -305,6 +305,7 @@ define_config! {
     bitrate: Option<String> = Some("3M".to_string()) => Some("3M".to_string()), str,
     stream_reconnect_delay_minutes: Option<f64> = None => None, f64_opt,
     disabled_uploaders: Option<Vec<String>> = None => vec![], vec,
+    step_delay_seconds: Option<f64> = None => Some(0.5), f64,
 }
 
 // ============================================================================

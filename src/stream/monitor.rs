@@ -660,9 +660,10 @@ pub async fn monitor_stream(
     platform: &PlatformConfig,
     token: &str,
     fetch_interval: Duration,
+    config: crate::config::Config,
 ) {
     loop {
-        match run_pipeline(username, platform, token).await {
+        match run_pipeline(username, platform, token, &config).await {
             Ok(PipelineOutcome::Live(vars)) => {
                 let playback_url = vars.get("playback_url").cloned();
                 if let Some(url) = playback_url {
@@ -710,7 +711,7 @@ pub async fn monitor_stream(
                                     let sleep_duration = fetch_interval.min(remaining);
                                     sleep(sleep_duration).await;
 
-                                    match run_pipeline(username, platform, token).await {
+                                    match run_pipeline(username, platform, token, &config).await {
                                         Ok(PipelineOutcome::Live(new_vars)) => {
                                             if let Some(new_url) =
                                                 new_vars.get("playback_url").cloned()

@@ -323,7 +323,7 @@ async fn run_recording(
             }
         };
 
-        if let Err(e) = spawn_monitor_task(&username, &token, platform).await {
+        if let Err(e) = spawn_monitor_task(&username, &token, platform, config.clone()).await {
             eprintln!("Error starting monitor for {}: {}", username, e);
         }
         // Small delay to prevent rapid spawning
@@ -388,7 +388,12 @@ fn get_platform_token(platform: &PlatformConfig, cli_token: Option<String>) -> R
     }
 }
 
-async fn spawn_monitor_task(username: &str, token: &str, platform: PlatformConfig) -> Result<()> {
+async fn spawn_monitor_task(
+    username: &str,
+    token: &str,
+    platform: PlatformConfig,
+    config: crate::config::Config,
+) -> Result<()> {
     let username_owned = username.to_string();
     let token_owned = token.to_string();
 
@@ -398,6 +403,7 @@ async fn spawn_monitor_task(username: &str, token: &str, platform: PlatformConfi
             &platform,
             &token_owned,
             std::time::Duration::from_secs(30),
+            config,
         )
         .await;
     });

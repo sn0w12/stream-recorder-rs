@@ -107,6 +107,7 @@ pub async fn run_pipeline(
     username: &str,
     platform: &PlatformConfig,
     token: &str,
+    config: &crate::config::Config,
 ) -> Result<PipelineOutcome, Box<dyn std::error::Error + Send + Sync>> {
     let mut vars: HashMap<String, String> = HashMap::new();
     vars.insert("username".to_string(), username.to_string());
@@ -134,6 +135,12 @@ pub async fn run_pipeline(
             {
                 vars.insert(var_name.clone(), value_str);
             }
+        }
+
+        // Delay between steps if configured
+        let delay = config.get_step_delay_seconds();
+        if delay > 0.0 {
+            sleep(Duration::from_secs_f64(delay)).await;
         }
     }
 
