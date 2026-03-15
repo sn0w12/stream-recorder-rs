@@ -12,7 +12,7 @@ use std::path::PathBuf;
 macro_rules! define_config {
     (
         $(
-            $field:ident: $ty:ty = $toml_default:expr => $runtime_default:expr, $kind:ident
+            $field:ident: $ty:ty = $toml_default:expr => $runtime_default:expr, $kind:ident, $desc:expr
         ),* $(,)?
     ) => {
         // Generate Config struct
@@ -94,6 +94,13 @@ macro_rules! define_config {
             pub fn get_default_string(&self, key: ConfigKey) -> String {
                 match key {
                     $(ConfigKey::$field => impl_default_str!($kind, $runtime_default),)*
+                }
+            }
+
+            pub fn get_description(&self, key: &str) -> String {
+                match ConfigKey::from_str(key) {
+                    $(Some(ConfigKey::$field) => $desc.to_string(),)*
+                    None => "unknown key".to_string(),
                 }
             }
 
@@ -295,18 +302,18 @@ macro_rules! impl_is_array {
 // ============================================================================
 
 define_config! {
-    output_directory: Option<String> = None => Some("./recordings".to_string()), str,
-    monitors: Option<Vec<String>> = None => vec![], vec,
-    discord_webhook_url: Option<String> = None => None, str_opt,
-    min_free_space_gb: Option<f64> = Some(20.0) => Some(20.0), f64,
-    upload_complete_message_template: Option<String> = None => None, str_opt,
-    max_upload_retries: Option<u32> = Some(3) => Some(3), u32,
-    min_stream_duration: Option<f64> = None => None, f64_opt,
-    bitrate: Option<String> = Some("3M".to_string()) => Some("3M".to_string()), str,
-    stream_reconnect_delay_minutes: Option<f64> = None => None, f64_opt,
-    disabled_uploaders: Option<Vec<String>> = None => vec![], vec,
-    step_delay_seconds: Option<f64> = None => Some(0.5), f64,
-    fetch_interval_seconds: Option<f64> = None => Some(120.0), f64,
+    output_directory: Option<String> = None => Some("./recordings".to_string()), str, "Directory to save recordings",
+    monitors: Option<Vec<String>> = None => vec![], vec, "List of usernames to monitor",
+    discord_webhook_url: Option<String> = None => None, str_opt, "Discord webhook URL for notifications",
+    min_free_space_gb: Option<f64> = Some(20.0) => Some(20.0), f64, "Minimum free disk space before cleanup",
+    upload_complete_message_template: Option<String> = None => None, str_opt, "Template for upload completion messages",
+    max_upload_retries: Option<u32> = Some(3) => Some(3), u32, "Maximum number of upload retries",
+    min_stream_duration: Option<f64> = None => None, f64_opt, "Minimum stream duration before recording",
+    bitrate: Option<String> = Some("3M".to_string()) => Some("3M".to_string()), str, "Bitrate to record stream at",
+    stream_reconnect_delay_minutes: Option<f64> = None => None, f64_opt, "Delay in minutes to wait for stream continuation before post-processing. Streams resumed are merged.",
+    disabled_uploaders: Option<Vec<String>> = None => vec![], vec, "List of uploaders to skip uploading to",
+    step_delay_seconds: Option<f64> = None => Some(0.5), f64, "Delay in seconds between each step in a platform",
+    fetch_interval_seconds: Option<f64> = None => Some(120.0), f64, "The interval in seconds monitors are fetched at",
 }
 
 // ============================================================================
@@ -336,5 +343,106 @@ impl Config {
 
     pub fn config_path() -> PathBuf {
         app_config_dir().join("config.toml")
+    }
+}
+
+#[cfg(test)]
+mod readme_sync_tests {
+    use super::*;
+    use std::collections::{HashMap, HashSet};
+
+    /// Parse the README's "Available Settings" table and return a map of
+    /// setting -> (description, default_str).
+    fn parse_readme_table() -> HashMap<String, (String, String)> {
+        let readme = std::fs::read_to_string("README.md").expect("README.md must be present");
+
+        // Find the table header. The README contains a table with header
+        // `| Setting                            | Description | Default |`.
+        let mut in_table = false;
+        let mut rows = Vec::new();
+
+        for line in readme.lines() {
+            let l = line.trim_end();
+            if l.starts_with("| Setting") {
+                in_table = true;
+                continue;
+            }
+            if in_table {
+                if l.starts_with("| ---") || l.starts_with("|---") {
+                    // separator row, skip
+                    continue;
+                }
+                if l.starts_with('|') {
+                    // table row
+                    rows.push(l.to_string());
+                    continue;
+                }
+                // end of table
+                break;
+            }
+        }
+
+        let mut map = HashMap::new();
+        for row in rows {
+            // split columns by '|' and trim
+            let parts: Vec<&str> = row.split('|').map(|s| s.trim()).collect();
+            if parts.len() < 4 {
+                continue;
+            }
+            let key = parts[1].trim().trim_matches('`').to_string();
+            let desc = parts[2].trim().to_string();
+            let default = parts[3].trim().trim_matches('`').to_string();
+            map.insert(key, (desc, default));
+        }
+
+        map
+    }
+
+    #[test]
+    fn readme_and_config_keys_match() {
+        let readme_map = parse_readme_table();
+        let readme_keys: HashSet<String> = readme_map.keys().cloned().collect();
+
+        let cfg_keys: HashSet<String> = ConfigKey::all()
+            .iter()
+            .map(|k| k.as_str().to_string())
+            .collect();
+
+        assert_eq!(readme_keys, cfg_keys, "Config keys in README.md do not match code");
+    }
+
+    #[test]
+    fn readme_descriptions_match_config() {
+        let readme_map = parse_readme_table();
+        let cfg = Config::default();
+
+        for (key, (readme_desc, _)) in readme_map.iter() {
+            let cfg_desc = cfg.get_description(key);
+            assert_eq!(cfg_desc, *readme_desc, "Description mismatch for {}", key);
+        }
+    }
+
+    #[test]
+    fn readme_defaults_match_config() {
+        let readme_map = parse_readme_table();
+        let cfg = Config::default();
+
+        for (key, (_, readme_default)) in readme_map.iter() {
+            let ck = ConfigKey::from_str(key).expect("unknown key in README");
+            let cfg_default = cfg.get_default_string(ck);
+            // Normalize numeric formatting: trim trailing .0 if present in README
+            let mut rd = if readme_default.ends_with(".0") {
+                readme_default.trim_end_matches(".0").to_string()
+            } else {
+                readme_default.clone()
+            };
+
+            // Normalize "None"/"none" casing from README
+            if rd.eq_ignore_ascii_case("none") {
+                rd = "none".to_string();
+            }
+
+            assert_eq!(cfg_default, rd, "Default mismatch for {}", key);
+        }
     }
 }

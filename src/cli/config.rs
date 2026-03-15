@@ -31,8 +31,19 @@ pub fn handle_config_command(action: ConfigAction) -> Result<()> {
     match action {
         ConfigAction::Get { key } => {
             if let Some(k) = key {
+                let reset = "\x1b[0m";
+                let green = "\x1b[32m";
+                let gray = "\x1b[90m";
+
+                let config_key =
+                    ConfigKey::from_str(&k).ok_or_else(|| anyhow::anyhow!("Unknown key: {}", k))?;
+
                 let value = config.get_value(&k);
-                println!("{}", value);
+                let default = config.get_default_string(config_key);
+                let description = config.get_description(&k);
+
+                println!("{} | {}{}{}", k, gray, description, reset);
+                println!("{}{}{} | {}{}{}", green, value, reset, gray, default, reset);
             } else {
                 config.print_all();
             }
