@@ -402,7 +402,7 @@ async fn spawn_monitor_task(
             &username_owned,
             &platform,
             &token_owned,
-            std::time::Duration::from_secs(30),
+            std::time::Duration::from_secs_f64(config.get_fetch_interval_seconds()),
             config,
         )
         .await;

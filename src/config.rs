@@ -306,6 +306,7 @@ define_config! {
     stream_reconnect_delay_minutes: Option<f64> = None => None, f64_opt,
     disabled_uploaders: Option<Vec<String>> = None => vec![], vec,
     step_delay_seconds: Option<f64> = None => Some(0.5), f64,
+    fetch_interval_seconds: Option<f64> = None => Some(120.0), f64,
 }
 
 // ============================================================================
