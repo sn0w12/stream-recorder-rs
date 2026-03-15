@@ -5,25 +5,17 @@ use bunkr_client::{BunkrUploader as BunkrClient, Config as BunkrConfig};
 
 /// Bunkr uploader wrapper
 pub struct BunkrUploader {
-    client: BunkrClient,
+    client: Option<BunkrClient>,
 }
 
 impl BunkrUploader {
-    pub async fn new() -> Result<Self, UploadError> {
-        let token = crate::utils::get_bunkr_token();
-        if let Some(token) = token {
-            let client = BunkrClient::new(token).await.map_err(|e| UploadError {
-                message: e.to_string(),
-                status_code: None,
-            })?;
-            Ok(Self { client })
+    pub async fn new() -> Self {
+        let client = if let Some(token) = crate::utils::get_bunkr_token() {
+            BunkrClient::new(token).await.ok()
         } else {
-            Err(UploadError {
-                message: "Bunkr API token not found in environment variable BUNKR_API_TOKEN"
-                    .to_string(),
-                status_code: None,
-            })
-        }
+            None
+        };
+        Self { client }
     }
 }
 
@@ -32,18 +24,21 @@ impl Uploader for BunkrUploader {
     async fn upload_file(
         &self,
         file_path: &str,
-        _config: &UploaderConfig,
+        config: &UploaderConfig,
     ) -> Result<UploadResult, UploadError> {
+        let client = self.client.as_ref().ok_or(UploadError {
+            message: "Bunkr not configured".to_string(),
+            status_code: None,
+        })?;
         let bunkr_config = BunkrConfig::default();
         let files = vec![file_path.to_string()];
 
         // convert optional String to Option<&str> as required by bunkr-client
-        let folder_id_opt: Option<&str> = _config.folder_id.as_deref();
+        let folder_id_opt: Option<&str> = config.folder_id.as_deref();
 
         // Upload with concurrency=1 since we're uploading a single file
         // If multiple files need to be uploaded, this should be called multiple times
-        let (urls, failures) = self
-            .client
+        let (urls, failures) = client
             .upload_files(files, folder_id_opt, 1, None, Some(&bunkr_config))
             .await
             .map_err(|e| UploadError {
@@ -82,7 +77,11 @@ impl Uploader for BunkrUploader {
         &self,
         folder_name: &str,
     ) -> Result<Option<String>, UploadError> {
-        match self.client.get_album_by_name(folder_name).await? {
+        let client = self.client.as_ref().ok_or(UploadError {
+            message: "Bunkr not configured".to_string(),
+            status_code: None,
+        })?;
+        match client.get_album_by_name(folder_name).await? {
             Some(id) => Ok(Some(id.to_string())),
             None => Err(UploadError {
                 message: format!("folder '{}' not found", folder_name),
@@ -96,6 +95,6 @@ impl Uploader for BunkrUploader {
     }
 
     async fn is_ready(&self) -> bool {
-        true // If we were able to create the uploader, it's ready
+        self.client.is_some()
     }
 }

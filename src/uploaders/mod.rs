@@ -149,19 +149,51 @@ pub trait Uploader: Send + Sync {
 /// A list of boxed uploaders.
 pub type UploaderList = Vec<Box<dyn Uploader>>;
 
-/// Get a list of available uploaders that are configured and ready to use.
-async fn get_uploaders() -> UploaderList {
-    let mut uploaders: UploaderList = Vec::new();
+macro_rules! uploader_list {
+    ($( $async:ident $name:ident => $module:ident ),* $(,)?) => {
+        /// Get a list of available uploaders that are configured and ready to use.
+        pub async fn get_uploaders() -> UploaderList {
+            let mut uploaders: UploaderList = Vec::new();
+            $(
+                uploader_list!(@push $async, $module, $name, uploaders);
+            )*
+            uploaders
+        }
 
-    if let Ok(uploader) = bunkr::BunkrUploader::new().await {
-        uploaders.push(Box::new(uploader))
-    }
+        /// Get a list of all possible uploader names for display purposes.
+        pub async fn get_all_uploader_names() -> Vec<String> {
+            let mut names = Vec::new();
+            $(
+                let uploader = uploader_list!(@new $async, $module, $name);
+                names.push(uploader.name().to_string());
+            )*
+            names
+        }
+    };
 
-    uploaders.push(Box::new(gofile::GoFileUploader::new()));
-    uploaders.push(Box::new(fileditch::FileditchUploader::new()));
-    uploaders.push(Box::new(filester::FilesterUploader::new()));
+    (@push async, $module:ident, $name:ident, $uploaders:ident) => {
+        let uploader = $module::$name::new().await;
+        $uploaders.push(Box::new(uploader));
+    };
 
-    uploaders
+    (@push sync, $module:ident, $name:ident, $uploaders:ident) => {
+        $uploaders.push(Box::new($module::$name::new()));
+    };
+
+    (@new async, $module:ident, $name:ident) => {
+        $module::$name::new().await
+    };
+
+    (@new sync, $module:ident, $name:ident) => {
+        $module::$name::new()
+    };
+}
+
+uploader_list! {
+    async BunkrUploader => bunkr,
+    sync GoFileUploader => gofile,
+    sync FileditchUploader => fileditch,
+    sync FilesterUploader => filester,
 }
 
 /// Build a list of uploaders based on user configuration and readiness.
