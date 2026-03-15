@@ -91,17 +91,20 @@ Configuration is stored in `~/.config/stream-recorder/config.toml` (Linux/macOS)
 
 ### Available Settings
 
-| Setting                            | Description                                                                                                                                     | Default        |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| `output_directory`                 | Directory to save recordings                                                                                                                    | `./recordings` |
-| `monitors`                         | List of usernames to monitor                                                                                                                    | None           |
-| `discord_webhook_url`              | Discord webhook URL for notifications                                                                                                           | None           |
-| `min_free_space_gb`                | Minimum free disk space before cleanup                                                                                                          | 20.0           |
-| `upload_complete_message_template` | Template for upload completion messages                                                                                                         | None           |
-| `max_upload_retries`               | Maximum number of upload retries                                                                                                                | 3              |
-| `min_stream_duration`              | Minimum stream duration before recording                                                                                                        | None           |
-| `stream_reconnect_delay_minutes`   | Delay in minutes to wait for stream continuation before post-processing. Streams resumed within this window are merged into a single recording. | None           |
-| `disabled_uploaders`               | List of uploaders to skip uploading to                                                                                                          | None           |
+| Setting                            | Description                                                                                          | Default        |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------- |
+| `output_directory`                 | Directory to save recordings                                                                         | `./recordings` |
+| `monitors`                         | List of usernames to monitor                                                                         | None           |
+| `discord_webhook_url`              | Discord webhook URL for notifications                                                                | None           |
+| `min_free_space_gb`                | Minimum free disk space before cleanup                                                               | 20.0           |
+| `upload_complete_message_template` | Template for upload completion messages                                                              | None           |
+| `max_upload_retries`               | Maximum number of upload retries                                                                     | 3              |
+| `min_stream_duration`              | Minimum stream duration before recording                                                             | None           |
+| `bitrate`                          | Bitrate to record stream at                                                                          | 3M             |
+| `stream_reconnect_delay_minutes`   | Delay in minutes to wait for stream continuation before post-processing. Streams resumed are merged. | None           |
+| `disabled_uploaders`               | List of uploaders to skip uploading to                                                               | None           |
+| `step_delay_seconds`               | Delay in seconds between each step in a platform                                                     | 0.5            |
+| `fetch_interval_seconds`           | The interval in seconds monitors are fetched at                                                      | 120.0          |
 
 ### Configuration Commands
 
