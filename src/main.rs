@@ -216,22 +216,22 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
             return UploaderStatus::UserDisabled;
         }
         match name {
-            "Fileditch" => UploaderStatus::Enabled("always available".to_string()),
-            "Bunkr" => {
+            "fileditch" => UploaderStatus::Enabled("always available".to_string()),
+            "bunkr" => {
                 if crate::utils::get_bunkr_token().is_some() {
                     UploaderStatus::Enabled("token configured".to_string())
                 } else {
                     UploaderStatus::ConfigError("token required".to_string())
                 }
             }
-            "GoFile" => {
+            "gofile" => {
                 if crate::utils::get_gofile_token().is_some() {
                     UploaderStatus::Enabled("token configured".to_string())
                 } else {
                     UploaderStatus::ConfigError("token required".to_string())
                 }
             }
-            "Filester" => {
+            "filester" => {
                 if crate::utils::get_filester_token().is_some() {
                     UploaderStatus::Enabled("token configured".to_string())
                 } else {
