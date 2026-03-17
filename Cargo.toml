@@ -1,7 +1,13 @@
 [package]
 name = "stream-recorder"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+description = "A tool for recording live streams and mirroring them to various platforms."
+license = "MIT"
+repository = "https://github.com/sn0w12/stream-recorder-rs"
+homepage = "https://github.com/sn0w12/stream-recorder-rs"
+keywords = ["streaming", "recording", "live", "video"]
+categories = ["command-line-utilities"]
 
 [features]
 default = ["discord"]
