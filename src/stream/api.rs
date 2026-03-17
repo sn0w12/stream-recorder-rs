@@ -1,4 +1,4 @@
-use crate::platform::{extract_json_value, PipelineOutcome, PlatformConfig};
+use crate::platform::{PipelineOutcome, PlatformConfig, extract_json_value};
 use reqwest::Client;
 use serde_json::Value;
 use std::collections::HashMap;

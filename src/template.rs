@@ -1,4 +1,4 @@
-use handlebars::{handlebars_helper, Handlebars};
+use handlebars::{Handlebars, handlebars_helper};
 use serde_json::{Map, Number, Value};
 use std::collections::HashMap;
 

@@ -1,4 +1,4 @@
-use crate::uploaders::{build_uploaders, Uploader, UploaderConfig};
+use crate::uploaders::{Uploader, UploaderConfig, build_uploaders};
 use anyhow::Result;
 use clap::Subcommand;
 use std::{collections::HashMap, time::Duration};

@@ -1,9 +1,9 @@
 mod cli;
 mod config;
+mod print;
 mod template;
 mod thumb;
 mod utils;
-pub mod print;
 mod stream {
     pub mod api;
     pub mod monitor;
@@ -12,17 +12,18 @@ mod platform;
 mod uploaders;
 
 use crate::platform::PlatformConfig;
-use crate::template::{get_template_string, render_template, TemplateValue};
+use crate::print::section::StartupInfo;
+use crate::template::{TemplateValue, get_template_string, render_template};
 use crate::uploaders::UploaderType;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use colored::*;
+use colored::Color::*;
 use std::collections::HashMap;
 
-use crate::cli::config::{handle_config_command, ConfigAction};
-use crate::cli::platform::{handle_platform_command, PlatformAction};
-use crate::cli::token::{handle_token_command, TokenAction};
-use crate::cli::upload::{handle_list_command, handle_upload_command, UploadAction};
+use crate::cli::config::{ConfigAction, handle_config_command};
+use crate::cli::platform::{PlatformAction, handle_platform_command};
+use crate::cli::token::{TokenAction, handle_token_command};
+use crate::cli::upload::{UploadAction, handle_list_command, handle_upload_command};
 
 #[derive(Parser)]
 #[command(name = "stream-recorder", about = "CLI tool for recording streams")]
@@ -125,14 +126,14 @@ async fn main() -> Result<()> {
                     context.insert(
                         "gofile_urls".to_string(),
                         TemplateValue::Array(vec![
-                            "https://gofile.example.com/download".to_string()
+                            "https://gofile.example.com/download".to_string(),
                         ]),
                     );
                     context.insert(
                         "fileditch_urls".to_string(),
-                        TemplateValue::Array(
-                            vec!["https://fileditch.example.com/file".to_string()],
-                        ),
+                        TemplateValue::Array(vec![
+                            "https://fileditch.example.com/file".to_string(),
+                        ]),
                     );
                     context.insert(
                         "filester_urls".to_string(),
@@ -176,32 +177,6 @@ async fn main() -> Result<()> {
 }
 
 async fn print_startup_info(config: &crate::config::Config, platforms: &[PlatformConfig]) {
-    fn section(title: &str) {
-        println!("\n  {}", title.bold());
-        println!("  {}", "─".repeat(title.len()));
-    }
-
-    fn item_ok(name: &str, note: &str) {
-        println!("{} {:<12}  {}", "  ✓".green(), name, note)
-    }
-
-    fn item_err(name: &str, note: &str) {
-        println!("{} {:<12}  {}", "  ✗".red(), name, note)
-    }
-
-    fn item_warn(name: &str, note: &str) {
-        println!("{} {:<12}  {}", "  →".yellow(), name, note);
-    }
-
-    fn item_dot(name: &str, note: &str) {
-        print!("  • {:<12}", name);
-        if !note.is_empty() {
-            println!(" - {}", note);
-        } else {
-            println!();
-        }
-    }
-
     #[derive(Debug)]
     enum UploaderStatus {
         Enabled(String),
@@ -244,14 +219,11 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
         }
     }
 
-    // Header
-    println!("┌─────────────────────────────────────┐");
-    println!("│            Stream Recorder          │");
-    println!("└─────────────────────────────────────┘");
+    let mut info = StartupInfo::new();
 
-    section("Platforms");
+    info.begin_section("Platforms");
     if platforms.is_empty() {
-        println!("  {}", "No platforms configured".yellow());
+        info.plain("No platforms configured", Some(Yellow));
     } else {
         for p in platforms {
             let token_status = if let Some(token_name) = &p.token_name {
@@ -263,47 +235,39 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
             } else {
                 "no token required"
             };
-            item_dot(&p.name, token_status);
+            info.dot(&p.name, token_status);
         }
     }
 
-    // Monitored Users
-    section("Monitored Users");
+    info.begin_section("Monitored Users");
     let monitors = config.get_monitors();
     if monitors.is_empty() {
-        println!("  {}", "No users configured".yellow());
+        info.plain("No users configured", Some(Yellow));
     } else {
         for user in &monitors {
-            item_dot(user, "");
+            info.dot(user, "");
         }
     }
 
-    // Uploaders
-    section("Uploaders");
+    info.begin_section("Uploaders");
     let disabled_uploaders = config.get_disabled_uploaders();
     let uploader_types_and_names = crate::uploaders::get_all_uploader_types_and_names().await;
     for (uploader_type, name) in uploader_types_and_names {
         match get_uploader_status(uploader_type, &name, &disabled_uploaders) {
-            UploaderStatus::Enabled(note) => item_ok(&name, &note),
-            UploaderStatus::UserDisabled => item_warn(&name, "disabled by user"),
-            UploaderStatus::ConfigError(note) => item_err(&name, &note),
+            UploaderStatus::Enabled(note) => info.ok(&name, &note),
+            UploaderStatus::UserDisabled => info.warn(&name, "disabled by user"),
+            UploaderStatus::ConfigError(note) => info.err(&name, &note),
         }
     }
 
-    // Encoder
-    section("Encoder");
-
+    info.begin_section("Encoder");
     let bitrate = config.get_bitrate();
     match crate::stream::monitor::detect_best_hw_encoder(&bitrate).await {
-        Some((enc, _)) => {
-            item_ok(&enc, "hardware acceleration");
-        }
-        None => {
-            item_warn("libx264", "no hardware encoder found, using software");
-        }
+        Some((enc, _)) => info.ok(&enc, "hardware acceleration"),
+        None => info.warn("libx264", "no hardware encoder found, using software"),
     }
 
-    println!();
+    info.print();
 }
 
 async fn run_recording(
@@ -315,7 +279,9 @@ async fn run_recording(
 
     let monitors = config.get_monitors();
     if monitors.is_empty() {
-        println!("No monitors configured. Use 'stream-recorder config monitors add <platform_id>:<username>' to add users to monitor.");
+        println!(
+            "No monitors configured. Use 'stream-recorder config monitors add <platform_id>:<username>' to add users to monitor."
+        );
         return Ok(());
     }
 

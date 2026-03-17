@@ -163,7 +163,9 @@ impl PlatformConfig {
                 return Err(anyhow::anyhow!(
                     "Platform config {}: requires stream recorder '{}' but running version is '{}'. \
                      Update stream recorder or re-install this platform.",
-                    source, req_str, app_version
+                    source,
+                    req_str,
+                    app_version
                 ));
             }
         }

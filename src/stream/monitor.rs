@@ -1,8 +1,9 @@
 use crate::cli::upload::try_upload;
 use crate::config::Config;
 use crate::platform::{PipelineOutcome, PlatformConfig};
+use crate::print::table::{Cell, Table};
 use crate::stream::api::run_pipeline;
-use crate::template::{get_template_string, render_template, TemplateValue};
+use crate::template::{TemplateValue, get_template_string, render_template};
 use crate::thumb::create_video_thumbnail_grid;
 use crate::uploaders::build_uploaders;
 use crate::utils::slugify;
@@ -756,7 +757,9 @@ pub async fn monitor_stream(
                                                         // Reset the deadline so we keep watching
                                                         // after this segment ends too.
                                                         deadline = tokio::time::Instant::now()
-                                                            + Duration::from_secs_f64(delay_minutes * 60.0);
+                                                            + Duration::from_secs_f64(
+                                                                delay_minutes * 60.0,
+                                                            );
                                                         println!(
                                                             "Continuation stream ended for {}. Waiting up to {:.0} minute(s) for another continuation...",
                                                             username, delay_minutes
@@ -1000,7 +1003,7 @@ async fn post_process_stream(
     )
     .await
     {
-        Ok(_) => println!("Generated thumbnail: {}", thumbnail_path),
+        Ok(_) => (),
         Err(e) => eprintln!("Failed to generate thumbnail: {}", e),
     }
 
@@ -1026,12 +1029,15 @@ async fn post_process_stream(
         .await;
     }
 
-    // Print upload results
+    let mut upload_table = Table::new();
+    upload_table.set_headers(vec![Cell::new("Uploader", None), Cell::new("URLs", None)]);
     for (uploader, urls) in &upload_results {
-        for url in urls {
-            println!("{} uploaded to: {}", uploader, url);
-        }
+        upload_table.add_row(vec![
+            Cell::new(uploader, None),
+            Cell::new(&urls.join("\n"), None),
+        ]);
     }
+    upload_table.print();
 
     // Send template-based upload complete webhook
     let mut template_context = HashMap::new();
@@ -1091,11 +1097,6 @@ async fn manage_disk_space() -> Result<(), Box<dyn std::error::Error + Send + Sy
     let min_free_bytes = (min_free_gb * 1_000_000_000.0) as u64;
 
     let free_bytes = available_space(&output_dir)?;
-    let free_gb = free_bytes as f64 / 1_000_000_000.0;
-    println!(
-        "Checking disk space: output_dir = {}, free_gb = {:.2}, min_free_gb = {:.2}",
-        output_dir, free_gb, min_free_gb
-    );
     if free_bytes >= min_free_bytes {
         return Ok(());
     }

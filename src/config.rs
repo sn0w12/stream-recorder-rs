@@ -1,5 +1,7 @@
+use crate::print::table::{Cell, Table};
 use crate::utils::app_config_dir;
 use anyhow::Result;
+use colored::Color::*;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -104,30 +106,49 @@ macro_rules! define_config {
                 }
             }
 
-            pub fn print_all(&self) {
-                let reset = "\x1b[0m";
-                let green = "\x1b[32m";
-                let gray = "\x1b[90m";
-                let italic = "\x1b[3m";
+            pub fn print_filtered(&self, filter: Option<String>, show_desc: bool) {
+                let mut table = Table::new();
 
-                println!("Key                                Value     | Default");
-                println!("─────────────────────────────────────────────────────");
+                let mut headers = vec![
+                    Cell::new("Key", None),
+                    Cell::new("Value", None),
+                    Cell::new("Default", None),
+                ];
+                if show_desc {
+                    headers.insert(1, Cell::new("Description", None));
+                }
+                table.set_headers(headers);
+
+                let filter_lc = filter.map(|s| s.to_lowercase());
+
                 for key in ConfigKey::all() {
+                    if let Some(ref f) = filter_lc {
+                        if key.as_str().to_lowercase() != *f {
+                            continue;
+                        }
+                    }
+
                     let current = self.get_value(key.as_str());
                     let default = self.get_default_string(*key);
 
-                    let default_display = format!("{}{}{}{}", gray, italic, default, reset);
-
-                    let current_display = if current == default {
-                        // If current equals the runtime default, render it dim/gray to indicate it's the default
-                        format!("{}{}{}", gray, current, reset)
+                    let current_color = if current == default {
+                        Some(Green)
                     } else {
-                        // If current differs from default, highlight it in green
-                        format!("{}{}{}", green, current, reset)
+                        Some(BrightBlack)
                     };
 
-                    println!("{:<34} {:<9} | {}", key.as_str(), current_display, default_display);
+                    let mut row = vec![
+                        Cell::new(key.as_str(), None),
+                        Cell::new(current, current_color),
+                        Cell::new(default, Some(BrightBlack)),
+                    ];
+                    if show_desc {
+                        row.insert(1, Cell::new(self.get_description(key.as_str()), None));
+                    }
+                    table.add_row(row);
                 }
+
+                table.print();
             }
         }
     };
@@ -408,7 +429,10 @@ mod readme_sync_tests {
             .map(|k| k.as_str().to_string())
             .collect();
 
-        assert_eq!(readme_keys, cfg_keys, "Config keys in README.md do not match code");
+        assert_eq!(
+            readme_keys, cfg_keys,
+            "Config keys in README.md do not match code"
+        );
     }
 
     #[test]
