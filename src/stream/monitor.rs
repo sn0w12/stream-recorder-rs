@@ -14,7 +14,7 @@ use tokio::time::sleep;
 use chrono::{DateTime, Utc};
 use fs2::available_space;
 use std::process::Stdio;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use walkdir::WalkDir;
 
 #[cfg(feature = "discord")]
@@ -529,19 +529,11 @@ pub async fn record_stream(
 async fn concat_video_files(
     files: &[String],
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    use std::io::Write;
-
-    // Build the ffmpeg concat file list in a temp file that stays alive for the
-    // duration of the ffmpeg call.
-    let mut concat_list = tempfile::NamedTempFile::new()?;
-    {
-        let mut writer = std::io::BufWriter::new(concat_list.as_file_mut());
-        for file in files {
-            // Escape single quotes so paths with apostrophes don't break the
-            // concat file format.
-            writeln!(writer, "file '{}'", file.replace('\'', r"'\''"))?;
-        }
+    if files.is_empty() {
+        return Err("cannot concatenate an empty segment list".into());
     }
+
+    let concat_manifest = build_ffconcat_manifest(files)?;
 
     // Place the combined file next to the first segment, adding a _combined suffix.
     let first_path = std::path::Path::new(&files[0]);
@@ -555,7 +547,7 @@ async fn concat_video_files(
         .unwrap_or_else(|| "combined".to_string());
     let combined_path = format!("{}/{}_combined.mp4", parent_dir, file_stem);
 
-    let output = tokio::process::Command::new("ffmpeg")
+    let mut child = tokio::process::Command::new("ffmpeg")
         .args([
             "-loglevel",
             "error",
@@ -563,19 +555,27 @@ async fn concat_video_files(
             "concat",
             "-safe",
             "0",
+            "-protocol_whitelist",
+            "file,pipe",
             "-i",
-            concat_list
-                .path()
-                .to_str()
-                .ok_or("invalid concat file path")?,
+            "-",
             "-c",
             "copy",
             "-y",
             &combined_path,
         ])
+        .stdin(Stdio::piped())
         .stderr(std::process::Stdio::piped())
-        .output()
-        .await?;
+        .spawn()?;
+
+    let mut stdin = child
+        .stdin
+        .take()
+        .ok_or("failed to open ffmpeg stdin for concat manifest")?;
+    stdin.write_all(concat_manifest.as_bytes()).await?;
+    stdin.shutdown().await?;
+
+    let output = child.wait_with_output().await?;
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
@@ -588,6 +588,24 @@ async fn concat_video_files(
     }
 
     Ok(combined_path)
+}
+
+fn build_ffconcat_manifest(
+    files: &[String],
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    let mut manifest = String::from("ffconcat version 1.0\n");
+
+    for file in files {
+        let canonical_path = std::fs::canonicalize(file)
+            .map_err(|e| format!("segment file missing or inaccessible '{}': {}", file, e))?;
+        let escaped_path = canonical_path
+            .to_string_lossy()
+            .replace('\\', "/")
+            .replace('\'', r"'\''");
+        manifest.push_str(&format!("file '{}'\n", escaped_path));
+    }
+
+    Ok(manifest)
 }
 
 /// Post-processes a complete recording session that may consist of multiple
@@ -1128,4 +1146,51 @@ async fn manage_disk_space() -> Result<(), Box<dyn std::error::Error + Send + Sy
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_ffconcat_manifest;
+
+    #[test]
+    fn build_ffconcat_manifest_uses_canonical_absolute_paths() {
+        let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
+        let segment_path = temp_dir.path().join("segment one.mp4");
+        std::fs::write(&segment_path, b"test").expect("failed to create segment file");
+
+        let manifest = build_ffconcat_manifest(&[segment_path.to_string_lossy().to_string()])
+            .expect("manifest generation should succeed");
+
+        let canonical_path = std::fs::canonicalize(&segment_path)
+            .expect("failed to canonicalize test segment path")
+            .to_string_lossy()
+            .replace('\\', "/");
+
+        assert_eq!(
+            manifest,
+            format!("ffconcat version 1.0\nfile '{}'\n", canonical_path)
+        );
+    }
+
+    #[test]
+    fn build_ffconcat_manifest_escapes_single_quotes() {
+        let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
+        let quoted_dir = temp_dir.path().join("creator's archive");
+        std::fs::create_dir_all(&quoted_dir).expect("failed to create quoted directory");
+        let segment_path = quoted_dir.join("segment.mp4");
+        std::fs::write(&segment_path, b"test").expect("failed to create segment file");
+
+        let manifest = build_ffconcat_manifest(&[segment_path.to_string_lossy().to_string()])
+            .expect("manifest generation should succeed");
+
+        assert!(manifest.contains("creator'\\''s archive/segment.mp4"));
+    }
+
+    #[test]
+    fn build_ffconcat_manifest_reports_missing_segment() {
+        let err = build_ffconcat_manifest(&["missing-segment.mp4".to_string()])
+            .expect_err("missing files should fail manifest generation");
+
+        assert!(err.to_string().contains("missing-segment.mp4"));
+    }
 }
