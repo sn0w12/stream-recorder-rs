@@ -85,6 +85,45 @@ stream-recorder -h
 
 The tool will run continuously, monitoring for live streams and recording them automatically.
 
+## Stream Recording Flow
+
+The diagram below shows the main phases of a recording session and how the major parts of the system interact.
+
+```mermaid
+flowchart TD
+    A[Start application] --> B[Load config and platform definitions]
+    B --> C[Create monitor tasks for configured accounts]
+    C --> D[Poll platform pipelines for live status]
+
+    D --> E{Stream live?}
+    E -->|No| F[Wait and poll again]
+    F --> D
+
+    E -->|Yes| G[Start recording with FFmpeg]
+    G --> H[Save stream segment to disk]
+    H --> I{Continuation window enabled?}
+
+    I -->|No| J[Post-process recording]
+    I -->|Yes| K[Wait for stream continuation]
+    K --> L{Stream resumes?}
+    L -->|Yes| G
+    L -->|No| M[Merge session segments]
+    M --> J
+
+    J --> N[Check retention and minimum duration rules]
+    N --> O[Generate thumbnail and metadata]
+    O --> P[Upload to enabled services]
+    P --> Q[Render notification template]
+    Q --> R[Send Discord notifications]
+    R --> S[Recording session complete]
+    S --> D
+
+    style A fill:#d9f2ff,stroke:#1f6f8b,color:#111
+    style D fill:#fff4d6,stroke:#a36a00,color:#111
+    style G fill:#e8f7e8,stroke:#2f7d32,color:#111
+    style J fill:#ffe6e6,stroke:#b42318,color:#111
+```
+
 ## Configuration
 
 Configuration is stored in `~/.config/stream-recorder/config.toml` (Linux/macOS) or `%APPDATA%\stream-recorder\config.toml` (Windows).
