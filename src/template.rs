@@ -25,10 +25,10 @@ pub fn get_template_string() -> Option<&'static str> {
     }
 
     let config_path = crate::utils::app_config_dir().join("template.hbr");
-    if config_path.exists() {
-        if let Ok(template_str) = std::fs::read_to_string(config_path) {
-            return Some(Box::leak(template_str.into_boxed_str()));
-        }
+    if config_path.exists()
+        && let Ok(template_str) = std::fs::read_to_string(config_path)
+    {
+        return Some(Box::leak(template_str.into_boxed_str()));
     }
 
     println!("No template found in config or template.hbr, no template will be used.");

@@ -898,14 +898,14 @@ async fn delete_video_and_thumbnail(
     if let Some(file_stem) = output_path_buf.file_stem() {
         let thumbnail_path =
             output_path_buf.with_file_name(format!("{}_thumb.jpg", file_stem.to_string_lossy()));
-        if thumbnail_path.exists() {
-            if let Err(e) = tokio::fs::remove_file(&thumbnail_path).await {
-                eprintln!(
-                    "Failed to delete thumbnail {}: {}",
-                    thumbnail_path.display(),
-                    e
-                );
-            }
+        if thumbnail_path.exists()
+            && let Err(e) = tokio::fs::remove_file(&thumbnail_path).await
+        {
+            eprintln!(
+                "Failed to delete thumbnail {}: {}",
+                thumbnail_path.display(),
+                e
+            );
         }
     }
 
@@ -976,10 +976,10 @@ async fn post_process_stream(
     let config = Config::load()?;
 
     // Check if stream duration is below minimum threshold
-    if let Some(min_duration) = config.get_min_stream_duration() {
-        if handle_minimum_duration(&output_path, duration_minutes, min_duration).await? {
-            return Ok(());
-        }
+    if let Some(min_duration) = config.get_min_stream_duration()
+        && handle_minimum_duration(&output_path, duration_minutes, min_duration).await?
+    {
+        return Ok(());
     }
 
     let duration_str = format_duration(duration_minutes);
@@ -1034,7 +1034,7 @@ async fn post_process_stream(
     for (uploader, urls) in &upload_results {
         upload_table.add_row(vec![
             Cell::new(uploader, None),
-            Cell::new(&urls.join("\n"), None),
+            Cell::new(urls.join("\n"), None),
         ]);
     }
     upload_table.print();
@@ -1139,10 +1139,10 @@ async fn manage_disk_space() -> Result<(), Box<dyn std::error::Error + Send + Sy
             "{}_thumb.jpg",
             mp4_path.file_stem().unwrap().to_string_lossy()
         ));
-        if thumb_path.exists() {
-            if let Err(e) = tokio::fs::remove_file(&thumb_path).await {
-                eprintln!("Failed to delete thumbnail {}: {}", thumb_path.display(), e);
-            }
+        if thumb_path.exists()
+            && let Err(e) = tokio::fs::remove_file(&thumb_path).await
+        {
+            eprintln!("Failed to delete thumbnail {}: {}", thumb_path.display(), e);
         }
     }
 

@@ -55,10 +55,10 @@ fn load_env_var(key: &str) -> Option<String> {
 /// Checks the system keyring first, then falls back to a matching
 /// `KEY_NAME` (uppercased) environment variable in the `.env` file.
 pub fn get_token_by_name(key_name: &str) -> Option<String> {
-    if let Ok(entry) = Entry::new(SERVICE_NAME, key_name) {
-        if let Ok(password) = entry.get_password() {
-            return Some(password);
-        }
+    if let Ok(entry) = Entry::new(SERVICE_NAME, key_name)
+        && let Ok(password) = entry.get_password()
+    {
+        return Some(password);
     }
     // Fall back to an uppercase env var derived from the key name.
     let env_key = key_name.to_uppercase();
@@ -67,10 +67,10 @@ pub fn get_token_by_name(key_name: &str) -> Option<String> {
 
 pub fn get_bunkr_token() -> Option<String> {
     // Try keyring first
-    if let Ok(entry) = Entry::new(SERVICE_NAME, "bunkr_token") {
-        if let Ok(password) = entry.get_password() {
-            return Some(password);
-        }
+    if let Ok(entry) = Entry::new(SERVICE_NAME, "bunkr_token")
+        && let Ok(password) = entry.get_password()
+    {
+        return Some(password);
     }
 
     // Fall back to .env file
@@ -79,10 +79,10 @@ pub fn get_bunkr_token() -> Option<String> {
 
 pub fn get_gofile_token() -> Option<String> {
     // Try keyring first
-    if let Ok(entry) = Entry::new(SERVICE_NAME, "gofile_token") {
-        if let Ok(password) = entry.get_password() {
-            return Some(password);
-        }
+    if let Ok(entry) = Entry::new(SERVICE_NAME, "gofile_token")
+        && let Ok(password) = entry.get_password()
+    {
+        return Some(password);
     }
 
     // Fall back to .env file
@@ -91,10 +91,10 @@ pub fn get_gofile_token() -> Option<String> {
 
 pub fn get_filester_token() -> Option<String> {
     // Try keyring first
-    if let Ok(entry) = Entry::new(SERVICE_NAME, "filester_token") {
-        if let Ok(password) = entry.get_password() {
-            return Some(password);
-        }
+    if let Ok(entry) = Entry::new(SERVICE_NAME, "filester_token")
+        && let Ok(password) = entry.get_password()
+    {
+        return Some(password);
     }
 
     // Fall back to .env file

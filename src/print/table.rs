@@ -123,12 +123,10 @@ impl Table {
                 } else {
                     raw.color(c).to_string()
                 }
+            } else if is_header {
+                raw.bold().to_string()
             } else {
-                if is_header {
-                    raw.bold().to_string()
-                } else {
-                    raw.to_string()
-                }
+                raw.to_string()
             };
 
             // Pad to column width

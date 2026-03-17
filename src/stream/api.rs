@@ -122,10 +122,10 @@ pub async fn run_pipeline(
         let data = fetch_with_platform(&endpoint, platform, token, 5, 1.0).await?;
 
         // Evaluate the live_check condition if present.
-        if let Some(live_path) = &step.live_check {
-            if extract_json_value(&data, live_path).is_none() {
-                return Ok(PipelineOutcome::Offline);
-            }
+        if let Some(live_path) = &step.live_check
+            && extract_json_value(&data, live_path).is_none()
+        {
+            return Ok(PipelineOutcome::Offline);
         }
 
         // Extract variables from the response.
