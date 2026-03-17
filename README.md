@@ -2,32 +2,18 @@
 
 A high-performance CLI tool written in Rust for recording live streams from a variety of platforms. It automatically monitors specified accounts or channels, records streams with FFmpeg, generates thumbnails, uploads content to multiple file hosting services, and sends notifications via Discord webhooks.
 
-## Features
-
-- **Stream Monitoring**: Continuously monitor multiple accounts across supported platforms for live streams
-- **Automatic Recording**: Record streams using FFmpeg with optimized settings for quality and performance
-- **Thumbnail Generation**: Automatically create video thumbnail grids for recorded streams
-- **Multi-Platform Uploads**: Upload recordings and thumbnails to Bunkr, GoFile, and JPG6
-- **Discord Integration**: Send real-time notifications for recording start/completion via Discord webhooks
-- **Disk Space Management**: Automatically clean up old recordings when disk space is low
-- **Template System**: Customizable notification messages with template variables
-
 ## Prerequisites
 
 - Rust
 - FFmpeg (must be installed and available in PATH)
 
-## Usage
+## Installation
 
-To begin recording streams, you need to either install or create a platform json file. If you are looking to create your own, look into `/platforms/*` for examples.
-
-To install an already existing one, you can use the cli.
+### From cargo
 
 ```bash
-stream-recorder platform install {url}
+cargo install stream-recorder
 ```
-
-## Installation
 
 ### From Source
 
@@ -37,8 +23,6 @@ cd stream-recorder-rs
 cargo build --release
 ```
 
-The binary will be available at `target/release/stream-recorder.exe` (Windows) or `target/release/stream-recorder` (Linux/macOS).
-
 ## Quick Start
 
 For additional help, run:
@@ -47,7 +31,16 @@ For additional help, run:
 stream-recorder -h
 ```
 
-1. **Save a platform API token** (if required by the platform):
+1. **Install a platform**
+   To begin recording streams, you need to either install or create a platform json file. If you are looking to create your own, look into `/platforms/*` for examples.
+
+    To install an already existing one, you can use the cli.
+
+    ```bash
+    stream-recorder platform install {url}
+    ```
+
+2. **Save a platform API token** (if required by the platform):
 
     Using keyring (recommended):
 
@@ -61,24 +54,22 @@ stream-recorder -h
     PLATFORM_API_TOKEN=YOUR_TOKEN_HERE
     ```
 
-2. **Configure monitored accounts** (use `platform_id:username` format):
+    **Note:** If both keyring and .env file contain tokens, the keyring tokens will take precedence.
+
+3. **Configure monitored accounts** (use `platform_id:username` format):
 
     ```bash
     stream-recorder config add monitors platform1:user1
     stream-recorder config add monitors platform2:user2
     ```
 
-3. **Set output directory (optional):**
+4. **Set output directory (optional):**
 
     ```bash
     stream-recorder config set output_directory ./my_recordings
     ```
 
-4. **Start monitoring:**
-    ```bash
-    stream-recorder --token YOUR_TOKEN
-    ```
-    Or if tokens are saved:
+5. **Start monitoring:**
     ```bash
     stream-recorder
     ```
@@ -112,8 +103,7 @@ flowchart TD
 
     J --> N[Check retention and minimum duration rules]
     N --> O[Generate thumbnail and metadata]
-    O --> P[Upload to enabled services]
-    P --> Q[Render notification template]
+    O --> Q[Upload to enabled services]
     Q --> R[Send Discord notifications]
     R --> S[Recording session complete]
     S --> D
@@ -157,45 +147,16 @@ stream-recorder config get output_directory
 # Set a configuration value
 stream-recorder config set output_directory /path/to/recordings
 
+# Reset a configuration value to default
+stream-recorder config reset output_directory
+
 # Get config file path
 stream-recorder config get-path
-
-# Manage monitored users
-stream-recorder config monitors add username
-stream-recorder config monitors remove username
-stream-recorder config monitors list
 ```
 
-## Token Management
+## Features
 
-Tokens can be stored in two ways:
-
-### Option 1: System Keyring (Recommended)
-
-Store tokens securely using the system keyring:
-
-```bash
-# Bunkr upload token
-stream-recorder token save-bunkr YOUR_BUNKR_TOKEN
-
-# GoFile upload token
-stream-recorder token save-gofile YOUR_GOFILE_TOKEN
-```
-
-### Option 2: .env File
-
-Alternatively, you can store tokens in a `.env` file located at `~/.config/stream-recorder/.env` (Linux/macOS) or `%APPDATA%\stream-recorder\.env` (Windows).
-
-Create the file with the following format:
-
-```env
-BUNKR_TOKEN=your_bunkr_token_here
-GOFILE_TOKEN=your_gofile_token_here
-```
-
-**Note:** If both keyring and .env file contain tokens, the keyring tokens will take precedence.
-
-## Discord Integration
+### Discord Integration
 
 Set up Discord notifications:
 
@@ -209,13 +170,13 @@ The tool will send notifications when:
 
 - Recording starts
 - Recording completes
-- Uploads complete
+- Uploads complete _(using your template)_
 
-## Template System
+### Template System
 
 Templates are rendered using [Handlebars](https://handlebarsjs.com/), a powerful templating engine. You can use all standard Handlebars features: variables, conditionals, loops, and block helpers. See the [Handlebars documentation](https://handlebarsjs.com/guide/) for syntax and advanced usage.
 
-### Built-in Helpers
+#### Built-in Helpers
 
 The following helpers are registered and available in all templates:
 
@@ -227,7 +188,7 @@ The following helpers are registered and available in all templates:
 
 For real-world usage, see the example template: [templates/example.hbr](templates/example.hbr)
 
-### Template Variables
+#### Template Variables
 
 The following variables are available in the template context:
 
@@ -242,7 +203,7 @@ The following variables are available in the template context:
 | `<uploader>_urls`     | Array  | Array of an uploaders uploaded URLs                  |
 | `<uploader>_urls_len` | Number | Length of any array variable (e.g. `bunkr_urls_len`) |
 
-### Testing Templates
+#### Testing Templates
 
 Render a test message with mock data:
 
@@ -250,21 +211,18 @@ Render a test message with mock data:
 stream-recorder template render
 ```
 
-## Upload Services
+### Upload Services
 
 The tool supports uploading to multiple services. Tokens are stored securely and used automatically when available.
 
-### Bunkr
+| Uploader  | Requires Token | Notes                                                                         |
+| --------- | :------------: | ----------------------------------------------------------------------------- |
+| Bunkr     |      Yes       | API token required; supports album/folder lookups.                            |
+| GoFile    |      Yes       | API token supported; configurable server and folder ID.                       |
+| Fileditch |       No       | Public file hosting uploader.                                                 |
+| Filester  |       No       | Public file hosting uploader; supports album/folder lookups if token provided |
 
-- Requires API token
-- Uploads video files
-
-### GoFile
-
-- Requires API token
-- Uploads video files
-
-## File Organization
+### File Organization
 
 Recordings are organized as follows:
 
@@ -278,7 +236,7 @@ output_directory/
     └── ...
 ```
 
-## Disk Space Management
+### Disk Space Management
 
 The tool automatically manages disk space by:
 
@@ -286,6 +244,6 @@ The tool automatically manages disk space by:
 - Deleting oldest recordings when space falls below `min_free_space_gb`
 - Removing associated thumbnail files
 
-## License
+### License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
