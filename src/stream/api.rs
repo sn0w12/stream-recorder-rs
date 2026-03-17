@@ -5,12 +5,18 @@ use std::collections::HashMap;
 use std::time::Duration;
 use tokio::time::sleep;
 
-/// Builds a `HeaderMap` from the platform's header configuration, substituting
-/// `{token}` with the actual authentication token value.
-fn build_headers(platform: &PlatformConfig, token: &str) -> reqwest::header::HeaderMap {
+/// Builds a `HeaderMap` from the platform's header configuration, performing
+/// placeholder substitution from the provided `vars` map (e.g. `token`).
+fn build_headers(
+    platform: &PlatformConfig,
+    vars: &HashMap<String, String>,
+) -> reqwest::header::HeaderMap {
     let mut headers = reqwest::header::HeaderMap::new();
     for (key, value) in &platform.headers {
-        let value = value.replace("{token}", token);
+        let mut value = value.clone();
+        for (var_key, var_val) in vars {
+            value = value.replace(&format!("{{{}}}", var_key), var_val);
+        }
         if let (Ok(header_name), Ok(header_value)) = (
             reqwest::header::HeaderName::from_bytes(key.as_bytes()),
             reqwest::header::HeaderValue::from_str(&value),
@@ -33,7 +39,10 @@ pub async fn fetch_with_platform(
     max_retries: usize,
     initial_delay: f64,
 ) -> Result<Value, Box<dyn std::error::Error + Send + Sync>> {
-    let headers = build_headers(platform, token);
+    let mut vars: HashMap<String, String> = HashMap::new();
+    vars.insert("token".to_string(), token.to_string());
+
+    let headers = build_headers(platform, &vars);
     let client = Client::builder()
         .danger_accept_invalid_certs(true)
         .default_headers(headers)
@@ -159,4 +168,62 @@ fn json_value_to_string(v: &Value) -> Option<String> {
         return Some(v.to_string());
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::platform::PlatformConfig;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_build_headers_substitution() {
+        let mut headers = HashMap::new();
+        headers.insert("Authorization".to_string(), "Bearer {token}".to_string());
+        headers.insert("X-User".to_string(), "{username}".to_string());
+
+        let platform = PlatformConfig {
+            id: "p1".to_string(),
+            name: "P1".to_string(),
+            base_url: "https://example.com/".to_string(),
+            token_name: None,
+            headers,
+            steps: Vec::new(),
+            source_url: None,
+            version: "1.0.0".to_string(),
+            stream_recorder_version: None,
+            title_clean_regex: None,
+        };
+
+        let mut vars = HashMap::new();
+        vars.insert("token".to_string(), "tok-123".to_string());
+        vars.insert("username".to_string(), "alice".to_string());
+
+        let header_map = build_headers(&platform, &vars);
+        assert_eq!(header_map.get("Authorization").unwrap().to_str().unwrap(), "Bearer tok-123");
+        assert_eq!(header_map.get("X-User").unwrap().to_str().unwrap(), "alice");
+    }
+
+    #[test]
+    fn test_build_headers_unknown_placeholder_left_intact() {
+        let mut headers = HashMap::new();
+        headers.insert("X-Custom".to_string(), "Value {missing}".to_string());
+
+        let platform = PlatformConfig {
+            id: "p2".to_string(),
+            name: "P2".to_string(),
+            base_url: "https://example.com/".to_string(),
+            token_name: None,
+            headers,
+            steps: Vec::new(),
+            source_url: None,
+            version: "1.0.0".to_string(),
+            stream_recorder_version: None,
+            title_clean_regex: None,
+        };
+
+        let vars: HashMap<String, String> = HashMap::new();
+        let header_map = build_headers(&platform, &vars);
+        assert_eq!(header_map.get("X-Custom").unwrap().to_str().unwrap(), "Value {missing}");
+    }
 }
