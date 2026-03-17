@@ -3,6 +3,7 @@ mod config;
 mod template;
 mod thumb;
 mod utils;
+pub mod print;
 mod stream {
     pub mod api;
     pub mod monitor;
@@ -15,7 +16,7 @@ use crate::template::{get_template_string, render_template, TemplateValue};
 use crate::uploaders::UploaderType;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use colour::{green, println_bold, red, yellow, yellow_ln};
+use colored::*;
 use std::collections::HashMap;
 
 use crate::cli::config::{handle_config_command, ConfigAction};
@@ -176,23 +177,20 @@ async fn main() -> Result<()> {
 
 async fn print_startup_info(config: &crate::config::Config, platforms: &[PlatformConfig]) {
     fn section(title: &str) {
-        println_bold!("\n  {}", title);
+        println!("\n  {}", title.bold());
         println!("  {}", "─".repeat(title.len()));
     }
 
     fn item_ok(name: &str, note: &str) {
-        green!("  ✓");
-        println!(" {:<12}  {}", name, note)
+        println!("{} {:<12}  {}", "  ✓".green(), name, note)
     }
 
     fn item_err(name: &str, note: &str) {
-        red!("  ✗");
-        println!(" {:<12}  {}", name, note)
+        println!("{} {:<12}  {}", "  ✗".red(), name, note)
     }
 
     fn item_warn(name: &str, note: &str) {
-        yellow!("  →");
-        println!(" {:<12}  {}", name, note);
+        println!("{} {:<12}  {}", "  →".yellow(), name, note);
     }
 
     fn item_dot(name: &str, note: &str) {
@@ -253,7 +251,7 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
 
     section("Platforms");
     if platforms.is_empty() {
-        yellow_ln!("  No platforms configured");
+        println!("  {}", "No platforms configured".yellow());
     } else {
         for p in platforms {
             let token_status = if let Some(token_name) = &p.token_name {
@@ -273,7 +271,7 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
     section("Monitored Users");
     let monitors = config.get_monitors();
     if monitors.is_empty() {
-        yellow_ln!("  No users configured");
+        println!("  {}", "No users configured".yellow());
     } else {
         for user in &monitors {
             item_dot(user, "");
