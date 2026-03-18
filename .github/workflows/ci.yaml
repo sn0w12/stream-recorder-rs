@@ -17,4 +17,7 @@ jobs:
               uses: dtolnay/rust-toolchain@stable
 
             - name: Run cargo tests
-              run: cargo test --locked
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y ffmpeg
+                  cargo test --locked
