@@ -200,7 +200,10 @@ mod tests {
         vars.insert("username".to_string(), "alice".to_string());
 
         let header_map = build_headers(&platform, &vars);
-        assert_eq!(header_map.get("Authorization").unwrap().to_str().unwrap(), "Bearer tok-123");
+        assert_eq!(
+            header_map.get("Authorization").unwrap().to_str().unwrap(),
+            "Bearer tok-123"
+        );
         assert_eq!(header_map.get("X-User").unwrap().to_str().unwrap(), "alice");
     }
 
@@ -224,6 +227,9 @@ mod tests {
 
         let vars: HashMap<String, String> = HashMap::new();
         let header_map = build_headers(&platform, &vars);
-        assert_eq!(header_map.get("X-Custom").unwrap().to_str().unwrap(), "Value {missing}");
+        assert_eq!(
+            header_map.get("X-Custom").unwrap().to_str().unwrap(),
+            "Value {missing}"
+        );
     }
 }
