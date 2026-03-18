@@ -1150,7 +1150,49 @@ async fn manage_disk_space() -> Result<(), Box<dyn std::error::Error + Send + Sy
 
 #[cfg(test)]
 mod tests {
-    use super::build_ffconcat_manifest;
+    use super::{build_ffconcat_manifest, concat_video_files};
+
+    fn ffmpeg_is_available() -> bool {
+        std::process::Command::new("ffmpeg")
+            .arg("-version")
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false)
+    }
+
+    fn create_test_segment(path: &std::path::Path) {
+        let status = std::process::Command::new("ffmpeg")
+            .args([
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=c=black:s=16x16:r=15:d=0.2",
+                "-f",
+                "lavfi",
+                "-i",
+                "anullsrc=r=44100:cl=mono",
+                "-shortest",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "ultrafast",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-movflags",
+                "+faststart",
+                "-y",
+            ])
+            .arg(path)
+            .status()
+            .expect("failed to spawn ffmpeg for test segment generation");
+
+        assert!(status.success(), "ffmpeg failed to generate test segment");
+    }
 
     #[test]
     fn build_ffconcat_manifest_uses_canonical_absolute_paths() {
@@ -1192,5 +1234,35 @@ mod tests {
             .expect_err("missing files should fail manifest generation");
 
         assert!(err.to_string().contains("missing-segment.mp4"));
+    }
+
+    #[tokio::test]
+    async fn concat_video_files_combines_two_small_temp_files() {
+        if !ffmpeg_is_available() {
+            eprintln!("Skipping concat test because ffmpeg is not available");
+            return;
+        }
+
+        let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
+        let first_segment = temp_dir.path().join("part1.mp4");
+        let second_segment = temp_dir.path().join("part2.mp4");
+
+        create_test_segment(&first_segment);
+        create_test_segment(&second_segment);
+
+        let combined_path = concat_video_files(&[
+            first_segment.to_string_lossy().to_string(),
+            second_segment.to_string_lossy().to_string(),
+        ])
+        .await
+        .expect("concat should succeed for matching temp segments");
+
+        let combined_metadata =
+            std::fs::metadata(&combined_path).expect("combined output should be written to disk");
+
+        assert!(
+            combined_metadata.len() > 0,
+            "combined output should not be empty"
+        );
     }
 }
