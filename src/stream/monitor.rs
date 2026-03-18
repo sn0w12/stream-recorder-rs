@@ -14,8 +14,9 @@ use tokio::time::sleep;
 
 use chrono::{DateTime, Utc};
 use fs2::available_space;
+use std::io::Write;
 use std::process::Stdio;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, BufReader};
 use walkdir::WalkDir;
 
 #[cfg(feature = "discord")]
@@ -548,7 +549,16 @@ async fn concat_video_files(
         .unwrap_or_else(|| "combined".to_string());
     let combined_path = format!("{}/{}_combined.mp4", parent_dir, file_stem);
 
-    let mut child = tokio::process::Command::new("ffmpeg")
+    let mut manifest_file = tempfile::Builder::new()
+        .prefix("stream-recorder-")
+        .suffix(".ffconcat")
+        .tempfile_in(&parent_dir)?;
+    manifest_file.write_all(concat_manifest.as_bytes())?;
+    manifest_file.flush()?;
+
+    let manifest_path = manifest_file.path().to_string_lossy().into_owned();
+
+    let output = tokio::process::Command::new("ffmpeg")
         .args([
             "-loglevel",
             "error",
@@ -556,27 +566,16 @@ async fn concat_video_files(
             "concat",
             "-safe",
             "0",
-            "-protocol_whitelist",
-            "file,pipe",
             "-i",
-            "-",
+            &manifest_path,
             "-c",
             "copy",
             "-y",
             &combined_path,
         ])
-        .stdin(Stdio::piped())
         .stderr(std::process::Stdio::piped())
-        .spawn()?;
-
-    let mut stdin = child
-        .stdin
-        .take()
-        .ok_or("failed to open ffmpeg stdin for concat manifest")?;
-    stdin.write_all(concat_manifest.as_bytes()).await?;
-    stdin.shutdown().await?;
-
-    let output = child.wait_with_output().await?;
+        .output()
+        .await?;
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
