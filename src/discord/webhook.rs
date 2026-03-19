@@ -79,7 +79,8 @@ pub struct ExecuteWebhookOptions {
 
 pub struct WebhookClient {
     http: Client,
-    base_url: String,
+    // `None` when no webhook URL was provided; client becomes a no-op.
+    base_url: Option<String>,
     store: ThreadStore,
 }
 
@@ -89,14 +90,23 @@ impl WebhookClient {
     pub fn new(webhook_url: &str) -> Self {
         Self {
             http: Client::new(),
-            base_url: webhook_url.trim_end_matches('/').to_string(),
+            base_url: if webhook_url.trim().is_empty() {
+                None
+            } else {
+                Some(webhook_url.trim_end_matches('/').to_string())
+            },
             store: ThreadStore::load(),
         }
     }
 
     /// Execute the webhook with the given options. returns the created `Message`.
     async fn execute(&self, options: ExecuteWebhookOptions) -> anyhow::Result<Option<Message>> {
-        let mut url = self.base_url.clone();
+        // If no base URL is configured, skip executing webhooks.
+        let mut url = match &self.base_url {
+            Some(u) => u.clone(),
+            None => return Ok(None),
+        };
+
         if let Some(tid) = options.thread_id {
             url.push_str(&format!("?thread_id={}", tid));
         }
@@ -158,6 +168,11 @@ impl WebhookClient {
         components: Option<Vec<Component>>,
         files: Option<Vec<(String, Part)>>,
     ) -> anyhow::Result<()> {
+        // No-op when webhook URL not configured.
+        if self.base_url.is_none() {
+            return Ok(());
+        }
+
         let mut opts = ExecuteWebhookOptions {
             content,
             components,
