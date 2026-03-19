@@ -239,6 +239,7 @@ pub struct StreamInfo {
     pub user_id: String,
     pub stream_title: String,
     pub playback_url: String,
+    pub avatar_url: Option<String>,
 }
 
 /// Struct to manage the ffmpeg process, ensuring it's killed when dropped.
@@ -440,11 +441,13 @@ fn build_ffmpeg_args(
 async fn send_recording_start_webhook(
     webhook_url: Option<&str>,
     username: &str,
+    avatar_url: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let message = Message::new(|message| {
         message.embed(|embed| {
             embed
-                .title(format!("Stream Recording Started - {}", username))
+                .author(|author| author.name(username).url_icon(avatar_url.unwrap_or_default()))
+                .description("Stream Recording Started")
                 .color(0xFFFF00) // Yellow for starting
                 .timestamp(Timestamp::now_utc())
         })
@@ -456,6 +459,7 @@ async fn send_recording_start_webhook(
 async fn send_recording_start_webhook(
     _webhook_url: Option<&str>,
     _username: &str,
+    _avatar_url: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }
@@ -485,7 +489,7 @@ async fn record_stream_raw(
 
     // Send Discord webhook for recording start
     let webhook_url = config.get_discord_webhook_url();
-    if let Err(e) = send_recording_start_webhook(webhook_url, &stream_info.username).await {
+    if let Err(e) = send_recording_start_webhook(webhook_url, &stream_info.username, stream_info.avatar_url.clone()).await {
         eprintln!("Error sending start webhook: {}", e);
     }
 
@@ -693,11 +697,13 @@ pub async fn monitor_stream(
                         .get("user_id")
                         .cloned()
                         .unwrap_or_else(|| username.to_string());
+                    let avatar_url = vars.get("avatar_url").cloned();
                     let stream_info = StreamInfo {
                         username: username.to_string(),
                         user_id,
                         stream_title,
                         playback_url: url,
+                        avatar_url,
                     };
 
                     let config = Config::load().unwrap_or_default();
@@ -745,6 +751,7 @@ pub async fn monitor_stream(
                                                         .map(|s| platform.clean_title(s))
                                                         .unwrap_or_default(),
                                                     playback_url: new_url,
+                                                    avatar_url: new_vars.get("avatar_url").cloned(),
                                                 };
                                                 println!(
                                                     "Continuation stream detected for {}, recording...",
@@ -934,7 +941,8 @@ async fn send_recording_complete_webhook(
     let message = Message::new(|message| {
         message.embed(|embed| {
             embed
-                .title(format!("Stream Recorded - {}", stream_info.username))
+                .author(|author| author.name(&stream_info.username).url_icon(stream_info.avatar_url.clone().unwrap_or_default()))
+                .title("Stream Recorded")
                 .field(|field| field.name("Stream Title").value(&stream_info.stream_title))
                 .field(|field| field.name("Duration").value(duration_str))
                 .field(|field| field.name("File Size").value(size_str))

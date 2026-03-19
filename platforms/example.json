@@ -18,7 +18,8 @@
             "extract": {
                 "stream_id": "data.id",
                 "stream_title": "data.title",
-                "user_id": "data.user_id"
+                "user_id": "data.user_id",
+                "avatar_url": "data.user_avatar"
             }
         },
         {
