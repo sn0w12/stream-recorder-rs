@@ -1,6 +1,9 @@
 use crate::platform::PlatformConfig;
+use crate::print::table::{Cell, Table};
 use anyhow::Result;
 use clap::Subcommand;
+use reqwest::Client;
+use serde::Deserialize;
 
 #[derive(Subcommand)]
 pub enum PlatformAction {
@@ -11,6 +14,13 @@ pub enum PlatformAction {
     Install {
         /// URL to the platform JSON file
         url: String,
+    },
+    Search {
+        /// Optional search query to find platforms by name or description
+        query: Option<String>,
+        /// Page number of results to show (default: 1)
+        #[arg(short, long)]
+        page: Option<u32>,
     },
     /// Update an installed platform from its saved source URL
     Update {
@@ -26,6 +36,18 @@ pub enum PlatformAction {
         /// Platform ID to remove
         platform_id: String,
     },
+}
+
+#[derive(Deserialize)]
+struct RepoSearchResponse {
+    items: Vec<RepoItem>,
+}
+
+#[derive(Deserialize)]
+struct RepoItem {
+    full_name: String,
+    description: Option<String>,
+    stargazers_count: u32,
 }
 
 pub async fn handle_platform_command(action: PlatformAction) -> Result<()> {
@@ -105,6 +127,55 @@ pub async fn handle_platform_command(action: PlatformAction) -> Result<()> {
         PlatformAction::Remove { platform_id } => {
             PlatformConfig::remove_by_id(&platform_id)?;
             println!("Removed platform '{}'.", platform_id);
+            Ok(())
+        }
+        PlatformAction::Search { query, page } => {
+            let client = Client::new();
+            let page = page.unwrap_or(1);
+            let q = if let Some(ref qs) = query {
+                format!("{} topic:stream-recorder-rs-platform in:name,description", qs)
+            } else {
+                "topic:stream-recorder-rs-platform".to_string()
+            };
+            let page_str = page.to_string();
+
+            let resp = client
+                .get("https://api.github.com/search/repositories")
+                .header(reqwest::header::USER_AGENT, "stream-recorder-rs")
+                .header(reqwest::header::ACCEPT, "application/vnd.github.v3+json")
+                .query(&[("q", q.as_str()), ("per_page", "10"), ("page", page_str.as_str())])
+                .send()
+                .await?;
+
+            let status = resp.status();
+            if !status.is_success() {
+                let txt = resp.text().await.unwrap_or_default();
+                return Err(anyhow::anyhow!("GitHub API error: {} - {}", status, txt));
+            }
+
+            let body: RepoSearchResponse = resp.json().await?;
+
+            if body.items.is_empty() {
+                println!("No results found.");
+            } else {
+                let mut table = Table::new();
+                table.set_headers(vec![
+                    Cell::new("No.", None),
+                    Cell::new("Name", None),
+                    Cell::new("Description", None),
+                    Cell::new("Stars", None),
+                ]);
+                for (i, item) in body.items.iter().enumerate() {
+                    table.add_row(vec![
+                        Cell::new((i + 1).to_string(), None),
+                        Cell::new(item.full_name.clone(), None),
+                        Cell::new(item.description.clone().unwrap_or_default(), None),
+                        Cell::new(item.stargazers_count.to_string(), None),
+                    ]);
+                }
+                table.print();
+            }
+
             Ok(())
         }
     }
