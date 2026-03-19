@@ -44,7 +44,6 @@ pub async fn fetch_with_platform(
 
     let headers = build_headers(platform, &vars);
     let client = Client::builder()
-        .danger_accept_invalid_certs(true)
         .default_headers(headers)
         .build()?;
 
