@@ -784,11 +784,6 @@ pub async fn monitor_stream(
                                 }
 
                                 // Continuation window closed — post-process the full session.
-                                println!(
-                                    "Continuation window expired for {}, post-processing {} segment(s)...",
-                                    username,
-                                    session_files.len()
-                                );
                                 let info = primary_stream_info;
                                 let files = session_files;
                                 tokio::spawn(async move {
@@ -1016,7 +1011,7 @@ async fn post_process_stream(
         match uploader.get_folder_id_by_name(&stream_info.username).await {
             Ok(Some(folder_id)) => config.folder_id = Some(folder_id),
             Ok(None) => {} // not supported or not found
-            Err(e) => eprintln!("{} folder lookup failed: {}", uploader.name(), e),
+            Err(_) => {}, // folder not found
         }
         try_upload(
             uploader.as_ref(),
@@ -1033,7 +1028,7 @@ async fn post_process_stream(
     for (uploader, urls) in &upload_results {
         upload_table.add_row(vec![
             Cell::new(uploader, None),
-            Cell::new(urls.join("\n"), None),
+            Cell::new(urls.join(", "), None),
         ]);
     }
     upload_table.print();
