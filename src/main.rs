@@ -6,8 +6,10 @@ mod thumb;
 mod utils;
 mod stream {
     pub mod api;
+    pub mod messages;
     pub mod monitor;
 }
+mod discord;
 mod platform;
 mod uploaders;
 

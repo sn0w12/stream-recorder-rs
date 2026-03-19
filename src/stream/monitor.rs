@@ -3,6 +3,9 @@ use crate::config::Config;
 use crate::platform::{PipelineOutcome, PlatformConfig};
 use crate::print::table::{Cell, Table};
 use crate::stream::api::run_pipeline;
+use crate::stream::messages::{
+    send_recording_complete_webhook, send_recording_start_webhook, send_template_webhook,
+};
 use crate::template::{TemplateValue, get_template_string, render_template};
 use crate::thumb::create_video_thumbnail_grid;
 use crate::uploaders::build_uploaders;
@@ -18,13 +21,6 @@ use std::io::Write;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use walkdir::WalkDir;
-
-#[cfg(feature = "discord")]
-use discord_webhook2::message::Message;
-#[cfg(feature = "discord")]
-use discord_webhook2::webhook::DiscordWebhook;
-#[cfg(feature = "discord")]
-use iso8601_timestamp::Timestamp;
 
 // Run a short ffmpeg probe to verify that `encoder` actually works at runtime.
 // Many builds list encoders at compile-time (`ffmpeg -encoders`) even when the
@@ -289,53 +285,6 @@ impl Drop for StreamRecorder {
     }
 }
 
-/// Helper function to send Discord webhook if the feature is enabled and webhook URL is configured.
-/// Validates the webhook URL format.
-#[cfg(feature = "discord")]
-async fn send_discord_webhook(
-    webhook_url: Option<&str>,
-    message: Message,
-    attachment_paths: Option<Vec<String>>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    if let Some(url) = webhook_url {
-        if !url.starts_with("https://discord.com/api/webhooks/") {
-            return Err("Invalid Discord webhook URL format".into());
-        }
-        let webhook = DiscordWebhook::new(url)?;
-        if let Some(paths) = attachment_paths {
-            if !paths.is_empty() {
-                use std::collections::BTreeMap;
-                let mut files = BTreeMap::new();
-                for path in paths {
-                    let filename = std::path::Path::new(&path)
-                        .file_name()
-                        .unwrap()
-                        .to_string_lossy()
-                        .to_string();
-                    let data = tokio::fs::read(&path).await?;
-                    files.insert(filename, data);
-                }
-                webhook.send_with_files(&message, files).await?;
-            } else {
-                webhook.send(&message).await?;
-            }
-        } else {
-            webhook.send(&message).await?;
-        }
-    }
-    Ok(())
-}
-
-#[cfg(not(feature = "discord"))]
-async fn send_discord_webhook(
-    _webhook_url: Option<&str>,
-    _message: Message,
-    _attachment_paths: Option<Vec<String>>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // No-op when discord feature is disabled
-    Ok(())
-}
-
 /// Builds ffmpeg arguments for recording with hardware acceleration when available.
 fn build_ffmpeg_args(
     playback_url: &str,
@@ -436,34 +385,6 @@ fn build_ffmpeg_args(
     ffmpeg_args
 }
 
-/// Sends a Discord webhook notification for recording start.
-#[cfg(feature = "discord")]
-async fn send_recording_start_webhook(
-    webhook_url: Option<&str>,
-    username: &str,
-    avatar_url: Option<String>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let message = Message::new(|message| {
-        message.embed(|embed| {
-            embed
-                .author(|author| author.name(username).url_icon(avatar_url.unwrap_or_default()))
-                .description("Stream Recording Started")
-                .color(0xFFFF00) // Yellow for starting
-                .timestamp(Timestamp::now_utc())
-        })
-    });
-    send_discord_webhook(webhook_url, message, None).await
-}
-
-#[cfg(not(feature = "discord"))]
-async fn send_recording_start_webhook(
-    _webhook_url: Option<&str>,
-    _username: &str,
-    _avatar_url: Option<String>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    Ok(())
-}
-
 /// Core recording logic: starts ffmpeg, waits for the stream to end, and returns
 /// the stream info together with the output file path.  Does NOT spawn any
 /// post-processing — callers are responsible for that.
@@ -489,7 +410,13 @@ async fn record_stream_raw(
 
     // Send Discord webhook for recording start
     let webhook_url = config.get_discord_webhook_url();
-    if let Err(e) = send_recording_start_webhook(webhook_url, &stream_info.username, stream_info.avatar_url.clone()).await {
+    if let Err(e) = send_recording_start_webhook(
+        webhook_url,
+        &stream_info.username,
+        stream_info.avatar_url.clone(),
+    )
+    .await
+    {
         eprintln!("Error sending start webhook: {}", e);
     }
 
@@ -930,39 +857,6 @@ async fn handle_minimum_duration(
     Ok(false)
 }
 
-/// Sends a Discord webhook notification for recorded stream completion.
-#[cfg(feature = "discord")]
-async fn send_recording_complete_webhook(
-    webhook_url: Option<&str>,
-    stream_info: &StreamInfo,
-    duration_str: &str,
-    size_str: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let message = Message::new(|message| {
-        message.embed(|embed| {
-            embed
-                .author(|author| author.name(&stream_info.username).url_icon(stream_info.avatar_url.clone().unwrap_or_default()))
-                .title("Stream Recorded")
-                .field(|field| field.name("Stream Title").value(&stream_info.stream_title))
-                .field(|field| field.name("Duration").value(duration_str))
-                .field(|field| field.name("File Size").value(size_str))
-                .color(0x00FF00) // Green for completion
-                .timestamp(Timestamp::now_utc())
-        })
-    });
-    send_discord_webhook(webhook_url, message, None).await
-}
-
-#[cfg(not(feature = "discord"))]
-async fn send_recording_complete_webhook(
-    _webhook_url: Option<&str>,
-    _stream_info: &StreamInfo,
-    _duration_str: &str,
-    _size_str: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    Ok(())
-}
-
 /// Post-processes the recorded stream file.
 /// This function runs on a separate task after recording is complete.
 /// Sends a Discord webhook if configured.
@@ -1074,15 +968,12 @@ async fn post_process_stream(
 
     if let Some(template) = get_template_string() {
         let content = render_template(template, &template_context);
-        #[cfg(feature = "discord")]
         {
-            let mut attachments = vec![];
-            if std::path::Path::new(&thumbnail_path).exists() {
-                attachments.push(thumbnail_path.clone());
-            }
-            let message = Message::new(|message| message.content(format!("```\n{}\n```", content)));
-            if let Err(e) = send_discord_webhook(webhook_url, message, Some(attachments)).await {
-                eprintln!("Error sending upload complete webhook: {}", e);
+            if let Err(e) =
+                send_template_webhook(webhook_url, &stream_info, &content, thumbnail_path.clone())
+                    .await
+            {
+                eprintln!("Error sending template webhook: {}", e);
             }
         }
     }
