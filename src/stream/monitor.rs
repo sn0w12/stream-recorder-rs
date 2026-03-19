@@ -1011,7 +1011,7 @@ async fn post_process_stream(
         match uploader.get_folder_id_by_name(&stream_info.username).await {
             Ok(Some(folder_id)) => config.folder_id = Some(folder_id),
             Ok(None) => {} // not supported or not found
-            Err(_) => {}, // folder not found
+            Err(_) => {}   // folder not found
         }
         try_upload(
             uploader.as_ref(),

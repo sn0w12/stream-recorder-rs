@@ -406,28 +406,35 @@ impl PlatformConfig {
 /// Any other URL (non-GitHub, direct blob links, raw URLs, etc.) is returned
 /// unchanged.
 fn resolve_github_url(url: &str) -> String {
-    let prefix = "https://github.com/";
-    if !url.starts_with(prefix) {
+    // Normalize and accept either a full GitHub URL or the shorthand
+    // `owner/repo` (optionally with `/tree/{branch}[/{path}]`).
+    // If the input is a non-GitHub absolute URL, return it unchanged.
+    let s = url.trim_end_matches('/');
+
+    // If it's an absolute URL but not GitHub, leave it alone.
+    if s.contains("://") && !s.contains("github.com/") {
         return url.to_string();
     }
 
-    let path = url[prefix.len()..].trim_end_matches('/');
+    // Strip everything up to and including `github.com/` when present,
+    // otherwise treat the whole input as the path (shorthand form).
+    let path = if let Some(idx) = s.find("github.com/") {
+        &s[idx + "github.com/".len()..]
+    } else {
+        s
+    };
+
     // Use splitn(5) so that a sub-path after the branch is kept as one segment.
     let segments: Vec<&str> = path.splitn(5, '/').collect();
-
     match segments.as_slice() {
-        [owner, repo] => {
-            format!(
-                "https://raw.githubusercontent.com/{}/{}/HEAD/platform.json",
-                owner, repo
-            )
-        }
-        [owner, repo, tree, branch] if *tree == "tree" => {
-            format!(
-                "https://raw.githubusercontent.com/{}/{}/{}/platform.json",
-                owner, repo, branch
-            )
-        }
+        [owner, repo] => format!(
+            "https://raw.githubusercontent.com/{}/{}/HEAD/platform.json",
+            owner, repo
+        ),
+        [owner, repo, tree, branch] if *tree == "tree" => format!(
+            "https://raw.githubusercontent.com/{}/{}/{}/platform.json",
+            owner, repo, branch
+        ),
         [owner, repo, tree, branch, subpath] if *tree == "tree" => {
             let subpath = subpath.trim_end_matches('/');
             format!(

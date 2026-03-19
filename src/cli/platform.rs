@@ -88,7 +88,6 @@ pub async fn handle_platform_command(action: PlatformAction) -> Result<()> {
             Ok(())
         }
         PlatformAction::Install { url } => {
-            println!("Downloading platform config from {}...", url);
             let config = PlatformConfig::install_from_url(&url).await?;
             println!("Installed platform '{}' ({}).", config.id, config.name);
             if let Some(token_name) = &config.token_name {
@@ -133,7 +132,10 @@ pub async fn handle_platform_command(action: PlatformAction) -> Result<()> {
             let client = Client::new();
             let page = page.unwrap_or(1);
             let q = if let Some(ref qs) = query {
-                format!("{} topic:stream-recorder-rs-platform in:name,description", qs)
+                format!(
+                    "{} topic:stream-recorder-rs-platform in:name,description",
+                    qs
+                )
             } else {
                 "topic:stream-recorder-rs-platform".to_string()
             };
@@ -143,7 +145,11 @@ pub async fn handle_platform_command(action: PlatformAction) -> Result<()> {
                 .get("https://api.github.com/search/repositories")
                 .header(reqwest::header::USER_AGENT, "stream-recorder-rs")
                 .header(reqwest::header::ACCEPT, "application/vnd.github.v3+json")
-                .query(&[("q", q.as_str()), ("per_page", "10"), ("page", page_str.as_str())])
+                .query(&[
+                    ("q", q.as_str()),
+                    ("per_page", "10"),
+                    ("page", page_str.as_str()),
+                ])
                 .send()
                 .await?;
 
