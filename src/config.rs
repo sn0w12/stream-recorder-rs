@@ -132,7 +132,7 @@ macro_rules! define_config {
                     let default = self.get_default_string(*key);
 
                     // Color green if current value is changed
-                    let current_color = if current != default && current != "none" {
+                    let current_color = if current != default {
                         Some(Green)
                     } else {
                         Some(BrightBlack)
