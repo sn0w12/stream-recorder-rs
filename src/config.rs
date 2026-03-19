@@ -78,7 +78,7 @@ macro_rules! define_config {
         impl Config {
             pub fn get_value(&self, key: &str) -> String {
                 match ConfigKey::from_str(key) {
-                    $(Some(ConfigKey::$field) => impl_cli_get!($kind, self.$field),)*
+                    $(Some(ConfigKey::$field) => impl_cli_get!($kind, self.$field, $runtime_default),)*
                     None => "unknown key".to_string(),
                 }
             }
@@ -131,7 +131,8 @@ macro_rules! define_config {
                     let current = self.get_value(key.as_str());
                     let default = self.get_default_string(*key);
 
-                    let current_color = if current == default {
+                    // Color green if current value is changed
+                    let current_color = if current != default && current != "none" {
                         Some(Green)
                     } else {
                         Some(BrightBlack)
@@ -186,29 +187,35 @@ macro_rules! impl_getter {
 }
 
 macro_rules! impl_cli_get {
-    (str, $field:expr) => {
-        $field.clone().unwrap_or_else(|| "none".into())
+    (str, $field:expr, $default:expr) => {
+        $field.clone().unwrap_or_else(|| $default.clone().unwrap_or_else(|| "none".into()))
     };
-    (str_opt, $field:expr) => {
-        $field.clone().unwrap_or_else(|| "none".into())
+    (str_opt, $field:expr, $default:expr) => {
+        $field.clone().unwrap_or_else(|| $default.clone().unwrap_or_else(|| "none".into()))
     };
-    (vec, $field:expr) => {
+    (vec, $field:expr, $default:expr) => {
         $field
             .as_ref()
             .map(|v| v.join(", "))
-            .unwrap_or_else(|| "none".into())
+            .unwrap_or_else(|| {
+                if $default.is_empty() {
+                    "none".into()
+                } else {
+                    $default.join(", ")
+                }
+            })
     };
-    (f64, $field:expr) => {
+    (f64, $field:expr, $default:expr) => {
         $field
             .map(|v| v.to_string())
-            .unwrap_or_else(|| "none".into())
+            .unwrap_or_else(|| $default.map(|v| v.to_string()).unwrap_or_else(|| "none".into()))
     };
-    (u32, $field:expr) => {
+    (u32, $field:expr, $default:expr) => {
         $field
             .map(|v| v.to_string())
-            .unwrap_or_else(|| "none".into())
+            .unwrap_or_else(|| $default.map(|v| v.to_string()).unwrap_or_else(|| "none".into()))
     };
-    (f64_opt, $field:expr) => {
+    (f64_opt, $field:expr, $default:expr) => {
         $field
             .map(|v| v.to_string())
             .unwrap_or_else(|| "none".into())
@@ -324,7 +331,7 @@ macro_rules! impl_is_array {
 
 define_config! {
     output_directory: Option<String> = None => Some("./recordings".to_string()), str, "Directory to save recordings",
-    monitors: Option<Vec<String>> = None => vec![], vec, "List of usernames to monitor",
+    monitors: Option<Vec<String>> = None => Vec::<String>::new(), vec, "List of usernames to monitor",
     discord_webhook_url: Option<String> = None => None, str_opt, "Discord webhook URL for notifications",
     min_free_space_gb: Option<f64> = Some(20.0) => Some(20.0), f64, "Minimum free disk space before cleanup",
     upload_complete_message_template: Option<String> = None => None, str_opt, "Template for upload completion messages",
@@ -332,7 +339,7 @@ define_config! {
     min_stream_duration: Option<f64> = None => None, f64_opt, "Minimum stream duration before recording",
     bitrate: Option<String> = Some("3M".to_string()) => Some("3M".to_string()), str, "Bitrate to record stream at",
     stream_reconnect_delay_minutes: Option<f64> = None => None, f64_opt, "Delay in minutes to wait for stream continuation before post-processing. Streams resumed are merged.",
-    disabled_uploaders: Option<Vec<String>> = None => vec![], vec, "List of uploaders to skip uploading to",
+    disabled_uploaders: Option<Vec<String>> = None => Vec::<String>::new(), vec, "List of uploaders to skip uploading to",
     step_delay_seconds: Option<f64> = None => Some(0.5), f64, "Delay in seconds between each step in a platform",
     fetch_interval_seconds: Option<f64> = None => Some(120.0), f64, "The interval in seconds monitors are fetched at",
 }
