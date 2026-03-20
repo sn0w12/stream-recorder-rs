@@ -63,7 +63,8 @@ pub struct TextComponent {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DividerComponent {
-    pub divider: bool, // always true, just to differentiate from other components
+    #[serde(rename = "divider")]
+    pub visible: bool, // serialized as `divider` to match Discord's API
     pub spacing: u32,
 }
 

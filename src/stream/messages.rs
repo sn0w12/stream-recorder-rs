@@ -66,7 +66,7 @@ pub async fn send_recording_complete_webhook(
                 "Stream Recording Completed",
             ),
             Component::Divider(DividerComponent {
-                divider: true,
+                visible: true,
                 spacing: 1,
             }),
             Component::Text(TextComponent {
