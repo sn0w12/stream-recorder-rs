@@ -43,9 +43,7 @@ pub async fn fetch_with_platform(
     vars.insert("token".to_string(), token.to_string());
 
     let headers = build_headers(platform, &vars);
-    let client = Client::builder()
-        .default_headers(headers)
-        .build()?;
+    let client = Client::builder().default_headers(headers).build()?;
 
     let full_url = if url.starts_with("http://") || url.starts_with("https://") {
         url.to_string()

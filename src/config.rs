@@ -188,32 +188,37 @@ macro_rules! impl_getter {
 
 macro_rules! impl_cli_get {
     (str, $field:expr, $default:expr) => {
-        $field.clone().unwrap_or_else(|| $default.clone().unwrap_or_else(|| "none".into()))
+        $field
+            .clone()
+            .unwrap_or_else(|| $default.clone().unwrap_or_else(|| "none".into()))
     };
     (str_opt, $field:expr, $default:expr) => {
-        $field.clone().unwrap_or_else(|| $default.clone().unwrap_or_else(|| "none".into()))
+        $field
+            .clone()
+            .unwrap_or_else(|| $default.clone().unwrap_or_else(|| "none".into()))
     };
     (vec, $field:expr, $default:expr) => {
-        $field
-            .as_ref()
-            .map(|v| v.join(", "))
-            .unwrap_or_else(|| {
-                if $default.is_empty() {
-                    "none".into()
-                } else {
-                    $default.join(", ")
-                }
-            })
+        $field.as_ref().map(|v| v.join(", ")).unwrap_or_else(|| {
+            if $default.is_empty() {
+                "none".into()
+            } else {
+                $default.join(", ")
+            }
+        })
     };
     (f64, $field:expr, $default:expr) => {
-        $field
-            .map(|v| v.to_string())
-            .unwrap_or_else(|| $default.map(|v| v.to_string()).unwrap_or_else(|| "none".into()))
+        $field.map(|v| v.to_string()).unwrap_or_else(|| {
+            $default
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "none".into())
+        })
     };
     (u32, $field:expr, $default:expr) => {
-        $field
-            .map(|v| v.to_string())
-            .unwrap_or_else(|| $default.map(|v| v.to_string()).unwrap_or_else(|| "none".into()))
+        $field.map(|v| v.to_string()).unwrap_or_else(|| {
+            $default
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "none".into())
+        })
     };
     (f64_opt, $field:expr, $default:expr) => {
         $field

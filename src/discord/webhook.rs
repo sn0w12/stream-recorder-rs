@@ -1,8 +1,12 @@
+use anyhow::Context;
 use reqwest::Client;
 use reqwest::multipart::{Form, Part};
 use serde::{Deserialize, Serialize, Serializer};
+use serde_json::{Value, json};
 
 use crate::discord::threads::ThreadStore;
+
+const IS_COMPONENTS_V2: u64 = 1 << 15;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DiscordColor(u32);
@@ -104,6 +108,23 @@ pub struct WebhookClient {
     store: ThreadStore,
 }
 
+fn append_query_param(url: &mut String, key: &str, value: &str) {
+    if url.contains('?') {
+        url.push('&');
+    } else {
+        url.push('?');
+    }
+    url.push_str(key);
+    url.push('=');
+    url.push_str(value);
+}
+
+fn add_components_v2_payload(payload: &mut Value, components: &[Component]) -> anyhow::Result<()> {
+    payload["components"] = serde_json::to_value(components)?;
+    payload["flags"] = json!(IS_COMPONENTS_V2);
+    Ok(())
+}
+
 impl WebhookClient {
     /// Create a new client from a full Discord webhook URL.
     /// Example: "https://discord.com/api/webhooks/123456/abc-def"
@@ -128,24 +149,23 @@ impl WebhookClient {
         };
 
         if let Some(tid) = options.thread_id {
-            url.push_str(&format!("?thread_id={}", tid));
+            append_query_param(&mut url, "thread_id", &tid.to_string());
         }
-        if url.contains('?') {
-            url.push_str("&wait=true");
-        } else {
-            url.push_str("?wait=true");
+        append_query_param(&mut url, "wait", "true");
+        if options.components.is_some() {
+            append_query_param(&mut url, "with_components", "true");
         }
 
         // Build the JSON payload (without files)
-        let mut payload = serde_json::json!({});
+        let mut payload = json!({});
         if let Some(content) = &options.content {
-            payload["content"] = serde_json::Value::String(content.clone());
+            payload["content"] = Value::String(content.clone());
         }
         if let Some(components) = &options.components {
-            payload["components"] = serde_json::to_value(components)?;
+            add_components_v2_payload(&mut payload, components)?;
         }
         if let Some(thread_name) = &options.thread_name {
-            payload["thread_name"] = serde_json::Value::String(thread_name.clone());
+            payload["thread_name"] = Value::String(thread_name.clone());
         }
 
         // Decide whether to use multipart (if files are present)
@@ -208,7 +228,8 @@ impl WebhookClient {
             // Thread does not exist – create it and capture the new thread ID
             opts.thread_name = Some(thread_name.to_string());
             let maybe_msg = self.execute(opts).await?;
-            let msg = maybe_msg.expect("wait=true should return a message");
+            let msg =
+                maybe_msg.context("discord webhook response did not include a thread message")?;
             let new_thread_id = msg.channel_id;
             self.store.insert(thread_name.to_string(), new_thread_id)?;
         }
@@ -218,8 +239,7 @@ impl WebhookClient {
 
 #[cfg(test)]
 mod tests {
-    use super::DiscordColor;
-    use serde_json;
+    use super::*;
 
     #[test]
     fn discord_color_rgb_and_serialize() {
@@ -230,5 +250,31 @@ mod tests {
         let red = DiscordColor::rgb(255, 0, 0);
         let red_ser = serde_json::to_string(&red).unwrap();
         assert_eq!(red_ser, "16711680"); // 0xFF0000 == 16711680
+    }
+
+    #[test]
+    fn append_query_param_appends_multiple_parameters() {
+        let mut url = "https://discord.com/api/webhooks/1/2".to_string();
+        append_query_param(&mut url, "wait", "true");
+        append_query_param(&mut url, "with_components", "true");
+
+        assert_eq!(
+            url,
+            "https://discord.com/api/webhooks/1/2?wait=true&with_components=true"
+        );
+    }
+
+    #[test]
+    fn add_components_v2_payload_sets_components_and_flags() {
+        let mut payload = json!({});
+        let components = vec![Component::Text(TextComponent {
+            content: "hello".to_string(),
+        })];
+
+        add_components_v2_payload(&mut payload, &components).expect("payload update");
+
+        assert_eq!(payload["flags"], json!(IS_COMPONENTS_V2));
+        assert_eq!(payload["components"][0]["type"], "10");
+        assert_eq!(payload["components"][0]["content"], "hello");
     }
 }
