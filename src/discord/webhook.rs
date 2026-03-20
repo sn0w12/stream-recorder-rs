@@ -1,8 +1,27 @@
 use reqwest::Client;
 use reqwest::multipart::{Form, Part};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 
 use crate::discord::threads::ThreadStore;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DiscordColor(u32);
+
+impl DiscordColor {
+    pub fn rgb(r: u8, g: u8, b: u8) -> Self {
+        Self(((r as u32) << 16) | ((g as u32) << 8) | (b as u32))
+    }
+}
+
+// Serialize as plain u32
+impl Serialize for DiscordColor {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_u32(self.0)
+    }
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type")]
@@ -25,7 +44,7 @@ pub enum Component {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ContainerComponent {
-    pub accent_color: u32,
+    pub accent_color: DiscordColor,
     pub spoiler: bool,
     pub components: Vec<Component>,
 }
@@ -193,5 +212,22 @@ impl WebhookClient {
             self.store.insert(thread_name.to_string(), new_thread_id)?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DiscordColor;
+    use serde_json;
+
+    #[test]
+    fn discord_color_rgb_and_serialize() {
+        let c = DiscordColor::rgb(1, 2, 3);
+        let serialized = serde_json::to_string(&c).unwrap();
+        assert_eq!(serialized, "66051"); // 0x010203 == 66051
+
+        let red = DiscordColor::rgb(255, 0, 0);
+        let red_ser = serde_json::to_string(&red).unwrap();
+        assert_eq!(red_ser, "16711680"); // 0xFF0000 == 16711680
     }
 }

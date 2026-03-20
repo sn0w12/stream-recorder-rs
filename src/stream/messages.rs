@@ -1,7 +1,7 @@
 use crate::{
     discord::webhook::{
-        Component, ContainerComponent, DividerComponent, GroupComponent, Media, MediaComponent,
-        TextComponent, WebhookClient,
+        Component, ContainerComponent, DiscordColor, DividerComponent, GroupComponent, Media,
+        MediaComponent, TextComponent, WebhookClient,
     },
     stream::monitor::StreamInfo,
 };
@@ -34,7 +34,7 @@ pub async fn send_recording_start_webhook(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut client = WebhookClient::new(webhook_url.unwrap_or_default());
     let component = Component::Container(ContainerComponent {
-        accent_color: 16776960, // yellow
+        accent_color: DiscordColor::rgb(255, 255, 0),
         spoiler: false,
         components: vec![stream_header_component(
             username,
@@ -57,7 +57,7 @@ pub async fn send_recording_complete_webhook(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut client = WebhookClient::new(webhook_url.unwrap_or_default());
     let component = Component::Container(ContainerComponent {
-        accent_color: 65280, // green
+        accent_color: DiscordColor::rgb(0, 255, 0),
         spoiler: false,
         components: vec![
             stream_header_component(
@@ -94,7 +94,7 @@ pub async fn send_template_webhook(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut client = WebhookClient::new(webhook_url.unwrap_or_default());
     let component = Component::Container(ContainerComponent {
-        accent_color: 3447003, // blue
+        accent_color: DiscordColor::rgb(0, 0, 255),
         spoiler: false,
         components: vec![
             stream_header_component(
