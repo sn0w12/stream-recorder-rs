@@ -1,6 +1,9 @@
+use crate::config::Config;
+use anyhow::Result;
 use handlebars::{Handlebars, handlebars_helper};
 use serde_json::{Map, Number, Value};
 use std::collections::HashMap;
+use std::path::Path;
 
 #[derive(Clone, Debug)]
 pub enum TemplateValue {
@@ -17,22 +20,23 @@ fn to_json_value(tv: &TemplateValue) -> Value {
     }
 }
 
-pub fn get_template_string() -> Option<&'static str> {
-    let config = crate::config::Config::load().unwrap_or_default();
+fn resolve_template_string(config: &Config, config_path: &Path) -> Result<Option<String>> {
     if let Some(template_str) = config.get_upload_complete_message_template() {
-        // Clone and leak the string so we can return a `&'static str`
-        return Some(Box::leak(template_str.to_owned().into_boxed_str()));
+        return Ok(Some(template_str.to_owned()));
     }
 
-    let config_path = crate::utils::app_config_dir().join("template.hbr");
-    if config_path.exists()
-        && let Ok(template_str) = std::fs::read_to_string(config_path)
-    {
-        return Some(Box::leak(template_str.into_boxed_str()));
+    if config_path.exists() {
+        return Ok(Some(std::fs::read_to_string(config_path)?));
     }
 
     println!("No template found in config or template.hbr, no template will be used.");
-    None
+    Ok(None)
+}
+
+pub fn get_template_string() -> Result<Option<String>> {
+    let config = Config::load()?;
+    let config_path = crate::utils::app_config_dir().join("template.hbr");
+    resolve_template_string(&config, &config_path)
 }
 
 /// Render the provided template using Handlebars.
@@ -72,5 +76,49 @@ pub fn render_template(template: &str, context: &HashMap<String, TemplateValue>)
             eprintln!("handlebars render error: {}", e);
             String::new()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn resolve_template_string_prefers_config_value() {
+        let config = Config {
+            upload_complete_message_template: Some("from-config".to_string()),
+            ..Config::default()
+        };
+        let dir = tempdir().expect("tempdir");
+        let template_path = dir.path().join("template.hbr");
+        std::fs::write(&template_path, "from-file").expect("write template");
+
+        let template = resolve_template_string(&config, &template_path).expect("resolve template");
+
+        assert_eq!(template.as_deref(), Some("from-config"));
+    }
+
+    #[test]
+    fn resolve_template_string_falls_back_to_file() {
+        let config = Config::default();
+        let dir = tempdir().expect("tempdir");
+        let template_path = dir.path().join("template.hbr");
+        std::fs::write(&template_path, "from-file").expect("write template");
+
+        let template = resolve_template_string(&config, &template_path).expect("resolve template");
+
+        assert_eq!(template.as_deref(), Some("from-file"));
+    }
+
+    #[test]
+    fn resolve_template_string_returns_none_when_missing() {
+        let config = Config::default();
+        let dir = tempdir().expect("tempdir");
+        let template_path = dir.path().join("missing.hbr");
+
+        let template = resolve_template_string(&config, &template_path).expect("resolve template");
+
+        assert!(template.is_none());
     }
 }

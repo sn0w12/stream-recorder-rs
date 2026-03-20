@@ -633,7 +633,6 @@ pub async fn monitor_stream(
                         avatar_url,
                     };
 
-                    let config = Config::load().unwrap_or_default();
                     let reconnect_delay = config.get_stream_reconnect_delay_minutes();
 
                     if let Some(delay_minutes) = reconnect_delay {
@@ -966,8 +965,8 @@ async fn post_process_stream(
         );
     }
 
-    if let Some(template) = get_template_string() {
-        let content = render_template(template, &template_context);
+    if let Some(template) = get_template_string()? {
+        let content = render_template(&template, &template_context);
         {
             if let Err(e) =
                 send_template_webhook(webhook_url, &stream_info, &content, thumbnail_path.clone())

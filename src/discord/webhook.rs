@@ -1,3 +1,4 @@
+use anyhow::Context;
 use reqwest::Client;
 use reqwest::multipart::{Form, Part};
 use serde::{Deserialize, Serialize, Serializer};
@@ -208,7 +209,8 @@ impl WebhookClient {
             // Thread does not exist – create it and capture the new thread ID
             opts.thread_name = Some(thread_name.to_string());
             let maybe_msg = self.execute(opts).await?;
-            let msg = maybe_msg.expect("wait=true should return a message");
+            let msg =
+                maybe_msg.context("discord webhook response did not include a thread message")?;
             let new_thread_id = msg.channel_id;
             self.store.insert(thread_name.to_string(), new_thread_id)?;
         }

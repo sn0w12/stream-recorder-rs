@@ -5,6 +5,22 @@ use crate::{
     },
     stream::monitor::StreamInfo,
 };
+use anyhow::Result;
+
+fn accessory_media_component(avatar_url: Option<String>) -> Option<Box<Component>> {
+    avatar_url.and_then(|url| {
+        let trimmed = url.trim();
+        (!trimmed.is_empty()).then(|| {
+            Box::new(Component::Media(MediaComponent {
+                media: Media {
+                    url: trimmed.to_string(),
+                },
+                description: None,
+                spoiler: false,
+            }))
+        })
+    })
+}
 
 fn stream_header_component(username: &str, avatar_url: Option<String>, title: &str) -> Component {
     Component::Group(GroupComponent {
@@ -16,13 +32,7 @@ fn stream_header_component(username: &str, avatar_url: Option<String>, title: &s
                 content: format!("**{}**", title),
             }),
         ],
-        accessory: Some(Box::new(Component::Media(MediaComponent {
-            media: Media {
-                url: avatar_url.unwrap_or_default(),
-            },
-            description: None,
-            spoiler: false,
-        }))),
+        accessory: accessory_media_component(avatar_url),
     })
 }
 
@@ -31,7 +41,7 @@ pub async fn send_recording_start_webhook(
     webhook_url: Option<&str>,
     username: &str,
     avatar_url: Option<String>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<()> {
     let mut client = WebhookClient::new(webhook_url.unwrap_or_default());
     let component = Component::Container(ContainerComponent {
         accent_color: DiscordColor::rgb(255, 255, 0),
@@ -54,7 +64,7 @@ pub async fn send_recording_complete_webhook(
     stream_info: &StreamInfo,
     duration_str: &str,
     size_str: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<()> {
     let mut client = WebhookClient::new(webhook_url.unwrap_or_default());
     let component = Component::Container(ContainerComponent {
         accent_color: DiscordColor::rgb(0, 255, 0),
@@ -91,7 +101,7 @@ pub async fn send_template_webhook(
     stream_info: &StreamInfo,
     message: &str,
     attachment: String,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<()> {
     let mut client = WebhookClient::new(webhook_url.unwrap_or_default());
     let component = Component::Container(ContainerComponent {
         accent_color: DiscordColor::rgb(0, 0, 255),
@@ -108,9 +118,7 @@ pub async fn send_template_webhook(
         ],
     });
 
-    let part = reqwest::multipart::Part::file(&attachment)
-        .await
-        .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+    let part = reqwest::multipart::Part::file(&attachment).await?;
     let filename = std::path::Path::new(&attachment)
         .file_name()
         .and_then(|s| s.to_str())
@@ -126,4 +134,35 @@ pub async fn send_template_webhook(
         )
         .await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stream_header_component_omits_avatar_accessory_when_missing() {
+        let component = stream_header_component("alice", None, "Started");
+
+        let Component::Group(group) = component else {
+            panic!("expected group component");
+        };
+
+        assert!(group.accessory.is_none());
+    }
+
+    #[test]
+    fn stream_header_component_includes_avatar_accessory_when_present() {
+        let component = stream_header_component(
+            "alice",
+            Some("https://example.com/avatar.png".into()),
+            "Done",
+        );
+
+        let Component::Group(group) = component else {
+            panic!("expected group component");
+        };
+
+        assert!(group.accessory.is_some());
+    }
 }

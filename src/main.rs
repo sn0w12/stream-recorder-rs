@@ -92,7 +92,7 @@ async fn main() -> Result<()> {
         Some(Commands::Token { action }) => handle_token_command(action)?,
         Some(Commands::Template { action }) => match action {
             TemplateAction::Render => {
-                if let Some(template) = get_template_string() {
+                if let Some(template) = get_template_string()? {
                     let mut context = HashMap::new();
                     context.insert(
                         "date".to_string(),
@@ -141,7 +141,7 @@ async fn main() -> Result<()> {
                         "filester_urls".to_string(),
                         TemplateValue::Array(vec!["https://filester.example.com/file".to_string()]),
                     );
-                    let rendered = render_template(template, &context);
+                    let rendered = render_template(&template, &context);
                     println!("{}", rendered);
                 }
             }
