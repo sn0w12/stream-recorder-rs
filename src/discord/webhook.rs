@@ -1,6 +1,7 @@
 use anyhow::Context;
 use reqwest::Client;
 use reqwest::multipart::{Form, Part};
+use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize, Serializer};
 use serde_json::{Value, json};
 
@@ -27,23 +28,69 @@ impl Serialize for DiscordColor {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(tag = "type")]
+#[derive(Debug, Clone)]
 pub enum Component {
-    #[serde(rename = "17")]
     Container(ContainerComponent),
 
-    #[serde(rename = "9")]
     Group(GroupComponent),
 
-    #[serde(rename = "10")]
     Text(TextComponent),
 
-    #[serde(rename = "11")]
     Media(MediaComponent),
 
-    #[serde(rename = "14")]
     Divider(DividerComponent),
+}
+
+impl Component {
+    fn component_type(&self) -> u8 {
+        match self {
+            Self::Container(_) => 17,
+            Self::Group(_) => 9,
+            Self::Text(_) => 10,
+            Self::Media(_) => 11,
+            Self::Divider(_) => 14,
+        }
+    }
+}
+
+impl Serialize for Component {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = serializer.serialize_map(None)?;
+        map.serialize_entry("type", &self.component_type())?;
+
+        match self {
+            Self::Container(component) => {
+                map.serialize_entry("accent_color", &component.accent_color)?;
+                map.serialize_entry("spoiler", &component.spoiler)?;
+                map.serialize_entry("components", &component.components)?;
+            }
+            Self::Group(component) => {
+                map.serialize_entry("components", &component.components)?;
+                if let Some(accessory) = &component.accessory {
+                    map.serialize_entry("accessory", accessory)?;
+                }
+            }
+            Self::Text(component) => {
+                map.serialize_entry("content", &component.content)?;
+            }
+            Self::Media(component) => {
+                map.serialize_entry("media", &component.media)?;
+                if let Some(description) = &component.description {
+                    map.serialize_entry("description", description)?;
+                }
+                map.serialize_entry("spoiler", &component.spoiler)?;
+            }
+            Self::Divider(component) => {
+                map.serialize_entry("divider", &component.visible)?;
+                map.serialize_entry("spacing", &component.spacing)?;
+            }
+        }
+
+        map.end()
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -178,7 +225,7 @@ impl WebhookClient {
 
             // Add each file part with part name "files[index]"
             for (idx, (_filename, part)) in files.into_iter().enumerate() {
-                form = form.part(format!("files[{}]", idx), part);
+                form = form.part(format!("files[{idx}]"), part);
             }
 
             self.http.post(&url).multipart(form).send().await?
@@ -191,7 +238,7 @@ impl WebhookClient {
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
-            anyhow::bail!("Discord API error {}: {}", status, text);
+            anyhow::bail!("Discord API error {status}: {text}");
         }
 
         let message = response.json::<Message>().await?;
@@ -274,7 +321,7 @@ mod tests {
         add_components_v2_payload(&mut payload, &components).expect("payload update");
 
         assert_eq!(payload["flags"], json!(IS_COMPONENTS_V2));
-        assert_eq!(payload["components"][0]["type"], "10");
+        assert_eq!(payload["components"][0]["type"], json!(10));
         assert_eq!(payload["components"][0]["content"], "hello");
     }
 }
