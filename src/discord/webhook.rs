@@ -135,7 +135,7 @@ pub struct Media {
 /// Response from Discord when we ask to wait for the message.
 #[derive(Debug, Deserialize)]
 pub struct Message {
-    pub channel_id: u64, // this is the thread ID when a thread is created
+    pub channel_id: String,
 }
 
 /// Options for executing a webhook.
@@ -277,7 +277,10 @@ impl WebhookClient {
             let maybe_msg = self.execute(opts).await?;
             let msg =
                 maybe_msg.context("discord webhook response did not include a thread message")?;
-            let new_thread_id = msg.channel_id;
+            let new_thread_id = msg
+                .channel_id
+                .parse::<u64>()
+                .context("discord webhook response returned an invalid thread ID")?;
             self.store.insert(thread_name.to_string(), new_thread_id)?;
         }
         Ok(())
@@ -323,5 +326,15 @@ mod tests {
         assert_eq!(payload["flags"], json!(IS_COMPONENTS_V2));
         assert_eq!(payload["components"][0]["type"], json!(10));
         assert_eq!(payload["components"][0]["content"], "hello");
+    }
+
+    #[test]
+    fn message_deserializes_string_channel_id() {
+        let message: Message = serde_json::from_value(json!({
+            "channel_id": "123456789012345678"
+        }))
+        .expect("message deserialization");
+
+        assert_eq!(message.channel_id, "123456789012345678");
     }
 }
