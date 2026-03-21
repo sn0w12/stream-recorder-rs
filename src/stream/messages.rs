@@ -103,19 +103,17 @@ pub async fn send_template_webhook(
     attachment: String,
 ) -> Result<()> {
     let mut client = WebhookClient::new(webhook_url.unwrap_or_default());
-    let component = Component::Container(ContainerComponent {
+    let header_component = Component::Container(ContainerComponent {
         accent_color: DiscordColor::rgb(0, 0, 255),
         spoiler: false,
-        components: vec![
-            stream_header_component(
-                &stream_info.username,
-                stream_info.avatar_url.clone(),
-                "Stream Processing Completed",
-            ),
-            Component::Text(TextComponent {
-                content: message.into(),
-            }),
-        ],
+        components: vec![stream_header_component(
+            &stream_info.username,
+            stream_info.avatar_url.clone(),
+            "Stream Processing Completed",
+        )],
+    });
+    let message_component = Component::Text(TextComponent {
+        content: message.into(),
     });
 
     let part = reqwest::multipart::Part::file(&attachment).await?;
@@ -129,7 +127,7 @@ pub async fn send_template_webhook(
         .send_to_thread(
             &stream_info.username,
             None,
-            Some(vec![component]),
+            Some(vec![header_component, message_component]),
             Some(vec![(filename, part)]),
         )
         .await?;
