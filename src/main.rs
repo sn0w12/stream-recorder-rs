@@ -188,7 +188,7 @@ async fn main() -> Result<()> {
 }
 
 /// Runs startup tests to make sure everything is working before we start recording.
-/// This is only to check for core functionality like ffmpeg and encoder availability, not to validate user configuration (e.g., tokens).
+/// This is only to check for core functionality like ffmpeg, not to validate user configuration (e.g., tokens).
 async fn startup_tests() -> Result<()> {
     // Check if ffmpeg is available
     let output = std::process::Command::new("ffmpeg")
