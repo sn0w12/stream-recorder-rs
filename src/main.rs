@@ -170,11 +170,42 @@ async fn main() -> Result<()> {
             }
         },
         None => {
+            match startup_tests().await {
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("Startup tests failed: {}", e);
+                    eprintln!("Aborting startup. Fix the issue and try again.");
+                    return Err(e);
+                }
+            }
+
             let platforms = PlatformConfig::load_all()?;
             run_recording(&config, &platforms, cli.token).await?;
         }
     }
 
+    Ok(())
+}
+
+/// Runs startup tests to make sure everything is working before we start recording.
+/// This is only to check for core functionality like ffmpeg and encoder availability, not to validate user configuration (e.g., tokens).
+async fn startup_tests() -> Result<()> {
+    // Check if ffmpeg is available
+    let output = std::process::Command::new("ffmpeg")
+        .arg("-version")
+        .output();
+
+    match output {
+        Ok(o) if o.status.success() => {
+            // ffmpeg is available
+        }
+        _ => {
+            return Err(anyhow::anyhow!(
+                "ffmpeg is not installed or not available in PATH. \
+                 Please install ffmpeg to use stream-recorder."
+            ));
+        }
+    }
     Ok(())
 }
 
