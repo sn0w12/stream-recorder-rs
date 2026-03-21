@@ -138,6 +138,12 @@ pub struct Message {
     pub channel_id: String,
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+struct AttachmentMetadata {
+    pub id: u64,
+    pub filename: String,
+}
+
 /// Options for executing a webhook.
 #[derive(Debug, Default)]
 pub struct ExecuteWebhookOptions {
@@ -169,6 +175,20 @@ fn append_query_param(url: &mut String, key: &str, value: &str) {
 fn add_components_v2_payload(payload: &mut Value, components: &[Component]) -> anyhow::Result<()> {
     payload["components"] = serde_json::to_value(components)?;
     payload["flags"] = json!(IS_COMPONENTS_V2);
+    Ok(())
+}
+
+fn add_attachment_payload(payload: &mut Value, files: &[(String, Part)]) -> anyhow::Result<()> {
+    let attachments = files
+        .iter()
+        .enumerate()
+        .map(|(idx, (filename, _))| AttachmentMetadata {
+            id: idx as u64,
+            filename: filename.clone(),
+        })
+        .collect::<Vec<_>>();
+
+    payload["attachments"] = serde_json::to_value(attachments)?;
     Ok(())
 }
 
@@ -211,6 +231,9 @@ impl WebhookClient {
         if let Some(components) = &options.components {
             add_components_v2_payload(&mut payload, components)?;
         }
+        if let Some(files) = &options.files {
+            add_attachment_payload(&mut payload, files)?;
+        }
         if let Some(thread_name) = &options.thread_name {
             payload["thread_name"] = Value::String(thread_name.clone());
         }
@@ -224,8 +247,8 @@ impl WebhookClient {
             form = form.part("payload_json", Part::text(json_str));
 
             // Add each file part with part name "files[index]"
-            for (idx, (_filename, part)) in files.into_iter().enumerate() {
-                form = form.part(format!("files[{idx}]"), part);
+            for (idx, (filename, part)) in files.into_iter().enumerate() {
+                form = form.part(format!("files[{idx}]"), part.file_name(filename));
             }
 
             self.http.post(&url).multipart(form).send().await?
@@ -326,6 +349,31 @@ mod tests {
         assert_eq!(payload["flags"], json!(IS_COMPONENTS_V2));
         assert_eq!(payload["components"][0]["type"], json!(10));
         assert_eq!(payload["components"][0]["content"], "hello");
+    }
+
+    #[test]
+    fn add_attachment_payload_sets_attachment_metadata() {
+        let mut payload = json!({});
+        let files = vec![
+            (
+                "thumb.png".to_string(),
+                Part::text("thumbnail-bytes").file_name("ignored.png"),
+            ),
+            (
+                "info.txt".to_string(),
+                Part::text("details").file_name("ignored.txt"),
+            ),
+        ];
+
+        add_attachment_payload(&mut payload, &files).expect("attachment payload update");
+
+        assert_eq!(
+            payload["attachments"],
+            json!([
+                { "id": 0, "filename": "thumb.png" },
+                { "id": 1, "filename": "info.txt" }
+            ])
+        );
     }
 
     #[test]
