@@ -162,7 +162,8 @@ stream-recorder config get-path
 Set up Discord notifications:
 
 1. Create a webhook in your Discord server
-2. Set the webhook URL:
+2. Set the webhook channel to a **forum** channel. It will not work with a normal text channel.
+3. Set the webhook URL:
     ```bash
     stream-recorder config set discord_webhook_url https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN
     ```
@@ -172,6 +173,8 @@ The tool will send notifications when:
 - Recording starts
 - Recording completes
 - Uploads complete _(using your template)_
+
+Each monitor will create its own thread, keeping all streams organized.
 
 ### Template System
 
