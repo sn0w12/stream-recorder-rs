@@ -38,6 +38,8 @@ pub enum Component {
 
     Media(MediaComponent),
 
+    Image(ImageComponent),
+
     Divider(DividerComponent),
 }
 
@@ -48,6 +50,7 @@ impl Component {
             Self::Group(_) => 9,
             Self::Text(_) => 10,
             Self::Media(_) => 11,
+            Self::Image(_) => 12,
             Self::Divider(_) => 14,
         }
     }
@@ -77,6 +80,13 @@ impl Serialize for Component {
                 map.serialize_entry("content", &component.content)?;
             }
             Self::Media(component) => {
+                map.serialize_entry("media", &component.media)?;
+                if let Some(description) = &component.description {
+                    map.serialize_entry("description", description)?;
+                }
+                map.serialize_entry("spoiler", &component.spoiler)?;
+            }
+            Self::Image(component) => {
                 map.serialize_entry("media", &component.media)?;
                 if let Some(description) = &component.description {
                     map.serialize_entry("description", description)?;
@@ -121,6 +131,14 @@ pub struct DividerComponent {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct MediaComponent {
+    pub media: Media,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub spoiler: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ImageComponent {
     pub media: Media,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,

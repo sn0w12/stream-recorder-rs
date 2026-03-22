@@ -1,7 +1,7 @@
 use crate::{
     discord::webhook::{
         Component, ContainerComponent, DiscordColor, DividerComponent, GroupComponent, Media,
-        MediaComponent, TextComponent, WebhookClient,
+        MediaComponent, ImageComponent, TextComponent, WebhookClient,
     },
     stream::monitor::StreamInfo,
 };
@@ -123,11 +123,19 @@ pub async fn send_template_webhook(
         .unwrap_or("attachment")
         .to_string();
 
+    let image_component = Component::Image(ImageComponent {
+        media: Media {
+            url: format!("attachment://{}", filename),
+        },
+        description: None,
+        spoiler: false,
+    });
+
     client
         .send_to_thread(
             &stream_info.username,
             None,
-            Some(vec![header_component, message_component]),
+            Some(vec![header_component, message_component, image_component]),
             Some(vec![(filename, part)]),
         )
         .await?;
