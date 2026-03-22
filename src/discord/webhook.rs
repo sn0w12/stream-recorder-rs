@@ -246,9 +246,10 @@ impl WebhookClient {
             let json_str = serde_json::to_string(&payload)?;
             form = form.part("payload_json", Part::text(json_str));
 
-            // Add each file part with part name "files[index]"
+            // Add each file part with a unique field name (file1, file2, ...)
             for (idx, (filename, part)) in files.into_iter().enumerate() {
-                form = form.part(format!("files[{idx}]"), part.file_name(filename));
+                let field_name = format!("file{}", idx + 1);
+                form = form.part(field_name, part.file_name(filename));
             }
 
             self.http.post(&url).multipart(form).send().await?
