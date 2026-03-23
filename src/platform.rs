@@ -312,7 +312,7 @@ impl PlatformConfig {
         for pattern in patterns {
             // Patterns are validated on load/install, so this unwrap is safe.
             let re = Regex::new(pattern).unwrap();
-            result = re.replace_all(&result, "").to_string();
+            result = re.replace_all(&result, "").trim().to_string();
         }
         result
     }
