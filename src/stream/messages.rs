@@ -1,7 +1,7 @@
 use crate::{
     discord::webhook::{
-        Component, ContainerComponent, DiscordColor, DividerComponent, GroupComponent, Media,
-        MediaComponent, ImageComponent, TextComponent, WebhookClient,
+        Component, ContainerComponent, DiscordColor, DividerComponent, GroupComponent,
+        ImageComponent, Media, MediaComponent, MediaGalleryItem, TextComponent, WebhookClient,
     },
     stream::monitor::StreamInfo,
 };
@@ -124,11 +124,13 @@ pub async fn send_template_webhook(
         .to_string();
 
     let image_component = Component::Image(ImageComponent {
-        media: Media {
-            url: format!("attachment://{}", filename),
-        },
-        description: None,
-        spoiler: false,
+        items: vec![MediaGalleryItem {
+            media: Media {
+                url: format!("attachment://{}", filename),
+            },
+            description: None,
+            spoiler: false,
+        }],
     });
 
     client

@@ -87,11 +87,7 @@ impl Serialize for Component {
                 map.serialize_entry("spoiler", &component.spoiler)?;
             }
             Self::Image(component) => {
-                map.serialize_entry("media", &component.media)?;
-                if let Some(description) = &component.description {
-                    map.serialize_entry("description", description)?;
-                }
-                map.serialize_entry("spoiler", &component.spoiler)?;
+                map.serialize_entry("items", &component.items)?;
             }
             Self::Divider(component) => {
                 map.serialize_entry("divider", &component.visible)?;
@@ -139,6 +135,11 @@ pub struct MediaComponent {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ImageComponent {
+    pub items: Vec<MediaGalleryItem>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MediaGalleryItem {
     pub media: Media,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -210,6 +211,10 @@ fn add_attachment_payload(payload: &mut Value, files: &[(String, Part)]) -> anyh
     Ok(())
 }
 
+fn multipart_file_field_name(index: usize) -> String {
+    format!("files[{index}]")
+}
+
 impl WebhookClient {
     /// Create a new client from a full Discord webhook URL.
     /// Example: "https://discord.com/api/webhooks/123456/abc-def"
@@ -264,9 +269,9 @@ impl WebhookClient {
             let json_str = serde_json::to_string(&payload)?;
             form = form.part("payload_json", Part::text(json_str));
 
-            // Add each file part with a unique field name (file1, file2, ...)
+            // Add each file part with the field names Discord expects.
             for (idx, (filename, part)) in files.into_iter().enumerate() {
-                let field_name = format!("file{}", idx + 1);
+                let field_name = multipart_file_field_name(idx);
                 form = form.part(field_name, part.file_name(filename));
             }
 
@@ -393,6 +398,33 @@ mod tests {
                 { "id": 1, "filename": "info.txt" }
             ])
         );
+    }
+
+    #[test]
+    fn image_component_serializes_as_media_gallery() {
+        let component = Component::Image(ImageComponent {
+            items: vec![MediaGalleryItem {
+                media: Media {
+                    url: "attachment://thumb.png".to_string(),
+                },
+                description: None,
+                spoiler: false,
+            }],
+        });
+
+        let serialized = serde_json::to_value(&component).expect("component serialization");
+
+        assert_eq!(serialized["type"], json!(12));
+        assert_eq!(
+            serialized["items"][0]["media"]["url"],
+            "attachment://thumb.png"
+        );
+    }
+
+    #[test]
+    fn multipart_file_field_name_matches_discord_format() {
+        assert_eq!(multipart_file_field_name(0), "files[0]");
+        assert_eq!(multipart_file_field_name(1), "files[1]");
     }
 
     #[test]

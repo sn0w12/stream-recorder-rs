@@ -966,7 +966,10 @@ async fn post_process_stream(
     }
 
     if let Some(template) = get_template_string()? {
-        let content = format!("```\n{}\n```", render_template(&template, &template_context));
+        let content = format!(
+            "```\n{}\n```",
+            render_template(&template, &template_context)
+        );
         {
             if let Err(e) =
                 send_template_webhook(webhook_url, &stream_info, &content, thumbnail_path.clone())
