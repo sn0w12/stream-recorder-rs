@@ -277,8 +277,24 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
     if monitors.is_empty() {
         info.plain("No users configured", Some(Yellow));
     } else {
-        for user in &monitors {
-            info.dot(user, "");
+        for monitor in &monitors {
+            let (platform_id, _username) = match parse_monitor_string(&monitor) {
+                Some(pair) => pair,
+                None => {
+                    info.err(monitor, "malformed monitor string");
+                    continue;
+                }
+            };
+
+            match PlatformConfig::find_by_id(platforms, &platform_id) {
+                Some(p) => p.clone(),
+                None => {
+                    info.err(monitor, "unknown platform");
+                    continue;
+                }
+            };
+
+            info.dot(monitor, "");
         }
     }
 
