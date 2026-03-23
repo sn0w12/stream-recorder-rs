@@ -71,8 +71,38 @@
                     "description": "Endpoint template; relative paths are joined to base_url. Supports '{variable}' placeholders."
                 },
                 "live_check": {
-                    "type": ["string", "null"],
-                    "description": "Optional dot-notation JSON path that must resolve to a non-null value for the stream to be considered live."
+                    "description": "Optional live-state condition. A string checks that a dot-notation JSON path resolves to a non-null value. An object supports richer checks such as equality, inequality, and explicit existence checks.",
+                    "oneOf": [
+                        {
+                            "type": "string",
+                            "description": "Legacy shorthand: dot-notation JSON path that must resolve to a non-null value."
+                        },
+                        {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["path"],
+                            "properties": {
+                                "path": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "Dot-notation JSON path to evaluate."
+                                },
+                                "exists": {
+                                    "type": "boolean",
+                                    "description": "When true, the path must resolve to a non-null value. When false, the path must be missing or null."
+                                },
+                                "equals": {
+                                    "description": "JSON value that the extracted value must equal."
+                                },
+                                "not_equals": {
+                                    "description": "JSON value that the extracted value must not equal."
+                                }
+                            }
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
                 },
                 "extract": {
                     "type": "object",

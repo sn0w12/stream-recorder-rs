@@ -22,16 +22,126 @@ pub struct PipelineStep {
     /// If the value already starts with `http://` or `https://` it is used as-is.
     /// Any `{variable}` placeholder is substituted with the current variable map.
     pub endpoint: String,
-    /// Optional JSON path that **must** resolve to a non-null value for the
-    /// stream to be considered live. If the path is absent or null the pipeline
-    /// immediately returns [`PipelineOutcome::Offline`] without executing
-    /// subsequent steps.
-    pub live_check: Option<String>,
+    /// Optional live-state condition evaluated against the response JSON.
+    ///
+    /// The legacy string form checks only that the JSON path resolves to a
+    /// non-null value. The object form supports richer checks such as equality
+    /// and inequality comparisons.
+    pub live_check: Option<LiveCheck>,
     /// Variables to extract from the response JSON and add to the variable map.
     /// Keys are variable names; values are dot-notation JSON paths
     /// (supports array indexing, e.g. `response[0].id`).
     #[serde(default)]
     pub extract: HashMap<String, String>,
+}
+
+/// Condition used to determine whether a pipeline step indicates a live stream.
+///
+/// Supports a legacy string path or an object with comparison operators.
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[serde(untagged)]
+pub enum LiveCheck {
+    /// Legacy shorthand: the path must resolve to a non-null JSON value.
+    Path(String),
+    /// Structured condition with optional comparison operators.
+    Condition(LiveCheckCondition),
+}
+
+/// Structured `live_check` condition.
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct LiveCheckCondition {
+    /// Dot-notation JSON path to evaluate.
+    pub path: String,
+    /// Optional existence check. When `true`, the path must resolve to a
+    /// non-null value. When `false`, the path must be missing or null.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exists: Option<bool>,
+    /// Optional JSON value that the extracted value must equal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub equals: Option<Value>,
+    /// Optional JSON value that the extracted value must not equal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub not_equals: Option<Value>,
+}
+
+impl LiveCheck {
+    /// Returns true when the response JSON satisfies the live-check condition.
+    pub fn matches(&self, value: &Value) -> bool {
+        match self {
+            Self::Path(path) => extract_json_value(value, path).is_some(),
+            Self::Condition(condition) => condition.matches(value),
+        }
+    }
+
+    fn validate(&self, source: &str, step_index: usize) -> Result<()> {
+        match self {
+            Self::Path(path) => {
+                if path.trim().is_empty() {
+                    return Err(anyhow::anyhow!(
+                        "Platform config {}: step {} `live_check` path must not be empty",
+                        source,
+                        step_index + 1
+                    ));
+                }
+            }
+            Self::Condition(condition) => condition.validate(source, step_index)?,
+        }
+        Ok(())
+    }
+}
+
+impl LiveCheckCondition {
+    fn matches(&self, value: &Value) -> bool {
+        let actual = extract_json_value(value, &self.path);
+
+        if let Some(expected_exists) = self.exists {
+            let exists = actual.is_some();
+            if exists != expected_exists {
+                return false;
+            }
+            if !expected_exists {
+                return self.equals.is_none() && self.not_equals.is_none();
+            }
+        }
+
+        if let Some(expected) = &self.equals
+            && actual != Some(expected)
+        {
+            return false;
+        }
+
+        if let Some(unexpected) = &self.not_equals
+            && actual == Some(unexpected)
+        {
+            return false;
+        }
+
+        if self.exists.is_none() && self.equals.is_none() && self.not_equals.is_none() {
+            return actual.is_some();
+        }
+
+        actual.is_some() || self.exists == Some(false)
+    }
+
+    fn validate(&self, source: &str, step_index: usize) -> Result<()> {
+        if self.path.trim().is_empty() {
+            return Err(anyhow::anyhow!(
+                "Platform config {}: step {} `live_check.path` must not be empty",
+                source,
+                step_index + 1
+            ));
+        }
+
+        if self.exists == Some(false) && (self.equals.is_some() || self.not_equals.is_some()) {
+            return Err(anyhow::anyhow!(
+                "Platform config {}: step {} `live_check.exists = false` cannot be combined with `equals` or `not_equals`",
+                source,
+                step_index + 1
+            ));
+        }
+
+        Ok(())
+    }
 }
 
 /// Outcome of executing a platform's fetch pipeline.
@@ -78,7 +188,9 @@ pub struct PlatformConfig {
     /// - `stream_title` *(optional)* – used for output file naming.
     ///
     /// At least one step should carry a `live_check` so the monitor can
-    /// distinguish live from offline states.
+    /// distinguish live from offline states. The legacy string form checks for
+    /// path existence; the object form also supports `equals`, `not_equals`,
+    /// and explicit `exists` checks.
     pub steps: Vec<PipelineStep>,
     /// The URL this platform config was originally installed from.
     ///
@@ -145,6 +257,11 @@ impl PlatformConfig {
                 "Platform config {}: `steps` must contain at least one step",
                 source
             ));
+        }
+        for (index, step) in self.steps.iter().enumerate() {
+            if let Some(live_check) = &step.live_check {
+                live_check.validate(source, index)?;
+            }
         }
         if self.version.trim().is_empty() {
             return Err(anyhow::anyhow!(
@@ -575,7 +692,7 @@ mod tests {
             headers: HashMap::new(),
             steps: vec![PipelineStep {
                 endpoint: "stream/{username}".to_string(),
-                live_check: Some("live".to_string()),
+                live_check: Some(LiveCheck::Path("live".to_string())),
                 extract: HashMap::new(),
             }],
             source_url: None,
@@ -793,6 +910,109 @@ mod tests {
         let mut p = make_minimal_platform("tcr_ok");
         p.title_clean_regex = Some(vec![r":\w+:".to_string(), r"\[.*?\]".to_string()]);
         assert!(p.validate("test").is_ok());
+    }
+
+    #[test]
+    fn test_live_check_string_round_trips() {
+        let json = r#"{"endpoint":"stream/{username}","live_check":"data.is_live"}"#;
+        let step: PipelineStep = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            step.live_check,
+            Some(LiveCheck::Path("data.is_live".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_live_check_condition_round_trips() {
+        let json = r#"{
+            "endpoint":"stream/{username}",
+            "live_check":{
+                "path":"data.status",
+                "equals":"online",
+                "not_equals":"banned"
+            }
+        }"#;
+        let step: PipelineStep = serde_json::from_str(json).unwrap();
+        let expected = LiveCheck::Condition(LiveCheckCondition {
+            path: "data.status".to_string(),
+            exists: None,
+            equals: Some(Value::String("online".to_string())),
+            not_equals: Some(Value::String("banned".to_string())),
+        });
+        assert_eq!(step.live_check, Some(expected));
+    }
+
+    #[test]
+    fn test_live_check_matches_on_path_existence() {
+        let live_check = LiveCheck::Path("data.is_live".to_string());
+        let value = json!({"data": {"is_live": true}});
+        assert!(live_check.matches(&value));
+    }
+
+    #[test]
+    fn test_live_check_matches_on_equals() {
+        let live_check = LiveCheck::Condition(LiveCheckCondition {
+            path: "data.status".to_string(),
+            exists: None,
+            equals: Some(Value::String("online".to_string())),
+            not_equals: None,
+        });
+        let value = json!({"data": {"status": "online"}});
+        assert!(live_check.matches(&value));
+    }
+
+    #[test]
+    fn test_live_check_rejects_not_equals_match() {
+        let live_check = LiveCheck::Condition(LiveCheckCondition {
+            path: "data.status".to_string(),
+            exists: None,
+            equals: None,
+            not_equals: Some(Value::String("offline".to_string())),
+        });
+        let value = json!({"data": {"status": "offline"}});
+        assert!(!live_check.matches(&value));
+    }
+
+    #[test]
+    fn test_live_check_exists_false_matches_missing_value() {
+        let live_check = LiveCheck::Condition(LiveCheckCondition {
+            path: "data.status".to_string(),
+            exists: Some(false),
+            equals: None,
+            not_equals: None,
+        });
+        let value = json!({"data": {}});
+        assert!(live_check.matches(&value));
+    }
+
+    #[test]
+    fn test_validate_rejects_empty_live_check_path() {
+        let mut p = make_minimal_platform("bad_live_path");
+        p.steps[0].live_check = Some(LiveCheck::Condition(LiveCheckCondition {
+            path: "   ".to_string(),
+            exists: None,
+            equals: Some(Value::Bool(true)),
+            not_equals: None,
+        }));
+        let err = p.validate("test").unwrap_err().to_string();
+        assert!(
+            err.contains("`live_check.path` must not be empty"),
+            "got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_validate_rejects_exists_false_with_comparison() {
+        let mut p = make_minimal_platform("bad_live_combo");
+        p.steps[0].live_check = Some(LiveCheck::Condition(LiveCheckCondition {
+            path: "data.status".to_string(),
+            exists: Some(false),
+            equals: Some(Value::String("online".to_string())),
+            not_equals: None,
+        }));
+        let err = p.validate("test").unwrap_err().to_string();
+        assert!(err.contains("`live_check.exists = false`"), "got: {}", err);
     }
 
     // --- resolve_github_url tests ---

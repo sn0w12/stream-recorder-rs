@@ -105,7 +105,7 @@ pub async fn fetch_with_platform(
 /// grows with each step's `extract` entries. `{variable}` placeholders in
 /// endpoint templates are substituted before each request is made.
 ///
-/// If a step's `live_check` path is missing or null in the response the
+/// If a step's `live_check` condition fails against the response JSON the
 /// function returns [`PipelineOutcome::Offline`] immediately. If all steps
 /// complete the function returns [`PipelineOutcome::Live`] with the full
 /// variable map.
@@ -128,8 +128,8 @@ pub async fn run_pipeline(
         let data = fetch_with_platform(&endpoint, platform, token, 5, 1.0).await?;
 
         // Evaluate the live_check condition if present.
-        if let Some(live_path) = &step.live_check
-            && extract_json_value(&data, live_path).is_none()
+        if let Some(live_check) = &step.live_check
+            && !live_check.matches(&data)
         {
             return Ok(PipelineOutcome::Offline);
         }

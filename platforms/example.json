@@ -14,7 +14,10 @@
     "steps": [
         {
             "endpoint": "streams/{username}",
-            "live_check": "data.is_live",
+            "live_check": {
+                "path": "data.is_live",
+                "equals": true
+            },
             "extract": {
                 "stream_id": "data.id",
                 "stream_title": "data.title",
