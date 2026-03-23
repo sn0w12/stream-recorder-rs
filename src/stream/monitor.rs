@@ -236,6 +236,7 @@ pub struct StreamInfo {
     pub stream_title: String,
     pub playback_url: String,
     pub avatar_url: Option<String>,
+    pub platform: PlatformConfig,
 }
 
 /// Struct to manage the ffmpeg process, ensuring it's killed when dropped.
@@ -410,13 +411,7 @@ async fn record_stream_raw(
 
     // Send Discord webhook for recording start
     let webhook_url = config.get_discord_webhook_url();
-    if let Err(e) = send_recording_start_webhook(
-        webhook_url,
-        &stream_info.username,
-        stream_info.avatar_url.clone(),
-    )
-    .await
-    {
+    if let Err(e) = send_recording_start_webhook(webhook_url, &stream_info).await {
         eprintln!("Error sending start webhook: {}", e);
     }
 
@@ -631,6 +626,7 @@ pub async fn monitor_stream(
                         stream_title,
                         playback_url: url,
                         avatar_url,
+                        platform: platform.clone(),
                     };
 
                     let reconnect_delay = config.get_stream_reconnect_delay_minutes();
@@ -678,6 +674,7 @@ pub async fn monitor_stream(
                                                         .unwrap_or_default(),
                                                     playback_url: new_url,
                                                     avatar_url: new_vars.get("avatar_url").cloned(),
+                                                    platform: platform.clone(),
                                                 };
                                                 println!(
                                                     "Continuation stream detected for {}, recording...",

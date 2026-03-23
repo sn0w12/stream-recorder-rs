@@ -171,6 +171,13 @@ pub struct ExecuteWebhookOptions {
     pub files: Option<Vec<(String, Part)>>,
     pub thread_id: Option<u64>,
     pub thread_name: Option<String>,
+    pub identity: Option<Identity>,
+}
+
+#[derive(Debug)]
+pub struct Identity {
+    pub username: String,
+    pub avatar_url: Option<String>,
 }
 
 pub struct WebhookClient {
@@ -248,6 +255,12 @@ impl WebhookClient {
 
         // Build the JSON payload (without files)
         let mut payload = json!({});
+        if let Some(identity) = &options.identity {
+            payload["username"] = Value::String(identity.username.clone());
+            if let Some(avatar_url) = &identity.avatar_url {
+                payload["avatar_url"] = Value::String(avatar_url.clone());
+            }
+        }
         if let Some(content) = &options.content {
             payload["content"] = Value::String(content.clone());
         }
@@ -301,6 +314,7 @@ impl WebhookClient {
         content: Option<String>,
         components: Option<Vec<Component>>,
         files: Option<Vec<(String, Part)>>,
+        identity: Identity,
     ) -> anyhow::Result<()> {
         // No-op when webhook URL not configured.
         if self.base_url.is_none() {
@@ -311,6 +325,7 @@ impl WebhookClient {
             content,
             components,
             files,
+            identity: Some(identity),
             ..Default::default()
         };
 
