@@ -1,5 +1,8 @@
+use crate::platform::PipelineOutcome;
 use crate::platform::PlatformConfig;
 use crate::print::table::{Cell, Table};
+use crate::stream::api::run_pipeline_debug;
+use crate::stream::api::{PipelineDebugReport, PipelineDebugStep};
 use anyhow::Result;
 use clap::Subcommand;
 use reqwest::Client;
@@ -14,6 +17,17 @@ pub enum PlatformAction {
     Install {
         /// URL to the platform JSON file
         url: String,
+    },
+    /// Run a single monitor through its platform pipeline and print debug output
+    Debug {
+        /// Monitor reference in platform_id:username format
+        monitor: String,
+        /// Override the configured platform token for this debug run
+        #[arg(short, long)]
+        token: Option<String>,
+        /// Print the raw JSON response for each pipeline step
+        #[arg(long)]
+        show_response: bool,
     },
     Search {
         /// Optional search query to find platforms by name or description
@@ -98,6 +112,11 @@ pub async fn handle_platform_command(action: PlatformAction) -> Result<()> {
             }
             Ok(())
         }
+        PlatformAction::Debug {
+            monitor,
+            token,
+            show_response,
+        } => handle_debug_command(&monitor, token, show_response).await,
         PlatformAction::Update { platform_id, all } => {
             if all {
                 let results = PlatformConfig::update_all().await?;
@@ -184,5 +203,178 @@ pub async fn handle_platform_command(action: PlatformAction) -> Result<()> {
 
             Ok(())
         }
+    }
+}
+
+async fn handle_debug_command(
+    monitor: &str,
+    token_override: Option<String>,
+    show_response: bool,
+) -> Result<()> {
+    let (platform_id, username) = parse_monitor_reference(monitor)?;
+    let platforms = PlatformConfig::load_all()?;
+    let platform = PlatformConfig::find_by_id(&platforms, &platform_id)
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("Platform '{}' is not installed.", platform_id))?;
+    let token = resolve_platform_token(&platform, token_override)?;
+    let config = crate::config::Config::load()?;
+
+    println!(
+        "Debugging monitor '{}' with platform '{}' ({})",
+        monitor, platform.id, platform.name
+    );
+    println!("Step delay: {:.3}s", config.get_step_delay_seconds());
+
+    let (outcome, report) = run_pipeline_debug(&username, &platform, &token, &config)
+        .await
+        .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+    print_debug_report(&report, show_response)?;
+
+    match outcome {
+        PipelineOutcome::Live(vars) => {
+            println!("Outcome: LIVE");
+            if let Some(playback_url) = vars.get("playback_url") {
+                println!("playback_url: {}", playback_url);
+            }
+        }
+        PipelineOutcome::Offline => {
+            if let Some(step_number) = report.offline_at_step {
+                println!(
+                    "Outcome: OFFLINE (live_check failed at step {})",
+                    step_number
+                );
+            } else {
+                println!("Outcome: OFFLINE");
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn parse_monitor_reference(monitor: &str) -> Result<(String, String)> {
+    if let Some((platform_id, username)) = monitor.split_once(':') {
+        if platform_id.is_empty() || username.is_empty() {
+            return Err(anyhow::anyhow!(
+                "Monitor must use 'platform_id:username' format with both parts non-empty."
+            ));
+        }
+        return Ok((platform_id.to_string(), username.to_string()));
+    }
+
+    Err(anyhow::anyhow!(
+        "Monitor must use 'platform_id:username' format."
+    ))
+}
+
+fn resolve_platform_token(
+    platform: &PlatformConfig,
+    token_override: Option<String>,
+) -> Result<String> {
+    if let Some(token) = token_override {
+        return Ok(token);
+    }
+
+    if let Some(token_name) = &platform.token_name {
+        return crate::utils::get_token_by_name(token_name).ok_or_else(|| {
+            anyhow::anyhow!(
+                "No token found for platform '{}' (key: '{}'). Provide --token or save one with 'token save-platform {} <token>'.",
+                platform.id,
+                token_name,
+                platform.id
+            )
+        });
+    }
+
+    Ok(String::new())
+}
+
+fn print_debug_report(report: &PipelineDebugReport, show_response: bool) -> Result<()> {
+    for step in &report.steps {
+        print_debug_step(step, show_response)?;
+    }
+
+    println!("Final variables:");
+    if report.final_vars.is_empty() {
+        println!("  (none)");
+    } else {
+        let mut final_vars: Vec<_> = report.final_vars.iter().collect();
+        final_vars.sort_by(|a, b| a.0.cmp(b.0));
+        for (key, value) in final_vars {
+            println!("  {} = {}", key, value);
+        }
+    }
+
+    Ok(())
+}
+
+fn print_debug_step(step: &PipelineDebugStep, show_response: bool) -> Result<()> {
+    println!("\nStep {}", step.step_number);
+    println!("  Endpoint template: {}", step.endpoint_template);
+    println!("  Resolved endpoint: {}", step.resolved_endpoint);
+
+    if let Some(live_check) = &step.live_check {
+        println!(
+            "  Live check: {}",
+            serde_json::to_string(&live_check.config)?
+        );
+        println!("  Live check matched: {}", live_check.matched);
+        match &live_check.actual_value {
+            Some(value) => println!("  Live check value: {}", value),
+            None => println!("  Live check value: <missing>"),
+        }
+    } else {
+        println!("  Live check: none");
+    }
+
+    println!("  Extracted variables:");
+    if step.extracted_vars.is_empty() {
+        println!("    (none)");
+    } else {
+        let mut extracted: Vec<_> = step.extracted_vars.iter().collect();
+        extracted.sort_by(|a, b| a.0.cmp(b.0));
+        for (key, value) in extracted {
+            println!("    {} = {}", key, value);
+        }
+    }
+
+    println!("  Variables after step:");
+    let mut vars: Vec<_> = step.vars_after_step.iter().collect();
+    vars.sort_by(|a, b| a.0.cmp(b.0));
+    for (key, value) in vars {
+        println!("    {} = {}", key, value);
+    }
+
+    if show_response {
+        println!("  Response JSON:");
+        for line in serde_json::to_string_pretty(&step.response)?.lines() {
+            println!("    {}", line);
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_monitor_reference_accepts_valid_value() {
+        let (platform_id, username) = parse_monitor_reference("platform:user").unwrap();
+        assert_eq!(platform_id, "platform");
+        assert_eq!(username, "user");
+    }
+
+    #[test]
+    fn parse_monitor_reference_rejects_missing_separator() {
+        let err = parse_monitor_reference("user").unwrap_err().to_string();
+        assert!(err.contains("platform_id:username"), "got: {}", err);
+    }
+
+    #[test]
+    fn parse_monitor_reference_rejects_empty_parts() {
+        let err = parse_monitor_reference("platform:").unwrap_err().to_string();
+        assert!(err.contains("both parts non-empty"), "got: {}", err);
     }
 }

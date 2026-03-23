@@ -1,9 +1,34 @@
-use crate::platform::{PipelineOutcome, PlatformConfig, extract_json_value};
+use crate::platform::{LiveCheck, PipelineOutcome, PlatformConfig, extract_json_value};
 use reqwest::Client;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::time::sleep;
+
+#[derive(Debug, Clone)]
+pub struct PipelineDebugLiveCheck {
+    pub config: Value,
+    pub actual_value: Option<Value>,
+    pub matched: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct PipelineDebugStep {
+    pub step_number: usize,
+    pub endpoint_template: String,
+    pub resolved_endpoint: String,
+    pub response: Value,
+    pub live_check: Option<PipelineDebugLiveCheck>,
+    pub extracted_vars: HashMap<String, String>,
+    pub vars_after_step: HashMap<String, String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PipelineDebugReport {
+    pub steps: Vec<PipelineDebugStep>,
+    pub final_vars: HashMap<String, String>,
+    pub offline_at_step: Option<usize>,
+}
 
 /// Builds a `HeaderMap` from the platform's header configuration, performing
 /// placeholder substitution from the provided `vars` map (e.g. `token`).
@@ -115,10 +140,36 @@ pub async fn run_pipeline(
     token: &str,
     config: &crate::config::Config,
 ) -> Result<PipelineOutcome, Box<dyn std::error::Error + Send + Sync>> {
+    let (outcome, _) = run_pipeline_internal(username, platform, token, config, false).await?;
+    Ok(outcome)
+}
+
+pub async fn run_pipeline_debug(
+    username: &str,
+    platform: &PlatformConfig,
+    token: &str,
+    config: &crate::config::Config,
+) -> Result<(PipelineOutcome, PipelineDebugReport), Box<dyn std::error::Error + Send + Sync>> {
+    let (outcome, report) = run_pipeline_internal(username, platform, token, config, true).await?;
+    Ok((
+        outcome,
+        report.expect("debug report is always collected in debug mode"),
+    ))
+}
+
+async fn run_pipeline_internal(
+    username: &str,
+    platform: &PlatformConfig,
+    token: &str,
+    config: &crate::config::Config,
+    collect_debug: bool,
+) -> Result<(PipelineOutcome, Option<PipelineDebugReport>), Box<dyn std::error::Error + Send + Sync>>
+{
     let mut vars: HashMap<String, String> = HashMap::new();
     vars.insert("username".to_string(), username.to_string());
+    let mut debug_steps = Vec::new();
 
-    for step in &platform.steps {
+    for (index, step) in platform.steps.iter().enumerate() {
         // Substitute all known variables into the endpoint template.
         let mut endpoint = step.endpoint.clone();
         for (key, value) in &vars {
@@ -126,21 +177,61 @@ pub async fn run_pipeline(
         }
 
         let data = fetch_with_platform(&endpoint, platform, token, 5, 1.0).await?;
+        let live_check_debug = step
+            .live_check
+            .as_ref()
+            .map(|live_check| PipelineDebugLiveCheck {
+                config: serde_json::to_value(live_check).unwrap_or(Value::Null),
+                actual_value: live_check_actual_value(live_check, &data),
+                matched: live_check.matches(&data),
+            });
 
         // Evaluate the live_check condition if present.
-        if let Some(live_check) = &step.live_check
-            && !live_check.matches(&data)
+        if let Some(debug) = &live_check_debug
+            && !debug.matched
         {
-            return Ok(PipelineOutcome::Offline);
+            if collect_debug {
+                debug_steps.push(PipelineDebugStep {
+                    step_number: index + 1,
+                    endpoint_template: step.endpoint.clone(),
+                    resolved_endpoint: endpoint,
+                    response: data,
+                    live_check: live_check_debug,
+                    extracted_vars: HashMap::new(),
+                    vars_after_step: vars.clone(),
+                });
+            }
+            return Ok((
+                PipelineOutcome::Offline,
+                collect_debug.then_some(PipelineDebugReport {
+                    steps: debug_steps,
+                    final_vars: vars,
+                    offline_at_step: Some(index + 1),
+                }),
+            ));
         }
 
         // Extract variables from the response.
+        let mut extracted_vars = HashMap::new();
         for (var_name, json_path) in &step.extract {
             if let Some(value_str) =
                 extract_json_value(&data, json_path).and_then(json_value_to_string)
             {
                 vars.insert(var_name.clone(), value_str);
+                extracted_vars.insert(var_name.clone(), vars[var_name].clone());
             }
+        }
+
+        if collect_debug {
+            debug_steps.push(PipelineDebugStep {
+                step_number: index + 1,
+                endpoint_template: step.endpoint.clone(),
+                resolved_endpoint: endpoint,
+                response: data,
+                live_check: live_check_debug,
+                extracted_vars,
+                vars_after_step: vars.clone(),
+            });
         }
 
         // Delay between steps if configured
@@ -150,7 +241,14 @@ pub async fn run_pipeline(
         }
     }
 
-    Ok(PipelineOutcome::Live(vars))
+    Ok((
+        PipelineOutcome::Live(vars.clone()),
+        collect_debug.then_some(PipelineDebugReport {
+            steps: debug_steps,
+            final_vars: vars,
+            offline_at_step: None,
+        }),
+    ))
 }
 
 /// Converts a JSON value to a `String` for use as a pipeline variable.
@@ -165,6 +263,13 @@ fn json_value_to_string(v: &Value) -> Option<String> {
         return Some(v.to_string());
     }
     None
+}
+
+fn live_check_actual_value(live_check: &LiveCheck, response: &Value) -> Option<Value> {
+    match live_check {
+        LiveCheck::Path(path) => extract_json_value(response, path).cloned(),
+        LiveCheck::Condition(condition) => extract_json_value(response, &condition.path).cloned(),
+    }
 }
 
 #[cfg(test)]
