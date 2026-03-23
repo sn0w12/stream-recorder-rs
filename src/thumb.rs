@@ -3,7 +3,7 @@ use std::path::Path;
 use std::process::Stdio;
 use tokio::process::Command;
 
-/// Creates a 3x3 grid thumbnail from a video file using ffmpeg
+/// Creates a thumbnail grid from a video file using ffmpeg
 ///
 /// # Arguments
 /// * `input_path` - Path to the input video file
@@ -16,24 +16,36 @@ use tokio::process::Command;
 pub async fn create_video_thumbnail_grid(
     input_path: &Path,
     output_path: &Path,
-    size_str: &String,
-    grid_str: &String,
+    size_str: &str,
+    grid_str: &str,
 ) -> Result<()> {
     let (width, height) = parse_thumbnail_string(size_str).unwrap_or((320, 180));
     let (cols, rows) = parse_thumbnail_string(grid_str).unwrap_or((3, 3));
-    let total_frames = (cols * rows) as usize;
+    let total_frames =
+        cols.checked_mul(rows)
+            .ok_or_else(|| anyhow::anyhow!("Thumbnail grid is too large"))? as usize;
+
+    if total_frames == 0 {
+        return Err(anyhow::anyhow!(
+            "Thumbnail grid must contain at least one frame"
+        ));
+    }
 
     let duration = get_video_duration(input_path).await?;
 
-    // Calculate timestamps evenly distributed throughout the video
-    // Skip the first and last 5% to avoid black frames at start/end
-    let start_offset = duration * 0.05;
-    let effective_duration = duration * 0.9;
-    let step = effective_duration / (total_frames as f64 - 1.0);
+    let timestamps: Vec<f64> = if total_frames == 1 {
+        vec![duration * 0.5]
+    } else {
+        // Calculate timestamps evenly distributed throughout the video.
+        // Skip the first and last 5% to avoid black frames at start/end.
+        let start_offset = duration * 0.05;
+        let effective_duration = duration * 0.9;
+        let step = effective_duration / (total_frames as f64 - 1.0);
 
-    let timestamps: Vec<f64> = (0..total_frames)
-        .map(|i| start_offset + step * i as f64)
-        .collect();
+        (0..total_frames)
+            .map(|i| start_offset + step * i as f64)
+            .collect()
+    };
 
     let temp_dir = tempfile::tempdir()?;
     let temp_dir_path = temp_dir.path().to_path_buf();
@@ -53,7 +65,7 @@ pub async fn create_video_thumbnail_grid(
         frame_paths.push(frame_path);
     }
 
-    create_grid_from_frames(&frame_paths, output_path, width, height).await?;
+    create_grid_from_frames(&frame_paths, output_path, cols, rows, width, height).await?;
     drop(_guard);
 
     Ok(())
@@ -123,32 +135,56 @@ async fn extract_frame_at_time(
     Ok(())
 }
 
-/// Creates a 3x3 grid from 9 frame images
+/// Creates a grid thumbnail from extracted frame images
 async fn create_grid_from_frames(
     frame_paths: &[std::path::PathBuf],
     output_path: &Path,
+    cols: u32,
+    rows: u32,
     frame_width: u32,
     frame_height: u32,
 ) -> Result<()> {
-    if frame_paths.len() != 9 {
+    let expected_frames = cols
+        .checked_mul(rows)
+        .ok_or_else(|| anyhow::anyhow!("Thumbnail grid is too large"))?;
+
+    if expected_frames == 0 {
         return Err(anyhow::anyhow!(
-            "Expected 9 frames, got {}",
+            "Thumbnail grid must contain at least one frame"
+        ));
+    }
+
+    if frame_paths.len() != expected_frames as usize {
+        return Err(anyhow::anyhow!(
+            "Expected {} frames, got {}",
+            expected_frames,
             frame_paths.len()
         ));
     }
 
-    let mut filter_parts = Vec::new();
+    if frame_paths.len() == 1 {
+        tokio::fs::copy(&frame_paths[0], output_path).await?;
+        return Ok(());
+    }
 
-    // Add each frame as an input
+    let mut filter_parts = Vec::new();
+    let mut input_labels = Vec::new();
+
     for (i, _frame_path) in frame_paths.iter().enumerate() {
         filter_parts.push(format!(
             "[{}:v]scale={}:{}[v{}];",
             i, frame_width, frame_height, i
         ));
+        input_labels.push(format!("[v{}]", i));
     }
 
-    // Arrange in 3x3 grid
-    filter_parts.push("[v0][v1][v2]hstack=3[top];[v3][v4][v5]hstack=3[middle];[v6][v7][v8]hstack=3[bottom];[top][middle][bottom]vstack=3[v]".to_string());
+    let layout = build_xstack_layout(cols, rows, frame_width, frame_height)?;
+    filter_parts.push(format!(
+        "{}xstack=inputs={}:layout={}[v]",
+        input_labels.join(""),
+        frame_paths.len(),
+        layout
+    ));
 
     let filter = filter_parts.join("");
     let mut cmd = Command::new("ffmpeg");
@@ -178,6 +214,23 @@ async fn create_grid_from_frames(
     }
 
     Ok(())
+}
+
+fn build_xstack_layout(
+    cols: u32,
+    rows: u32,
+    frame_width: u32,
+    frame_height: u32,
+) -> Result<String> {
+    let mut layout = Vec::with_capacity((cols * rows) as usize);
+
+    for row in 0..rows {
+        for col in 0..cols {
+            layout.push(format!("{}_{}", col * frame_width, row * frame_height));
+        }
+    }
+
+    Ok(layout.join("|"))
 }
 
 /// Parses a thumbnail string in the format "XxY" (e.g., "3x3")
