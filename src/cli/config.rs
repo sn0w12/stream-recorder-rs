@@ -24,12 +24,15 @@ pub enum ConfigAction {
     /// Get the path to the config file
     #[clap(alias = "gp")]
     GetPath,
+    /// Output config in markdown format. Used in docs generation
+    #[clap(alias = "md")]
+    MarkDown,
 }
 
 pub fn handle_config_command(action: ConfigAction) -> Result<()> {
-    let mut config = crate::config::Config::load()?;
     match action {
         ConfigAction::Get { key } => {
+            let config = crate::config::Config::load()?;
             if let Some(k) = key {
                 config.print_filtered(Some(k), true);
             } else {
@@ -37,11 +40,13 @@ pub fn handle_config_command(action: ConfigAction) -> Result<()> {
             }
         }
         ConfigAction::Set { key, value } => {
+            let mut config = crate::config::Config::load()?;
             config.set_value(&key, &value)?;
             config.save()?;
             println!("Config updated.");
         }
         ConfigAction::Add { key, value } => {
+            let mut config = crate::config::Config::load()?;
             let config_key =
                 ConfigKey::from_str(&key).ok_or_else(|| anyhow::anyhow!("Unknown key: {}", key))?;
             if !config_key.is_array() {
@@ -64,6 +69,7 @@ pub fn handle_config_command(action: ConfigAction) -> Result<()> {
             }
         }
         ConfigAction::Remove { key, value } => {
+            let mut config = crate::config::Config::load()?;
             let config_key =
                 ConfigKey::from_str(&key).ok_or_else(|| anyhow::anyhow!("Unknown key: {}", key))?;
             if !config_key.is_array() {
@@ -90,6 +96,7 @@ pub fn handle_config_command(action: ConfigAction) -> Result<()> {
             }
         }
         ConfigAction::Reset { key } => {
+            let mut config = crate::config::Config::load()?;
             let config_key =
                 ConfigKey::from_str(&key).ok_or_else(|| anyhow::anyhow!("Unknown key: {}", key))?;
             let default = config.get_default_string(config_key);
@@ -100,6 +107,9 @@ pub fn handle_config_command(action: ConfigAction) -> Result<()> {
         ConfigAction::GetPath => {
             let path = crate::config::Config::config_path();
             println!("{}", path.display());
+        }
+        ConfigAction::MarkDown => {
+            print!("{}", crate::config::Config::markdown_table());
         }
     }
     Ok(())

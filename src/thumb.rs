@@ -16,21 +16,24 @@ use tokio::process::Command;
 pub async fn create_video_thumbnail_grid(
     input_path: &Path,
     output_path: &Path,
-    width: Option<u32>,
-    height: Option<u32>,
+    size_str: &String,
+    grid_str: &String,
 ) -> Result<()> {
-    let width = width.unwrap_or(320);
-    let height = height.unwrap_or(180);
+    let (width, height) = parse_thumbnail_string(size_str).unwrap_or((320, 180));
+    let (cols, rows) = parse_thumbnail_string(grid_str).unwrap_or((3, 3));
+    let total_frames = (cols * rows) as usize;
 
     let duration = get_video_duration(input_path).await?;
 
-    // Calculate 9 timestamps evenly distributed throughout the video
+    // Calculate timestamps evenly distributed throughout the video
     // Skip the first and last 5% to avoid black frames at start/end
     let start_offset = duration * 0.05;
     let effective_duration = duration * 0.9;
-    let step = effective_duration / 8.0;
+    let step = effective_duration / (total_frames as f64 - 1.0);
 
-    let timestamps: Vec<f64> = (0..9).map(|i| start_offset + step * i as f64).collect();
+    let timestamps: Vec<f64> = (0..total_frames)
+        .map(|i| start_offset + step * i as f64)
+        .collect();
 
     let temp_dir = tempfile::tempdir()?;
     let temp_dir_path = temp_dir.path().to_path_buf();
@@ -175,4 +178,15 @@ async fn create_grid_from_frames(
     }
 
     Ok(())
+}
+
+/// Parses a thumbnail string in the format "XxY" (e.g., "3x3")
+fn parse_thumbnail_string(s: &str) -> Option<(u32, u32)> {
+    let parts: Vec<&str> = s.split('x').collect();
+    if parts.len() != 2 {
+        return None;
+    }
+    let col = parts[0].trim().parse::<u32>().ok()?;
+    let row = parts[1].trim().parse::<u32>().ok()?;
+    Some((col, row))
 }

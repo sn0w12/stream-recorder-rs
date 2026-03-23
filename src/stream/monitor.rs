@@ -893,8 +893,8 @@ async fn post_process_stream(
     match create_video_thumbnail_grid(
         std::path::Path::new(&output_path),
         std::path::Path::new(&thumbnail_path),
-        None,
-        None,
+        &config.get_thumbnail_size(),
+        &config.get_thumbnail_grid(),
     )
     .await
     {

@@ -151,6 +151,68 @@ macro_rules! define_config {
 
                 table.print();
             }
+
+            pub fn markdown_table() -> String {
+                use std::fmt::Write;
+
+                let config = Self::default();
+                let mut rows = Vec::new();
+
+                for key in ConfigKey::all() {
+                    rows.push([
+                        format!("`{}`", key.as_str()),
+                        config.get_description(key.as_str()),
+                        format!("`{}`", config.get_default_string(*key)),
+                    ]);
+                }
+
+                let mut widths = ["Setting".chars().count(), "Description".chars().count(), "Default".chars().count()];
+                for row in &rows {
+                    for (index, cell) in row.iter().enumerate() {
+                        widths[index] = widths[index].max(cell.chars().count());
+                    }
+                }
+
+                let mut output = String::new();
+                writeln!(
+                    output,
+                    "| {:<setting_width$} | {:<description_width$} | {:<default_width$} |",
+                    "Setting",
+                    "Description",
+                    "Default",
+                    setting_width = widths[0],
+                    description_width = widths[1],
+                    default_width = widths[2],
+                )
+                .unwrap();
+                writeln!(
+                    output,
+                    "| {:<setting_width$} | {:<description_width$} | {:<default_width$} |",
+                    "-".repeat(widths[0]),
+                    "-".repeat(widths[1]),
+                    "-".repeat(widths[2]),
+                    setting_width = widths[0],
+                    description_width = widths[1],
+                    default_width = widths[2],
+                )
+                .unwrap();
+
+                for row in rows {
+                    writeln!(
+                        output,
+                        "| {:<setting_width$} | {:<description_width$} | {:<default_width$} |",
+                        row[0],
+                        row[1],
+                        row[2],
+                        setting_width = widths[0],
+                        description_width = widths[1],
+                        default_width = widths[2],
+                    )
+                    .unwrap();
+                }
+
+                output
+            }
         }
     };
 }
@@ -347,6 +409,8 @@ define_config! {
     disabled_uploaders: Option<Vec<String>> = None => Vec::<String>::new(), vec, "List of uploaders to skip uploading to",
     step_delay_seconds: Option<f64> = None => Some(0.5), f64, "Delay in seconds between each step in a platform",
     fetch_interval_seconds: Option<f64> = None => Some(120.0), f64, "The interval in seconds monitors are fetched at",
+    thumbnail_size: Option<String> = Some("320x180".to_string()) => Some("320x180".to_string()), str, "Size of each thumbnail in the grid, in WIDTHxHEIGHT format",
+    thumbnail_grid: Option<String> = Some("3x3".to_string()) => Some("3x3".to_string()), str, "Grid layout for thumbnails, in COLSxROWS format",
 }
 
 // ============================================================================
@@ -479,6 +543,19 @@ mod readme_sync_tests {
             }
 
             assert_eq!(cfg_default, rd, "Default mismatch for {}", key);
+        }
+    }
+
+    #[test]
+    fn markdown_table_contains_all_config_keys() {
+        let markdown = Config::markdown_table();
+
+        for key in ConfigKey::all() {
+            assert!(
+                markdown.contains(&format!("`{}`", key.as_str())),
+                "Markdown table is missing key {}",
+                key.as_str()
+            );
         }
     }
 }
