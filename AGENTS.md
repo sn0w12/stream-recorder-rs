@@ -36,6 +36,8 @@ This file defines conventions, best practices, and required steps for all agents
 
 ## Required Steps Before Finishing Any Task
 
+These must be ran sequentially, not all in a single command.
+
 1. **Run `cargo check`** to ensure the code compiles.
 2. **Run `cargo fmt`** to format the code.
 3. **Run `cargo clippy`** and address warnings where possible.
