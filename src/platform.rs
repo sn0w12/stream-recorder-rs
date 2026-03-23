@@ -24,7 +24,7 @@ pub struct PipelineStep {
     pub endpoint: String,
     /// Optional live-state condition evaluated against the response JSON.
     ///
-    /// The legacy string form checks only that the JSON path resolves to a
+    /// The string form checks only that the JSON path resolves to a
     /// non-null value. The object form supports richer checks such as equality
     /// and inequality comparisons.
     pub live_check: Option<LiveCheck>,
@@ -37,11 +37,11 @@ pub struct PipelineStep {
 
 /// Condition used to determine whether a pipeline step indicates a live stream.
 ///
-/// Supports a legacy string path or an object with comparison operators.
+/// Supports a string path or an object with comparison operators.
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(untagged)]
 pub enum LiveCheck {
-    /// Legacy shorthand: the path must resolve to a non-null JSON value.
+    /// The path must resolve to a non-null JSON value.
     Path(String),
     /// Structured condition with optional comparison operators.
     Condition(LiveCheckCondition),
@@ -62,6 +62,38 @@ pub struct LiveCheckCondition {
     /// Optional JSON value that the extracted value must not equal.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub not_equals: Option<Value>,
+}
+
+/// Title cleaning rule applied to the extracted `stream_title`.
+///
+/// Supports a string pattern that strips matches entirely, or an object
+/// with an explicit replacement string.
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[serde(untagged)]
+pub enum TitleCleanRule {
+    /// Replace each regex match with an empty string.
+    Pattern(String),
+    /// Regex pattern with an explicit replacement string.
+    Replace {
+        pattern: String,
+        replacement: String,
+    },
+}
+
+impl TitleCleanRule {
+    fn pattern(&self) -> &str {
+        match self {
+            Self::Pattern(pattern) => pattern,
+            Self::Replace { pattern, .. } => pattern,
+        }
+    }
+
+    fn replacement(&self) -> &str {
+        match self {
+            Self::Pattern(_) => "",
+            Self::Replace { replacement, .. } => replacement,
+        }
+    }
 }
 
 impl LiveCheck {
@@ -188,7 +220,7 @@ pub struct PlatformConfig {
     /// - `stream_title` *(optional)* – used for output file naming.
     ///
     /// At least one step should carry a `live_check` so the monitor can
-    /// distinguish live from offline states. The legacy string form checks for
+    /// distinguish live from offline states. The string form checks for
     /// path existence; the object form also supports `equals`, `not_equals`,
     /// and explicit `exists` checks.
     pub steps: Vec<PipelineStep>,
@@ -214,16 +246,18 @@ pub struct PlatformConfig {
     /// rejected with a descriptive error.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stream_recorder_version: Option<String>,
-    /// List of regex patterns applied in order to the `stream_title` variable
-    /// before it is used for output file naming.
+    /// List of title cleaning rules applied in order to the `stream_title`
+    /// variable before it is used for output file naming.
     ///
-    /// Each match of each pattern is replaced with an empty string.  Use this
-    /// to strip platform-specific emoji shortcodes, tags, or other noise.
-    /// If absent (or empty), the title is used as-is.
+    /// String entries replace each match with an empty string. Object entries
+    /// can define both a regex pattern and a replacement string. Use this to
+    /// strip or rewrite platform-specific emoji shortcodes, tags, or other
+    /// noise. If absent (or empty), the title is used as-is.
     ///
-    /// Example: `[":\\w+:"]` removes `:shortcode:` style emojis.
+    /// Example: `[":\\w+:", { "pattern": "\\s+", "replacement": " " }]`
+    /// removes `:shortcode:` style emojis and normalizes whitespace.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub title_clean_regex: Option<Vec<String>>,
+    pub title_clean_regex: Option<Vec<TitleCleanRule>>,
 }
 
 impl PlatformConfig {
@@ -240,7 +274,7 @@ impl PlatformConfig {
     /// - `version` is non-empty
     /// - `stream_recorder_version`, when present, is a valid semver requirement
     ///   that the running stream_recorder satisfies
-    /// - each pattern in `title_clean_regex`, when present, compiles as a valid regex
+    /// - each rule in `title_clean_regex`, when present, compiles as a valid regex
     ///
     /// The optional `source` parameter is used in error messages to identify
     /// the file or URL that produced the config.
@@ -287,11 +321,11 @@ impl PlatformConfig {
             }
         }
         if let Some(ref patterns) = self.title_clean_regex {
-            for pattern in patterns {
-                Regex::new(pattern).map_err(|e| {
+            for rule in patterns {
+                Regex::new(rule.pattern()).map_err(|e| {
                     anyhow::anyhow!(
                     "Platform config {}: `title_clean_regex` pattern '{}' is not a valid regex: {}",
-                    source, pattern, e
+                    source, rule.pattern(), e
                 )
                 })?;
             }
@@ -299,8 +333,7 @@ impl PlatformConfig {
         Ok(())
     }
 
-    /// Applies the platform's `title_clean_regex` patterns to `title`, replacing
-    /// every match with an empty string.
+    /// Applies the platform's `title_clean_regex` rules to `title` in order.
     ///
     /// Returns the cleaned string.  If `title_clean_regex` is absent or empty
     /// the title is returned unchanged.
@@ -309,10 +342,13 @@ impl PlatformConfig {
             return title.to_string();
         };
         let mut result = title.to_string();
-        for pattern in patterns {
+        for rule in patterns {
             // Patterns are validated on load/install, so this unwrap is safe.
-            let re = Regex::new(pattern).unwrap();
-            result = re.replace_all(&result, "").trim().to_string();
+            let re = Regex::new(rule.pattern()).unwrap();
+            result = re
+                .replace_all(&result, rule.replacement())
+                .trim()
+                .to_string();
         }
         result
     }
@@ -861,12 +897,32 @@ mod tests {
     #[test]
     fn test_title_clean_regex_round_trips() {
         let mut p = make_minimal_platform("tcr_rt");
-        p.title_clean_regex = Some(vec![r":\w+:".to_string(), r"\[.*?\]".to_string()]);
+        p.title_clean_regex = Some(vec![
+            TitleCleanRule::Pattern(r":\w+:".to_string()),
+            TitleCleanRule::Pattern(r"\[.*?\]".to_string()),
+        ]);
         let serialized = serde_json::to_string(&p).unwrap();
         let back: PlatformConfig = serde_json::from_str(&serialized).unwrap();
         let patterns = back.title_clean_regex.unwrap();
-        assert_eq!(patterns[0], r":\w+:");
-        assert_eq!(patterns[1], r"\[.*?\]");
+        assert_eq!(patterns[0], TitleCleanRule::Pattern(r":\w+:".to_string()));
+        assert_eq!(patterns[1], TitleCleanRule::Pattern(r"\[.*?\]".to_string()));
+    }
+
+    #[test]
+    fn test_title_clean_regex_mixed_rules_round_trip() {
+        let mut p = make_minimal_platform("tcr_mixed_rt");
+        p.title_clean_regex = Some(vec![
+            TitleCleanRule::Pattern(r":\w+:".to_string()),
+            TitleCleanRule::Replace {
+                pattern: r"\s+".to_string(),
+                replacement: " ".to_string(),
+            },
+        ]);
+
+        let serialized = serde_json::to_string(&p).unwrap();
+        let back: PlatformConfig = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(back.title_clean_regex, p.title_clean_regex);
     }
 
     #[test]
@@ -881,25 +937,61 @@ mod tests {
     #[test]
     fn test_clean_title_removes_emoji_shortcodes() {
         let mut p = make_minimal_platform("tcr_emoji");
-        p.title_clean_regex = Some(vec![r":\w+:".to_string()]);
-        assert_eq!(p.clean_title("Hello :smile: World :tada:"), "Hello  World ");
+        p.title_clean_regex = Some(vec![TitleCleanRule::Pattern(r":\w+:".to_string())]);
+        assert_eq!(p.clean_title("Hello :smile: World :tada:"), "Hello  World");
     }
 
     #[test]
     fn test_clean_title_applies_multiple_patterns_in_order() {
         let mut p = make_minimal_platform("tcr_multi");
-        p.title_clean_regex = Some(vec![r":\w+:".to_string(), r"\[.*?\]".to_string()]);
+        p.title_clean_regex = Some(vec![
+            TitleCleanRule::Pattern(r":\w+:".to_string()),
+            TitleCleanRule::Pattern(r"\[.*?\]".to_string()),
+        ]);
         // First `:smile:` is stripped, then `[tag]` is stripped
         assert_eq!(
             p.clean_title(":smile: Hello [VOD] World :tada:"),
-            " Hello  World "
+            "Hello  World"
+        );
+    }
+
+    #[test]
+    fn test_clean_title_applies_string_and_replacement_rules_in_order() {
+        let mut p = make_minimal_platform("tcr_replace");
+        p.title_clean_regex = Some(vec![
+            TitleCleanRule::Pattern(r":\w+:".to_string()),
+            TitleCleanRule::Replace {
+                pattern: r"\s+".to_string(),
+                replacement: " ".to_string(),
+            },
+            TitleCleanRule::Replace {
+                pattern: r"\[VOD\]".to_string(),
+                replacement: "Replay".to_string(),
+            },
+        ]);
+
+        assert_eq!(
+            p.clean_title("  :smile: Hello   [VOD]   World :tada:  "),
+            "Hello Replay World"
         );
     }
 
     #[test]
     fn test_validate_rejects_invalid_title_clean_regex() {
         let mut p = make_minimal_platform("tcr_bad");
-        p.title_clean_regex = Some(vec!["[invalid(".to_string()]);
+        p.title_clean_regex = Some(vec![TitleCleanRule::Pattern("[invalid(".to_string())]);
+        let err = p.validate("test").unwrap_err().to_string();
+        assert!(err.contains("`title_clean_regex`"), "got: {}", err);
+        assert!(err.contains("not a valid regex"), "got: {}", err);
+    }
+
+    #[test]
+    fn test_validate_rejects_invalid_title_clean_regex_object_pattern() {
+        let mut p = make_minimal_platform("tcr_bad_object");
+        p.title_clean_regex = Some(vec![TitleCleanRule::Replace {
+            pattern: "[invalid(".to_string(),
+            replacement: " ".to_string(),
+        }]);
         let err = p.validate("test").unwrap_err().to_string();
         assert!(err.contains("`title_clean_regex`"), "got: {}", err);
         assert!(err.contains("not a valid regex"), "got: {}", err);
@@ -908,7 +1000,13 @@ mod tests {
     #[test]
     fn test_validate_accepts_valid_title_clean_regex() {
         let mut p = make_minimal_platform("tcr_ok");
-        p.title_clean_regex = Some(vec![r":\w+:".to_string(), r"\[.*?\]".to_string()]);
+        p.title_clean_regex = Some(vec![
+            TitleCleanRule::Pattern(r":\w+:".to_string()),
+            TitleCleanRule::Replace {
+                pattern: r"\[.*?\]".to_string(),
+                replacement: "".to_string(),
+            },
+        ]);
         assert!(p.validate("test").is_ok());
     }
 

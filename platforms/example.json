@@ -4,7 +4,13 @@
     "name": "Example Platform",
     "version": "1.0.0",
     "stream_recorder_version": "^0.1",
-    "title_clean_regex": [":\\w+:"],
+    "title_clean_regex": [
+        ":\\w+:",
+        {
+            "pattern": "\\s+",
+            "replacement": " "
+        }
+    ],
     "base_url": "https://api.example.com/v1/",
     "token_name": "example_api_token",
     "headers": {

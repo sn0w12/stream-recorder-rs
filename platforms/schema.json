@@ -53,10 +53,29 @@
         },
         "title_clean_regex": {
             "type": ["array", "null"],
-            "description": "List of regex patterns applied in order to the extracted `stream_title` before it is used for output file naming. Each match is replaced with an empty string. Absent or empty means the title is used unchanged.",
+            "description": "List of title cleaning rules applied in order to the extracted `stream_title` before it is used for output file naming. String entries replace each match with an empty string. Object entries use an explicit replacement. Absent or empty means the title is used unchanged.",
             "items": {
-                "type": "string",
-                "description": "A regex pattern (Rust regex syntax) whose matches are stripped from the stream title."
+                "oneOf": [
+                    {
+                        "type": "string",
+                        "description": "A regex pattern (Rust regex syntax) whose matches are stripped from the stream title."
+                    },
+                    {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["pattern", "replacement"],
+                        "properties": {
+                            "pattern": {
+                                "type": "string",
+                                "description": "A regex pattern (Rust regex syntax) applied to the stream title."
+                            },
+                            "replacement": {
+                                "type": "string",
+                                "description": "Replacement string used for each match of `pattern`."
+                            }
+                        }
+                    }
+                ]
             }
         }
     },

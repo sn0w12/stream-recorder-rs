@@ -374,7 +374,9 @@ mod tests {
 
     #[test]
     fn parse_monitor_reference_rejects_empty_parts() {
-        let err = parse_monitor_reference("platform:").unwrap_err().to_string();
+        let err = parse_monitor_reference("platform:")
+            .unwrap_err()
+            .to_string();
         assert!(err.contains("both parts non-empty"), "got: {}", err);
     }
 }
