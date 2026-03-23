@@ -14,6 +14,10 @@
             "type": "string",
             "description": "Human‑readable display name."
         },
+        "icon": {
+            "type": ["string", "null"],
+            "description": "URL to an icon image for the platform."
+        },
         "base_url": {
             "type": "string",
             "pattern": "^.*\\/$",

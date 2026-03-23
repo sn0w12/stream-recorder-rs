@@ -200,6 +200,8 @@ pub struct PlatformConfig {
     pub name: String,
     /// Base URL prepended to relative endpoint paths. **Must** end with `/`.
     pub base_url: String,
+    /// Optional URL to an icon image for the platform.
+    pub icon: Option<String>,
     /// Keyring key name used to retrieve the authentication token
     /// (e.g. `api_token`). If `None`, the platform requires no authentication.
     pub token_name: Option<String>,
@@ -723,6 +725,7 @@ mod tests {
         PlatformConfig {
             id: id.to_string(),
             name: "Test Platform".to_string(),
+            icon: None,
             base_url: "https://example.com/api/".to_string(),
             token_name: None,
             headers: HashMap::new(),

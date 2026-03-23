@@ -287,6 +287,7 @@ mod tests {
         let platform = PlatformConfig {
             id: "p1".to_string(),
             name: "P1".to_string(),
+            icon: None,
             base_url: "https://example.com/".to_string(),
             token_name: None,
             headers,
@@ -317,6 +318,7 @@ mod tests {
         let platform = PlatformConfig {
             id: "p2".to_string(),
             name: "P2".to_string(),
+            icon: None,
             base_url: "https://example.com/".to_string(),
             token_name: None,
             headers,
