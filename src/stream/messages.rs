@@ -168,6 +168,34 @@ pub async fn send_template_webhook(
     Ok(())
 }
 
+pub async fn send_minimum_duration_webhook(
+    webhook_url: Option<&str>,
+    stream_info: &StreamInfo,
+) -> Result<()> {
+    let mut client = WebhookClient::new(webhook_url.unwrap_or_default());
+    let header_component = Component::Container(ContainerComponent {
+        accent_color: DiscordColor::rgb(255, 0, 0),
+        spoiler: false,
+        components: vec![stream_header_component(
+            &stream_info.username,
+            stream_info.avatar_url.clone(),
+            "Stream Too Short",
+        )],
+    });
+    let identity = platform_to_identity(stream_info);
+
+    client
+        .send_to_thread(
+            &stream_info.username,
+            None,
+            Some(vec![header_component]),
+            None,
+            identity,
+        )
+        .await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

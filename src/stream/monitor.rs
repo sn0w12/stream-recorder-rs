@@ -4,7 +4,8 @@ use crate::platform::{PipelineOutcome, PlatformConfig};
 use crate::print::table::{Cell, Table};
 use crate::stream::api::run_pipeline;
 use crate::stream::messages::{
-    send_recording_complete_webhook, send_recording_start_webhook, send_template_webhook,
+    send_minimum_duration_webhook, send_recording_complete_webhook, send_recording_start_webhook,
+    send_template_webhook,
 };
 use crate::template::{TemplateValue, get_template_string, render_template};
 use crate::thumb::create_video_thumbnail_grid;
@@ -841,12 +842,15 @@ async fn handle_minimum_duration(
     output_path: &str,
     duration_minutes: f64,
     min_duration: f64,
+    webhook_url: Option<&str>,
+    stream_info: StreamInfo,
 ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
     if duration_minutes < min_duration {
         println!(
             "Stream duration ({:.1} minutes) is below minimum threshold ({:.1} minutes), removing files without processing",
             duration_minutes, min_duration
         );
+        send_minimum_duration_webhook(webhook_url.as_deref(), &stream_info).await?;
         delete_video_and_thumbnail(output_path).await?;
         return Ok(true);
     }
@@ -869,7 +873,14 @@ async fn post_process_stream(
 
     // Check if stream duration is below minimum threshold
     if let Some(min_duration) = config.get_min_stream_duration()
-        && handle_minimum_duration(&output_path, duration_minutes, min_duration).await?
+        && handle_minimum_duration(
+            &output_path,
+            duration_minutes,
+            min_duration,
+            config.get_discord_webhook_url(),
+            stream_info.clone(),
+        )
+        .await?
     {
         return Ok(());
     }
