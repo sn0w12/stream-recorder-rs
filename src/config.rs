@@ -404,7 +404,7 @@ define_config! {
     upload_complete_message_template: Option<String> = None => None, str_opt, "Template for upload completion messages",
     max_upload_retries: Option<u32> = Some(3) => Some(3), u32, "Maximum number of upload retries",
     min_stream_duration: Option<f64> = None => None, f64_opt, "Minimum stream duration before recording",
-    bitrate: Option<String> = Some("3M".to_string()) => Some("3M".to_string()), str, "Bitrate to record stream at",
+    video_quality: Option<u32> = Some(26) => Some(26), u32, "Quality target for variable bitrate video encoding (lower is better)",
     stream_reconnect_delay_minutes: Option<f64> = None => None, f64_opt, "Delay in minutes to wait for stream continuation before post-processing. Streams resumed are merged.",
     disabled_uploaders: Option<Vec<String>> = None => Vec::<String>::new(), vec, "List of uploaders to skip uploading to",
     step_delay_seconds: Option<f64> = None => Some(0.5), f64, "Delay in seconds between each step in a platform",

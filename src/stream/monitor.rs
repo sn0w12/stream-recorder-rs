@@ -3,6 +3,7 @@ use crate::config::Config;
 use crate::platform::{PipelineOutcome, PlatformConfig};
 use crate::print::table::{Cell, Table};
 use crate::stream::api::run_pipeline;
+use crate::stream::encoding::{build_ffmpeg_args, detect_best_hw_encoder};
 use crate::stream::messages::{
     send_minimum_duration_webhook, send_recording_complete_webhook, send_recording_start_webhook,
     send_template_webhook,
@@ -22,212 +23,6 @@ use std::io::Write;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use walkdir::WalkDir;
-
-// Run a short ffmpeg probe to verify that `encoder` actually works at runtime.
-// Many builds list encoders at compile-time (`ffmpeg -encoders`) even when the
-// hardware/driver isn't present; this runtime probe prevents selecting a broken
-// encoder that immediately exits and produces 0-length files.
-async fn verify_hw_encoder(encoder: &str) -> Result<(), String> {
-    // Run a short ffmpeg probe and capture stderr for diagnostics.
-    let probe = tokio::process::Command::new("ffmpeg")
-        .args([
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-f",
-            "lavfi",
-            "-i",
-            "testsrc=duration=1:size=640x360:rate=30",
-            "-c:v",
-            encoder,
-            "-t",
-            "1",
-            "-f",
-            "null",
-            "-",
-        ])
-        .stderr(Stdio::piped())
-        .output()
-        .await;
-
-    // Helper to extract a short reason from ffmpeg stderr
-    fn short_reason(stderr: &str) -> String {
-        let s = stderr.to_lowercase();
-        if s.contains("cuda_error_no_device")
-            || s.contains("cuinit(0) failed")
-            || s.contains("no cuda")
-        {
-            return "no CUDA-capable device".into();
-        }
-        if s.contains("error creating a mfx session") || s.contains("mfx") {
-            return "intel qsv: mfx session not available".into();
-        }
-        if s.contains("dll amfrt64.dll failed to open") || s.contains("amfrt64.dll") {
-            return "amd amf runtime not found".into();
-        }
-        if s.contains("error while opening encoder") {
-            return "encoder failed to open (bad params or missing runtime)".into();
-        }
-        if s.contains("nothing was written into output file") || s.contains("received no packets") {
-            return "encoder produced no output packets".into();
-        }
-        // Fallback: return the first non-empty ffmpeg stderr line (trimmed)
-        stderr
-            .lines()
-            .find(|l| !l.trim().is_empty())
-            .map(|l| l.trim().to_string())
-            .unwrap_or_else(|| "unknown error".into())
-    }
-
-    match probe {
-        Ok(output) => {
-            if output.status.success() {
-                return Ok(());
-            }
-            let err = String::from_utf8_lossy(&output.stderr);
-            Err(short_reason(&err))
-        }
-        Err(err) => Err(format!("failed to run ffmpeg: {}", err)),
-    }
-}
-
-/// Detects the best available hardware encoder by querying ffmpeg at runtime and
-/// verifying it works. Priority: NVENC → QSV → VAAPI → AMF → VideoToolbox → OMX.
-/// Returns the encoder `-c:v` name plus recommended extra ffmpeg options, or
-/// `None` if no working hardware encoder is found.
-pub async fn detect_best_hw_encoder(bitrate: &str) -> Option<(String, Vec<String>)> {
-    // First check the build-time availability to avoid unnecessarily probing
-    // encoders that aren't compiled into ffmpeg.
-    let encoders_out = match tokio::process::Command::new("ffmpeg")
-        .args(["-hide_banner", "-encoders"])
-        .output()
-        .await
-    {
-        Ok(o) => String::from_utf8_lossy(&o.stdout).to_lowercase(),
-        Err(_) => String::new(),
-    };
-
-    // Candidate list in preferred order. Each tuple is (encoder_name, extra_opts).
-    // Note: VAAPI requires an input hwupload filter; include that in opts.
-    let candidates: Vec<(&str, Vec<String>)> = vec![
-        (
-            "h264_nvenc",
-            vec!["-preset".into(), "p4".into(), "-b:v".into(), bitrate.into()],
-        ),
-        (
-            "hevc_nvenc",
-            vec!["-preset".into(), "p4".into(), "-b:v".into(), bitrate.into()],
-        ),
-        ("h264_qsv", vec!["-b:v".into(), bitrate.into()]),
-        ("hevc_qsv", vec!["-b:v".into(), bitrate.into()]),
-        (
-            "h264_vaapi",
-            vec![
-                "-vf".into(),
-                "format=nv12,hwupload".into(),
-                "-b:v".into(),
-                bitrate.into(),
-            ],
-        ),
-        (
-            "hevc_vaapi",
-            vec![
-                "-vf".into(),
-                "format=nv12,hwupload".into(),
-                "-b:v".into(),
-                bitrate.into(),
-            ],
-        ),
-        ("h264_amf", vec!["-b:v".into(), bitrate.into()]),
-        ("hevc_amf", vec!["-b:v".into(), bitrate.into()]),
-        ("h264_videotoolbox", vec!["-b:v".into(), bitrate.into()]),
-        ("h264_omx", vec!["-b:v".into(), bitrate.into()]),
-    ];
-
-    for (enc, opts) in candidates {
-        if !encoders_out.contains(enc) {
-            continue; // not present in this ffmpeg build
-        }
-
-        // runtime verification — some encoders are listed but not usable at runtime
-        match verify_hw_encoder(enc).await {
-            Ok(()) => return Some((enc.to_string(), opts)),
-            Err(_reason) => continue,
-        }
-    }
-
-    None
-}
-
-/// Public helper to probe available hw encoders and print diagnostics.
-/// This is intended for the CLI `encoders test` command.
-pub async fn probe_hw_encoders() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // print ffmpeg encoder build-time list filtered for hardware encoders
-    let encoders_out = match tokio::process::Command::new("ffmpeg")
-        .args(["-hide_banner", "-encoders"])
-        .output()
-        .await
-    {
-        Ok(o) => String::from_utf8_lossy(&o.stdout).to_string(),
-        Err(e) => {
-            eprintln!("failed to run 'ffmpeg -encoders': {}", e);
-            String::new()
-        }
-    };
-
-    println!("ffmpeg -encoders (hardware-related lines):");
-    for line in encoders_out.lines() {
-        let l = line.to_lowercase();
-        if l.contains("nvenc")
-            || l.contains("qsv")
-            || l.contains("amf")
-            || l.contains("vaapi")
-            || l.contains("videotoolbox")
-            || l.contains("omx")
-            || l.contains("v4l2m2m")
-        {
-            println!("  {}", line.trim());
-        }
-    }
-
-    // candidate encoders we probe (same order as detection)
-    let candidates = vec![
-        "h264_nvenc",
-        "hevc_nvenc",
-        "h264_qsv",
-        "hevc_qsv",
-        "h264_vaapi",
-        "hevc_vaapi",
-        "h264_amf",
-        "hevc_amf",
-        "h264_videotoolbox",
-        "h264_omx",
-    ];
-
-    println!("\nRuntime probe for each candidate (1s test):");
-    for enc in candidates {
-        if !encoders_out.to_lowercase().contains(enc) {
-            println!("  {:20} — not compiled into ffmpeg", enc);
-            continue;
-        }
-
-        print!("  {:20} — probing... ", enc);
-        match verify_hw_encoder(enc).await {
-            Ok(()) => println!("OK"),
-            Err(reason) => println!("FAIL ({})", reason),
-        }
-    }
-
-    // final selection using detect_best_hw_encoder
-    match detect_best_hw_encoder("4M").await {
-        Some((enc, _opts)) => println!("\nSelected encoder: {}", enc),
-        None => {
-            println!("\nNo working hardware encoder detected; software (libx264) will be used.")
-        }
-    }
-
-    Ok(())
-}
 
 /// Context struct holding initial information about a recording session.
 #[derive(Clone)]
@@ -287,106 +82,6 @@ impl Drop for StreamRecorder {
     }
 }
 
-/// Builds ffmpeg arguments for recording with hardware acceleration when available.
-fn build_ffmpeg_args(
-    playback_url: &str,
-    output_path: &str,
-    hw_encoder: Option<(String, Vec<String>)>,
-) -> Vec<String> {
-    let mut ffmpeg_args: Vec<String> = vec!["-loglevel".into(), "quiet".into()];
-
-    if let Some((codec, opts)) = hw_encoder {
-        match codec.as_str() {
-            // Intel Quick Sync: enable qsv hwaccel + init device so decoding is offloaded
-            "h264_qsv" | "hevc_qsv" => {
-                ffmpeg_args.extend(vec![
-                    "-hwaccel".into(),
-                    "qsv".into(),
-                    "-init_hw_device".into(),
-                    "qsv=hw".into(),
-                    "-filter_hw_device".into(),
-                    "hw".into(),
-                ]);
-                ffmpeg_args.push("-i".into());
-                ffmpeg_args.push(playback_url.to_string());
-
-                if !opts.is_empty() {
-                    ffmpeg_args.extend(opts.clone());
-                }
-
-                ffmpeg_args.extend(vec!["-c:v".into(), codec]);
-            }
-
-            // NVIDIA NVENC: enable CUDA hwaccel so decode can use NVDEC and frames
-            // can be passed to the encoder with minimal CPU overhead.
-            "h264_nvenc" | "hevc_nvenc" => {
-                ffmpeg_args.extend(vec![
-                    "-hwaccel".into(),
-                    "cuda".into(),
-                    "-hwaccel_output_format".into(),
-                    "cuda".into(),
-                ]);
-                ffmpeg_args.push("-i".into());
-                ffmpeg_args.push(playback_url.to_string());
-
-                ffmpeg_args.push("-c:v".into());
-                ffmpeg_args.push(codec);
-                if !opts.is_empty() {
-                    ffmpeg_args.extend(opts);
-                }
-            }
-
-            // VAAPI needs an explicit device and the hw upload filter (opts include that)
-            "h264_vaapi" | "hevc_vaapi" => {
-                ffmpeg_args.extend(vec!["-vaapi_device".into(), "/dev/dri/renderD128".into()]);
-                ffmpeg_args.push("-i".into());
-                ffmpeg_args.push(playback_url.to_string());
-
-                if !opts.is_empty() {
-                    ffmpeg_args.extend(opts.clone());
-                }
-
-                ffmpeg_args.extend(vec!["-c:v".into(), codec]);
-            }
-
-            // Default: no special input hwaccel, just select encoder
-            _ => {
-                ffmpeg_args.push("-i".into());
-                ffmpeg_args.push(playback_url.to_string());
-                ffmpeg_args.push("-c:v".into());
-                ffmpeg_args.push(codec);
-                if !opts.is_empty() {
-                    ffmpeg_args.extend(opts);
-                }
-            }
-        }
-    } else {
-        // software fallback
-        println!("No hardware encoder available, using software encoding");
-        ffmpeg_args.push("-i".into());
-        ffmpeg_args.push(playback_url.to_string());
-        ffmpeg_args.extend(vec![
-            "-c:v".into(),
-            "libx264".into(),
-            "-preset".into(),
-            "veryfast".into(),
-            "-crf".into(),
-            "26".into(),
-        ]);
-    }
-
-    // Add audio encoding and output path
-    ffmpeg_args.extend(vec![
-        "-c:a".into(),
-        "aac".into(),
-        "-b:a".into(),
-        "128k".into(),
-        output_path.to_string(),
-    ]);
-
-    ffmpeg_args
-}
-
 /// Core recording logic: starts ffmpeg, waits for the stream to end, and returns
 /// the stream info together with the output file path.  Does NOT spawn any
 /// post-processing — callers are responsible for that.
@@ -417,9 +112,14 @@ async fn record_stream_raw(
     }
 
     // Detect hardware encoder and build ffmpeg arguments
-    let bitrate = config.get_bitrate();
-    let hw_encoder = detect_best_hw_encoder(&bitrate).await;
-    let ffmpeg_args = build_ffmpeg_args(&stream_info.playback_url, &output_path, hw_encoder);
+    let video_quality = config.get_video_quality();
+    let hw_encoder = detect_best_hw_encoder(video_quality).await;
+    let ffmpeg_args = build_ffmpeg_args(
+        &stream_info.playback_url,
+        &output_path,
+        video_quality,
+        hw_encoder,
+    );
 
     let mut cmd = tokio::process::Command::new("ffmpeg");
     cmd.args(&ffmpeg_args);
@@ -850,7 +550,7 @@ async fn handle_minimum_duration(
             "Stream duration ({:.1} minutes) is below minimum threshold ({:.1} minutes), removing files without processing",
             duration_minutes, min_duration
         );
-        send_minimum_duration_webhook(webhook_url.as_deref(), &stream_info).await?;
+        send_minimum_duration_webhook(webhook_url, &stream_info).await?;
         delete_video_and_thumbnail(output_path).await?;
         return Ok(true);
     }

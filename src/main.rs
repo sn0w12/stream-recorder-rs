@@ -6,6 +6,7 @@ mod thumb;
 mod utils;
 mod stream {
     pub mod api;
+    pub mod encoding;
     pub mod messages;
     pub mod monitor;
 }
@@ -15,6 +16,7 @@ mod uploaders;
 
 use crate::platform::PlatformConfig;
 use crate::print::section::StartupInfo;
+use crate::stream::encoding::{detect_best_hw_encoder, probe_hw_encoders};
 use crate::template::{TemplateValue, get_template_string, render_template};
 use crate::uploaders::UploaderType;
 use anyhow::Result;
@@ -155,7 +157,7 @@ async fn main() -> Result<()> {
         Some(Commands::Encoders { action }) => match action {
             EncoderAction::Test => {
                 // run the encoder probe and print diagnostics
-                match crate::stream::monitor::probe_hw_encoders().await {
+                match probe_hw_encoders().await {
                     Ok(_) => {}
                     Err(e) => return Err(anyhow::anyhow!(e.to_string())),
                 }
@@ -310,8 +312,8 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
     }
 
     info.begin_section("Encoder");
-    let bitrate = config.get_bitrate();
-    match crate::stream::monitor::detect_best_hw_encoder(&bitrate).await {
+    let video_quality = config.get_video_quality();
+    match detect_best_hw_encoder(video_quality).await {
         Some((enc, _)) => info.ok(&enc, "hardware acceleration"),
         None => info.warn("libx264", "no hardware encoder found, using software"),
     }
