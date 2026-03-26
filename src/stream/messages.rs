@@ -45,7 +45,7 @@ fn stream_header_components(
     if let Some(accessory) = accessory_media_component(avatar_url) {
         vec![Component::Group(GroupComponent {
             components: header_text,
-            accessory: accessory,
+            accessory,
         })]
     } else {
         header_text
