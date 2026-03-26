@@ -66,6 +66,7 @@ pub fn render_template(template: &str, context: &HashMap<String, TemplateValue>)
     handlebars_helper!(ne: |a: i64, b: i64| { a != b });
 
     let mut reg = Handlebars::new();
+    reg.register_escape_fn(handlebars::no_escape);
     reg.register_helper("add", Box::new(add));
     reg.register_helper("gt", Box::new(gt));
     reg.register_helper("ne", Box::new(ne));
@@ -120,5 +121,24 @@ mod tests {
         let template = resolve_template_string(&config, &template_path).expect("resolve template");
 
         assert!(template.is_none());
+    }
+
+    #[test]
+    fn render_template_preserves_query_string_urls() {
+        let mut context = HashMap::new();
+        context.insert(
+            "fileditch_urls".to_string(),
+            TemplateValue::Array(vec![
+                "https://fileditchfiles.me/file.php?f=/alpha0/d01f7bc095616c434c08/video.mp4"
+                    .to_string(),
+            ]),
+        );
+
+        let rendered = render_template("{{#each fileditch_urls}}{{this}}{{/each}}", &context);
+
+        assert_eq!(
+            rendered,
+            "https://fileditchfiles.me/file.php?f=/alpha0/d01f7bc095616c434c08/video.mp4"
+        );
     }
 }
