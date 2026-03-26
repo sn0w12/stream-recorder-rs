@@ -72,9 +72,7 @@ impl Serialize for Component {
             }
             Self::Group(component) => {
                 map.serialize_entry("components", &component.components)?;
-                if let Some(accessory) = &component.accessory {
-                    map.serialize_entry("accessory", accessory)?;
-                }
+                map.serialize_entry("accessory", &component.accessory)?;
             }
             Self::Text(component) => {
                 map.serialize_entry("content", &component.content)?;
@@ -109,8 +107,7 @@ pub struct ContainerComponent {
 #[derive(Debug, Clone, Serialize)]
 pub struct GroupComponent {
     pub components: Vec<Component>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub accessory: Option<Box<Component>>, // typically a Media component
+    pub accessory: Box<Component>, // typically a Media component
 }
 
 #[derive(Debug, Clone, Serialize)]

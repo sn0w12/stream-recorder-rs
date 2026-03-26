@@ -7,39 +7,55 @@ use crate::{
 };
 use anyhow::Result;
 
-fn accessory_media_component(avatar_url: Option<String>) -> Option<Box<Component>> {
+fn sanitize_avatar_url(avatar_url: Option<String>) -> Option<String> {
     avatar_url.and_then(|url| {
         let trimmed = url.trim();
-        (!trimmed.is_empty()).then(|| {
-            Box::new(Component::Media(MediaComponent {
-                media: Media {
-                    url: trimmed.to_string(),
-                },
-                description: None,
-                spoiler: false,
-            }))
-        })
+        if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+            Some(trimmed.to_string())
+        } else {
+            None
+        }
     })
 }
 
-fn stream_header_component(username: &str, avatar_url: Option<String>, title: &str) -> Component {
-    Component::Group(GroupComponent {
-        components: vec![
-            Component::Text(TextComponent {
-                content: username.into(),
-            }),
-            Component::Text(TextComponent {
-                content: format!("**{}**", title),
-            }),
-        ],
-        accessory: accessory_media_component(avatar_url),
+fn accessory_media_component(avatar_url: Option<String>) -> Option<Box<Component>> {
+    sanitize_avatar_url(avatar_url).map(|url| {
+        Box::new(Component::Media(MediaComponent {
+            media: Media { url },
+            description: None,
+            spoiler: false,
+        }))
     })
+}
+
+fn stream_header_components(
+    username: &str,
+    avatar_url: Option<String>,
+    title: &str,
+) -> Vec<Component> {
+    let header_text = vec![
+        Component::Text(TextComponent {
+            content: username.into(),
+        }),
+        Component::Text(TextComponent {
+            content: format!("**{}**", title),
+        }),
+    ];
+
+    if let Some(accessory) = accessory_media_component(avatar_url) {
+        vec![Component::Group(GroupComponent {
+            components: header_text,
+            accessory: accessory,
+        })]
+    } else {
+        header_text
+    }
 }
 
 fn platform_to_identity(stream_info: &StreamInfo) -> Identity {
     Identity {
         username: stream_info.platform.name.clone(),
-        avatar_url: stream_info.platform.icon.clone(),
+        avatar_url: sanitize_avatar_url(stream_info.platform.icon.clone()),
     }
 }
 
@@ -52,11 +68,11 @@ pub async fn send_recording_start_webhook(
     let component = Component::Container(ContainerComponent {
         accent_color: DiscordColor::rgb(255, 255, 0),
         spoiler: false,
-        components: vec![stream_header_component(
+        components: stream_header_components(
             &stream_info.username,
             stream_info.avatar_url.clone(),
             "Stream Recording Started",
-        )],
+        ),
     });
     let identity = platform_to_identity(stream_info);
 
@@ -83,26 +99,27 @@ pub async fn send_recording_complete_webhook(
     let component = Component::Container(ContainerComponent {
         accent_color: DiscordColor::rgb(0, 255, 0),
         spoiler: false,
-        components: vec![
-            stream_header_component(
+        components: {
+            let mut components = stream_header_components(
                 &stream_info.username,
                 stream_info.avatar_url.clone(),
                 "Stream Recording Completed",
-            ),
-            Component::Divider(DividerComponent {
+            );
+            components.push(Component::Divider(DividerComponent {
                 visible: true,
                 spacing: 1,
-            }),
-            Component::Text(TextComponent {
+            }));
+            components.push(Component::Text(TextComponent {
                 content: format!("**Title**\n{}", stream_info.stream_title.clone()),
-            }),
-            Component::Text(TextComponent {
+            }));
+            components.push(Component::Text(TextComponent {
                 content: format!("**Duration**\n{}", duration_str),
-            }),
-            Component::Text(TextComponent {
+            }));
+            components.push(Component::Text(TextComponent {
                 content: format!("**Size**\n{}", size_str),
-            }),
-        ],
+            }));
+            components
+        },
     });
     let identity = platform_to_identity(stream_info);
 
@@ -128,11 +145,11 @@ pub async fn send_template_webhook(
     let header_component = Component::Container(ContainerComponent {
         accent_color: DiscordColor::rgb(0, 0, 255),
         spoiler: false,
-        components: vec![stream_header_component(
+        components: stream_header_components(
             &stream_info.username,
             stream_info.avatar_url.clone(),
             "Stream Processing Completed",
-        )],
+        ),
     });
     let message_component = Component::Text(TextComponent {
         content: message.into(),
@@ -176,11 +193,11 @@ pub async fn send_minimum_duration_webhook(
     let header_component = Component::Container(ContainerComponent {
         accent_color: DiscordColor::rgb(255, 0, 0),
         spoiler: false,
-        components: vec![stream_header_component(
+        components: stream_header_components(
             &stream_info.username,
             stream_info.avatar_url.clone(),
             "Stream Too Short",
-        )],
+        ),
     });
     let identity = platform_to_identity(stream_info);
 
@@ -201,28 +218,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn stream_header_component_omits_avatar_accessory_when_missing() {
-        let component = stream_header_component("alice", None, "Started");
+    fn stream_header_components_use_plain_text_when_avatar_missing() {
+        let components = stream_header_components("alice", None, "Started");
 
-        let Component::Group(group) = component else {
-            panic!("expected group component");
-        };
-
-        assert!(group.accessory.is_none());
+        assert_eq!(components.len(), 2);
+        assert!(matches!(components[0], Component::Text(_)));
+        assert!(matches!(components[1], Component::Text(_)));
     }
 
     #[test]
-    fn stream_header_component_includes_avatar_accessory_when_present() {
-        let component = stream_header_component(
-            "alice",
-            Some("https://example.com/avatar.png".into()),
-            "Done",
+    fn sanitize_avatar_url_rejects_non_http_urls() {
+        assert_eq!(
+            sanitize_avatar_url(Some("ftp://example.com/avatar.png".into())),
+            None
         );
-
-        let Component::Group(group) = component else {
-            panic!("expected group component");
-        };
-
-        assert!(group.accessory.is_some());
+        assert_eq!(
+            sanitize_avatar_url(Some("https://example.com/avatar.png".into())),
+            Some("https://example.com/avatar.png".into())
+        );
     }
 }
