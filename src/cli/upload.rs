@@ -27,8 +27,7 @@ pub async fn handle_upload_command(file: String, uploader: Option<String>) -> Re
         ));
     }
 
-    let config = crate::config::Config::load()?;
-    let max_retries = config.get_max_upload_retries();
+    let max_retries = crate::config::Config::get().get_max_upload_retries();
     let uploaders = build_uploaders().await;
 
     let mut matched = false;

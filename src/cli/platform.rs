@@ -217,15 +217,17 @@ async fn handle_debug_command(
         .cloned()
         .ok_or_else(|| anyhow::anyhow!("Platform '{}' is not installed.", platform_id))?;
     let token = resolve_platform_token(&platform, token_override)?;
-    let config = crate::config::Config::load()?;
 
     println!(
         "Debugging monitor '{}' with platform '{}' ({})",
         monitor, platform.id, platform.name
     );
-    println!("Step delay: {:.3}s", config.get_step_delay_seconds());
+    println!(
+        "Step delay: {:.3}s",
+        crate::config::Config::get().get_step_delay_seconds()
+    );
 
-    let (outcome, report) = run_pipeline_debug(&username, &platform, &token, &config)
+    let (outcome, report) = run_pipeline_debug(&username, &platform, &token)
         .await
         .map_err(|e| anyhow::anyhow!(e.to_string()))?;
     print_debug_report(&report, show_response)?;

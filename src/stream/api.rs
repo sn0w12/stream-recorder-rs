@@ -138,9 +138,8 @@ pub async fn run_pipeline(
     username: &str,
     platform: &PlatformConfig,
     token: &str,
-    config: &crate::config::Config,
 ) -> Result<PipelineOutcome, Box<dyn std::error::Error + Send + Sync>> {
-    let (outcome, _) = run_pipeline_internal(username, platform, token, config, false).await?;
+    let (outcome, _) = run_pipeline_internal(username, platform, token, false).await?;
     Ok(outcome)
 }
 
@@ -148,9 +147,8 @@ pub async fn run_pipeline_debug(
     username: &str,
     platform: &PlatformConfig,
     token: &str,
-    config: &crate::config::Config,
 ) -> Result<(PipelineOutcome, PipelineDebugReport), Box<dyn std::error::Error + Send + Sync>> {
-    let (outcome, report) = run_pipeline_internal(username, platform, token, config, true).await?;
+    let (outcome, report) = run_pipeline_internal(username, platform, token, true).await?;
     Ok((
         outcome,
         report.expect("debug report is always collected in debug mode"),
@@ -161,7 +159,6 @@ async fn run_pipeline_internal(
     username: &str,
     platform: &PlatformConfig,
     token: &str,
-    config: &crate::config::Config,
     collect_debug: bool,
 ) -> Result<(PipelineOutcome, Option<PipelineDebugReport>), Box<dyn std::error::Error + Send + Sync>>
 {
@@ -235,7 +232,7 @@ async fn run_pipeline_internal(
         }
 
         // Delay between steps if configured
-        let delay = config.get_step_delay_seconds();
+        let delay = crate::config::Config::get().get_step_delay_seconds();
         if delay > 0.0 {
             sleep(Duration::from_secs_f64(delay)).await;
         }

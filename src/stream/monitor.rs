@@ -93,7 +93,7 @@ async fn record_stream_raw(
         stream_info.username, stream_info.user_id, stream_info.stream_title
     );
 
-    let config = Config::load()?;
+    let config = Config::get();
     let output_dir = config.get_output_directory();
     std::fs::create_dir_all(&output_dir)?;
 
@@ -305,10 +305,9 @@ pub async fn monitor_stream(
     platform: &PlatformConfig,
     token: &str,
     fetch_interval: Duration,
-    config: crate::config::Config,
 ) {
     loop {
-        match run_pipeline(username, platform, token, &config).await {
+        match run_pipeline(username, platform, token).await {
             Ok(PipelineOutcome::Live(vars)) => {
                 let playback_url = vars.get("playback_url").cloned();
                 if let Some(url) = playback_url {
@@ -330,7 +329,7 @@ pub async fn monitor_stream(
                         platform: platform.clone(),
                     };
 
-                    let reconnect_delay = config.get_stream_reconnect_delay_minutes();
+                    let reconnect_delay = Config::get().get_stream_reconnect_delay_minutes();
 
                     if let Some(delay_minutes) = reconnect_delay {
                         // ── Continuation mode ─────────────────────────────────────
@@ -358,7 +357,7 @@ pub async fn monitor_stream(
                                     let sleep_duration = fetch_interval.min(remaining);
                                     sleep(sleep_duration).await;
 
-                                    match run_pipeline(username, platform, token, &config).await {
+                                    match run_pipeline(username, platform, token).await {
                                         Ok(PipelineOutcome::Live(new_vars)) => {
                                             if let Some(new_url) =
                                                 new_vars.get("playback_url").cloned()
@@ -569,7 +568,7 @@ async fn post_process_stream(
     manage_disk_space().await?;
 
     let (file_size_mb, duration_minutes) = get_video_metadata(&output_path).await?;
-    let config = Config::load()?;
+    let config = Config::get();
 
     // Check if stream duration is below minimum threshold
     if let Some(min_duration) = config.get_min_stream_duration()
@@ -694,7 +693,7 @@ async fn post_process_stream(
 /// Manages disk space by deleting oldest streams if free space is below the configured minimum.
 /// Also deletes corresponding thumbnails.
 async fn manage_disk_space() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let config = Config::load()?;
+    let config = Config::get();
     let output_dir = config.get_output_directory();
     let min_free_gb = config.get_min_free_space_gb();
     let min_free_bytes = (min_free_gb * 1_000_000_000.0) as u64;

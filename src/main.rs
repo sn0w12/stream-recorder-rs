@@ -88,7 +88,7 @@ enum TemplateAction {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    let config = crate::config::Config::load()?;
+    crate::config::Config::init()?;
 
     match cli.command {
         Some(Commands::Token { action }) => handle_token_command(action)?,
@@ -182,7 +182,7 @@ async fn main() -> Result<()> {
             }
 
             let platforms = PlatformConfig::load_all()?;
-            run_recording(&config, &platforms, cli.token).await?;
+            run_recording(&platforms, cli.token).await?;
         }
     }
 
@@ -211,7 +211,7 @@ async fn startup_tests() -> Result<()> {
     Ok(())
 }
 
-async fn print_startup_info(config: &crate::config::Config, platforms: &[PlatformConfig]) {
+async fn print_startup_info(platforms: &[PlatformConfig]) {
     #[derive(Debug)]
     enum UploaderStatus {
         Enabled(String),
@@ -275,7 +275,7 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
     }
 
     info.begin_section("Monitored Users");
-    let monitors = config.get_monitors();
+    let monitors = crate::config::Config::get().get_monitors();
     if monitors.is_empty() {
         info.plain("No users configured", Some(Yellow));
     } else {
@@ -301,7 +301,7 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
     }
 
     info.begin_section("Uploaders");
-    let disabled_uploaders = config.get_disabled_uploaders();
+    let disabled_uploaders = crate::config::Config::get().get_disabled_uploaders();
     let uploader_types_and_names = crate::uploaders::get_all_uploader_types_and_names().await;
     for (uploader_type, name) in uploader_types_and_names {
         match get_uploader_status(uploader_type, &name, &disabled_uploaders) {
@@ -312,7 +312,7 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
     }
 
     info.begin_section("Encoder");
-    let video_quality = config.get_video_quality();
+    let video_quality = crate::config::Config::get().get_video_quality();
     match detect_best_hw_encoder(video_quality).await {
         Some((enc, _)) => info.ok(&enc, "hardware acceleration"),
         None => info.warn("libx264", "no hardware encoder found, using software"),
@@ -321,14 +321,10 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
     info.print();
 }
 
-async fn run_recording(
-    config: &crate::config::Config,
-    platforms: &[PlatformConfig],
-    cli_token: Option<String>,
-) -> Result<()> {
-    print_startup_info(config, platforms).await;
+async fn run_recording(platforms: &[PlatformConfig], cli_token: Option<String>) -> Result<()> {
+    print_startup_info(platforms).await;
 
-    let monitors = config.get_monitors();
+    let monitors = crate::config::Config::get().get_monitors();
     if monitors.is_empty() {
         println!(
             "No monitors configured. Use 'stream-recorder config monitors add <platform_id>:<username>' to add users to monitor."
@@ -363,7 +359,7 @@ async fn run_recording(
             }
         };
 
-        if let Err(e) = spawn_monitor_task(&username, &token, platform, config.clone()).await {
+        if let Err(e) = spawn_monitor_task(&username, &token, platform).await {
             eprintln!("Error starting monitor for {}: {}", username, e);
         }
         // Small delay to prevent rapid spawning
@@ -428,12 +424,7 @@ fn get_platform_token(platform: &PlatformConfig, cli_token: Option<String>) -> R
     }
 }
 
-async fn spawn_monitor_task(
-    username: &str,
-    token: &str,
-    platform: PlatformConfig,
-    config: crate::config::Config,
-) -> Result<()> {
+async fn spawn_monitor_task(username: &str, token: &str, platform: PlatformConfig) -> Result<()> {
     let username_owned = username.to_string();
     let token_owned = token.to_string();
 
@@ -442,8 +433,9 @@ async fn spawn_monitor_task(
             &username_owned,
             &platform,
             &token_owned,
-            std::time::Duration::from_secs_f64(config.get_fetch_interval_seconds()),
-            config,
+            std::time::Duration::from_secs_f64(
+                crate::config::Config::get().get_fetch_interval_seconds(),
+            ),
         )
         .await;
     });
