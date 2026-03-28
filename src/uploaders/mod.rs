@@ -206,14 +206,7 @@ uploader_list! {
 
 /// Build a list of uploaders based on user configuration and readiness.
 pub async fn build_uploaders() -> Vec<(Box<dyn Uploader>, UploaderConfig)> {
-    let config = match Config::load() {
-        Ok(config) => config,
-        Err(err) => {
-            eprintln!("Failed to load config while building uploaders: {}", err);
-            Config::default()
-        }
-    };
-    let disabled_uploaders: Vec<String> = config
+    let disabled_uploaders: Vec<String> = Config::get()
         .get_disabled_uploaders()
         .into_iter()
         .map(|u| u.to_lowercase())

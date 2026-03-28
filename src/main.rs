@@ -14,6 +14,7 @@ mod discord;
 mod platform;
 mod uploaders;
 
+use crate::config::Config;
 use crate::platform::PlatformConfig;
 use crate::print::section::StartupInfo;
 use crate::stream::encoding::{detect_best_hw_encoder, probe_hw_encoders};
@@ -88,7 +89,7 @@ enum TemplateAction {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    let config = crate::config::Config::load()?;
+    Config::init()?;
 
     match cli.command {
         Some(Commands::Token { action }) => handle_token_command(action)?,
@@ -182,7 +183,7 @@ async fn main() -> Result<()> {
             }
 
             let platforms = PlatformConfig::load_all()?;
-            run_recording(&config, &platforms, cli.token).await?;
+            run_recording(&platforms, cli.token).await?;
         }
     }
 
@@ -211,7 +212,7 @@ async fn startup_tests() -> Result<()> {
     Ok(())
 }
 
-async fn print_startup_info(config: &crate::config::Config, platforms: &[PlatformConfig]) {
+async fn print_startup_info(platforms: &[PlatformConfig]) {
     #[derive(Debug)]
     enum UploaderStatus {
         Enabled(String),
@@ -275,7 +276,7 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
     }
 
     info.begin_section("Monitored Users");
-    let monitors = config.get_monitors();
+    let monitors = Config::get().get_monitors();
     if monitors.is_empty() {
         info.plain("No users configured", Some(Yellow));
     } else {
@@ -301,7 +302,7 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
     }
 
     info.begin_section("Uploaders");
-    let disabled_uploaders = config.get_disabled_uploaders();
+    let disabled_uploaders = Config::get().get_disabled_uploaders();
     let uploader_types_and_names = crate::uploaders::get_all_uploader_types_and_names().await;
     for (uploader_type, name) in uploader_types_and_names {
         match get_uploader_status(uploader_type, &name, &disabled_uploaders) {
@@ -312,7 +313,7 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
     }
 
     info.begin_section("Encoder");
-    let video_quality = config.get_video_quality();
+    let video_quality = Config::get().get_video_quality();
     match detect_best_hw_encoder(video_quality).await {
         Some((enc, _)) => info.ok(&enc, "hardware acceleration"),
         None => info.warn("libx264", "no hardware encoder found, using software"),
@@ -321,14 +322,10 @@ async fn print_startup_info(config: &crate::config::Config, platforms: &[Platfor
     info.print();
 }
 
-async fn run_recording(
-    config: &crate::config::Config,
-    platforms: &[PlatformConfig],
-    cli_token: Option<String>,
-) -> Result<()> {
-    print_startup_info(config, platforms).await;
+async fn run_recording(platforms: &[PlatformConfig], cli_token: Option<String>) -> Result<()> {
+    print_startup_info(platforms).await;
 
-    let monitors = config.get_monitors();
+    let monitors = Config::get().get_monitors();
     if monitors.is_empty() {
         println!(
             "No monitors configured. Use 'stream-recorder config monitors add <platform_id>:<username>' to add users to monitor."
@@ -363,7 +360,7 @@ async fn run_recording(
             }
         };
 
-        if let Err(e) = spawn_monitor_task(&username, &token, platform, config.clone()).await {
+        if let Err(e) = spawn_monitor_task(&username, &token, platform).await {
             eprintln!("Error starting monitor for {}: {}", username, e);
         }
         // Small delay to prevent rapid spawning
@@ -428,12 +425,7 @@ fn get_platform_token(platform: &PlatformConfig, cli_token: Option<String>) -> R
     }
 }
 
-async fn spawn_monitor_task(
-    username: &str,
-    token: &str,
-    platform: PlatformConfig,
-    config: crate::config::Config,
-) -> Result<()> {
+async fn spawn_monitor_task(username: &str, token: &str, platform: PlatformConfig) -> Result<()> {
     let username_owned = username.to_string();
     let token_owned = token.to_string();
 
@@ -442,8 +434,7 @@ async fn spawn_monitor_task(
             &username_owned,
             &platform,
             &token_owned,
-            std::time::Duration::from_secs_f64(config.get_fetch_interval_seconds()),
-            config,
+            std::time::Duration::from_secs_f64(Config::get().get_fetch_interval_seconds()),
         )
         .await;
     });
@@ -521,7 +512,7 @@ mod tests {
 
     #[test]
     fn test_stream_reconnect_delay_defaults_to_none() {
-        let config = crate::config::Config::default();
+        let config = Config::default();
         assert!(
             config.get_stream_reconnect_delay_minutes().is_none(),
             "stream_reconnect_delay_minutes should default to None (disabled)"
@@ -531,14 +522,14 @@ mod tests {
     #[test]
     fn test_stream_reconnect_delay_round_trips_through_toml() {
         let toml_input = "stream_reconnect_delay_minutes = 5.0\n";
-        let config: crate::config::Config = toml::from_str(toml_input)
+        let config: Config = toml::from_str(toml_input)
             .expect("failed to parse TOML with stream_reconnect_delay_minutes");
         assert_eq!(config.get_stream_reconnect_delay_minutes(), Some(5.0));
     }
 
     #[test]
     fn test_stream_reconnect_delay_none_when_absent_from_toml() {
-        let config: crate::config::Config = toml::from_str("").expect("failed to parse empty TOML");
+        let config: Config = toml::from_str("").expect("failed to parse empty TOML");
         assert!(config.get_stream_reconnect_delay_minutes().is_none());
     }
 
@@ -553,7 +544,7 @@ mod tests {
 
     #[test]
     fn test_stream_reconnect_delay_set_and_get_via_config_methods() {
-        let mut config = crate::config::Config::default();
+        let mut config = Config::default();
         config
             .set_value("stream_reconnect_delay_minutes", "3.5")
             .expect("set_value should accept a valid float");
@@ -562,7 +553,7 @@ mod tests {
 
     #[test]
     fn test_stream_reconnect_delay_cleared_with_none_string() {
-        let mut config = crate::config::Config::default();
+        let mut config = Config::default();
         config
             .set_value("stream_reconnect_delay_minutes", "10.0")
             .unwrap();

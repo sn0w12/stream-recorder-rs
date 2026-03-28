@@ -5,6 +5,9 @@ use colored::Color::*;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::OnceLock;
+
+static CONFIG: OnceLock<Config> = OnceLock::new();
 
 // ============================================================================
 // MACRO-BASED CONFIG - Define everything in ONE place!
@@ -418,6 +421,33 @@ define_config! {
 // ============================================================================
 
 impl Config {
+    /// Load the configuration from disk and store it in the global singleton.
+    ///
+    /// Must be called once at program startup before any call to [`Config::get`].
+    /// Subsequent calls are no-ops: once the singleton is set the stored value
+    /// is never replaced.
+    pub fn init() -> Result<()> {
+        let config = Self::load()?;
+        CONFIG.set(config).ok(); // Silently ignored if already initialized
+        Ok(())
+    }
+
+    /// Return a reference to the global configuration singleton.
+    ///
+    /// If [`Config::init`] has not been called yet, the config is loaded lazily.
+    /// Panics with a descriptive message if loading fails, since this represents
+    /// a critical initialization failure that should never be silently swallowed.
+    pub fn get() -> &'static Config {
+        CONFIG.get_or_init(|| {
+            Self::load().unwrap_or_else(|e| {
+                panic!(
+                    "Failed to load configuration: {e}\n\
+                     Call Config::init() at startup to handle this error gracefully."
+                )
+            })
+        })
+    }
+
     pub fn load() -> Result<Self> {
         let config_path = Self::config_path();
         if config_path.exists() {

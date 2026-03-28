@@ -1,4 +1,7 @@
-use crate::uploaders::{Uploader, UploaderConfig, build_uploaders};
+use crate::{
+    config::Config,
+    uploaders::{Uploader, UploaderConfig, build_uploaders},
+};
 use anyhow::Result;
 use clap::Subcommand;
 use std::{collections::HashMap, time::Duration};
@@ -27,8 +30,7 @@ pub async fn handle_upload_command(file: String, uploader: Option<String>) -> Re
         ));
     }
 
-    let config = crate::config::Config::load()?;
-    let max_retries = config.get_max_upload_retries();
+    let max_retries = Config::get().get_max_upload_retries();
     let uploaders = build_uploaders().await;
 
     let mut matched = false;
