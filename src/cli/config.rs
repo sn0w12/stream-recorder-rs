@@ -1,4 +1,4 @@
-use crate::config::ConfigKey;
+use crate::config::{Config, ConfigKey};
 use anyhow::Result;
 use clap::Subcommand;
 
@@ -32,7 +32,7 @@ pub enum ConfigAction {
 pub fn handle_config_command(action: ConfigAction) -> Result<()> {
     match action {
         ConfigAction::Get { key } => {
-            let config = crate::config::Config::load()?;
+            let config = Config::load()?;
             if let Some(k) = key {
                 config.print_filtered(Some(k), true);
             } else {
@@ -40,13 +40,13 @@ pub fn handle_config_command(action: ConfigAction) -> Result<()> {
             }
         }
         ConfigAction::Set { key, value } => {
-            let mut config = crate::config::Config::load()?;
+            let mut config = Config::load()?;
             config.set_value(&key, &value)?;
             config.save()?;
             println!("Config updated.");
         }
         ConfigAction::Add { key, value } => {
-            let mut config = crate::config::Config::load()?;
+            let mut config = Config::load()?;
             let config_key =
                 ConfigKey::from_str(&key).ok_or_else(|| anyhow::anyhow!("Unknown key: {}", key))?;
             if !config_key.is_array() {
@@ -69,7 +69,7 @@ pub fn handle_config_command(action: ConfigAction) -> Result<()> {
             }
         }
         ConfigAction::Remove { key, value } => {
-            let mut config = crate::config::Config::load()?;
+            let mut config = Config::load()?;
             let config_key =
                 ConfigKey::from_str(&key).ok_or_else(|| anyhow::anyhow!("Unknown key: {}", key))?;
             if !config_key.is_array() {
@@ -96,7 +96,7 @@ pub fn handle_config_command(action: ConfigAction) -> Result<()> {
             }
         }
         ConfigAction::Reset { key } => {
-            let mut config = crate::config::Config::load()?;
+            let mut config = Config::load()?;
             let config_key =
                 ConfigKey::from_str(&key).ok_or_else(|| anyhow::anyhow!("Unknown key: {}", key))?;
             let default = config.get_default_string(config_key);
@@ -105,11 +105,11 @@ pub fn handle_config_command(action: ConfigAction) -> Result<()> {
             println!("Reset '{}' to default: {}", key, default);
         }
         ConfigAction::GetPath => {
-            let path = crate::config::Config::config_path();
+            let path = Config::config_path();
             println!("{}", path.display());
         }
         ConfigAction::MarkDown => {
-            print!("{}", crate::config::Config::markdown_table());
+            print!("{}", Config::markdown_table());
         }
     }
     Ok(())

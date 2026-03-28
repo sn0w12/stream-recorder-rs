@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::platform::PipelineOutcome;
 use crate::platform::PlatformConfig;
 use crate::print::table::{Cell, Table};
@@ -222,10 +223,7 @@ async fn handle_debug_command(
         "Debugging monitor '{}' with platform '{}' ({})",
         monitor, platform.id, platform.name
     );
-    println!(
-        "Step delay: {:.3}s",
-        crate::config::Config::get().get_step_delay_seconds()
-    );
+    println!("Step delay: {:.3}s", Config::get().get_step_delay_seconds());
 
     let (outcome, report) = run_pipeline_debug(&username, &platform, &token)
         .await

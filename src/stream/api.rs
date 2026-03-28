@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::platform::{LiveCheck, PipelineOutcome, PlatformConfig, extract_json_value};
 use reqwest::Client;
 use serde_json::Value;
@@ -232,7 +233,7 @@ async fn run_pipeline_internal(
         }
 
         // Delay between steps if configured
-        let delay = crate::config::Config::get().get_step_delay_seconds();
+        let delay = Config::get().get_step_delay_seconds();
         if delay > 0.0 {
             sleep(Duration::from_secs_f64(delay)).await;
         }
