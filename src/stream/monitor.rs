@@ -113,12 +113,14 @@ async fn record_stream_raw(
 
     // Detect hardware encoder and build ffmpeg arguments
     let video_quality = config.get_video_quality();
+    let max_bitrate = config.get_max_bitrate();
     let hw_encoder = detect_best_hw_encoder(video_quality).await;
     let ffmpeg_args = build_ffmpeg_args(
         &stream_info.playback_url,
         &output_path,
         video_quality,
         hw_encoder,
+        max_bitrate,
     );
 
     let mut cmd = tokio::process::Command::new("ffmpeg");

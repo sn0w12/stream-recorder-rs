@@ -347,6 +347,7 @@ pub fn build_ffmpeg_args(
     output_path: &str,
     video_quality: u32,
     hw_encoder: Option<(String, Vec<String>)>,
+    max_bitrate: Option<&str>,
 ) -> Vec<String> {
     let mut ffmpeg_args: Vec<String> = vec!["-loglevel".into(), "quiet".into()];
 
@@ -369,6 +370,16 @@ pub fn build_ffmpeg_args(
             "veryfast".into(),
             "-crf".into(),
             quality,
+        ]);
+    }
+
+    // Apply optional max bitrate cap
+    if let Some(rate) = max_bitrate {
+        ffmpeg_args.extend(vec![
+            "-maxrate".into(),
+            rate.to_string(),
+            "-bufsize".into(),
+            rate.to_string(),
         ]);
     }
 
@@ -398,11 +409,32 @@ mod tests {
 
     #[test]
     fn build_ffmpeg_args_software_fallback_uses_crf_quality() {
-        let args = build_ffmpeg_args("https://example.com/live.m3u8", "output.mp4", 19, None);
+        let args = build_ffmpeg_args(
+            "https://example.com/live.m3u8",
+            "output.mp4",
+            19,
+            None,
+            None,
+        );
 
         assert!(args.windows(2).any(|window| window == ["-c:v", "libx264"]));
         assert!(args.windows(2).any(|window| window == ["-crf", "19"]));
         assert!(!args.iter().any(|arg| arg == "-b:v"));
+        assert!(!args.iter().any(|arg| arg == "-maxrate"));
+    }
+
+    #[test]
+    fn build_ffmpeg_args_with_max_bitrate() {
+        let args = build_ffmpeg_args(
+            "https://example.com/live.m3u8",
+            "output.mp4",
+            19,
+            None,
+            Some("6M"),
+        );
+
+        assert!(args.windows(2).any(|window| window == ["-maxrate", "6M"]));
+        assert!(args.windows(2).any(|window| window == ["-bufsize", "6M"]));
     }
 
     #[test]
