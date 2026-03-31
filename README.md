@@ -131,6 +131,7 @@ Configuration is stored in `~/.config/stream-recorder/config.toml` (Linux/macOS)
 | `max_upload_retries`               | Maximum number of upload retries                                                                     | `3`            |
 | `min_stream_duration`              | Minimum stream duration before recording                                                             | `none`         |
 | `video_quality`                    | Quality target for variable bitrate video encoding (lower is better)                                 | `26`           |
+| `video_bitrate`                    | Constant video bitrate for CBR encoding (e.g. 6M, 5000k). When set, uses CBR mode and overrides video_quality. | `none`  |
 | `max_bitrate`                      | Maximum video bitrate (e.g. 6M, 2500k). When set, adds -maxrate and -bufsize to ffmpeg               | `none`         |
 | `stream_reconnect_delay_minutes`   | Delay in minutes to wait for stream continuation before post-processing. Streams resumed are merged. | `none`         |
 | `disabled_uploaders`               | List of uploaders to skip uploading to                                                               | `none`         |

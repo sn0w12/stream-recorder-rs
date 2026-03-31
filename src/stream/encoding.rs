@@ -1,5 +1,14 @@
 use std::process::Stdio;
 
+/// Selects how video is encoded during recording.
+#[derive(Clone, Debug)]
+pub enum VideoEncoding {
+    /// Variable bitrate with a quality target (CRF/CQ, lower value → better quality, range 1–51).
+    Quality(u32),
+    /// Constant bitrate (e.g. `"6M"`, `"5000k"`).
+    ConstantBitrate(String),
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct EncoderProfile {
     pub(crate) codec: String,
@@ -183,6 +192,133 @@ fn build_hw_encoder_profiles(video_quality: u32) -> Vec<EncoderProfile> {
     ]
 }
 
+fn build_cbr_hw_encoder_profiles(bitrate: &str) -> Vec<EncoderProfile> {
+    vec![
+        EncoderProfile::new(
+            "h264_nvenc",
+            vec![
+                "-c:v".into(),
+                "h264_nvenc".into(),
+                "-preset".into(),
+                "p4".into(),
+                "-rc".into(),
+                "cbr".into(),
+                "-b:v".into(),
+                bitrate.to_string(),
+            ],
+        ),
+        EncoderProfile::new(
+            "hevc_nvenc",
+            vec![
+                "-c:v".into(),
+                "hevc_nvenc".into(),
+                "-preset".into(),
+                "p4".into(),
+                "-rc".into(),
+                "cbr".into(),
+                "-b:v".into(),
+                bitrate.to_string(),
+            ],
+        ),
+        EncoderProfile::new(
+            "h264_qsv",
+            vec![
+                "-c:v".into(),
+                "h264_qsv".into(),
+                "-preset".into(),
+                "medium".into(),
+                "-b:v".into(),
+                bitrate.to_string(),
+            ],
+        ),
+        EncoderProfile::new(
+            "hevc_qsv",
+            vec![
+                "-c:v".into(),
+                "hevc_qsv".into(),
+                "-preset".into(),
+                "medium".into(),
+                "-b:v".into(),
+                bitrate.to_string(),
+            ],
+        ),
+        EncoderProfile::new(
+            "h264_vaapi",
+            vec![
+                "-vf".into(),
+                "format=nv12,hwupload".into(),
+                "-c:v".into(),
+                "h264_vaapi".into(),
+                "-rc_mode".into(),
+                "CBR".into(),
+                "-b:v".into(),
+                bitrate.to_string(),
+            ],
+        ),
+        EncoderProfile::new(
+            "hevc_vaapi",
+            vec![
+                "-vf".into(),
+                "format=nv12,hwupload".into(),
+                "-c:v".into(),
+                "hevc_vaapi".into(),
+                "-rc_mode".into(),
+                "CBR".into(),
+                "-b:v".into(),
+                bitrate.to_string(),
+            ],
+        ),
+        EncoderProfile::new(
+            "h264_amf",
+            vec![
+                "-c:v".into(),
+                "h264_amf".into(),
+                "-usage".into(),
+                "transcoding".into(),
+                "-quality".into(),
+                "quality".into(),
+                "-rc".into(),
+                "cbr".into(),
+                "-b:v".into(),
+                bitrate.to_string(),
+            ],
+        ),
+        EncoderProfile::new(
+            "hevc_amf",
+            vec![
+                "-c:v".into(),
+                "hevc_amf".into(),
+                "-usage".into(),
+                "transcoding".into(),
+                "-quality".into(),
+                "quality".into(),
+                "-rc".into(),
+                "cbr".into(),
+                "-b:v".into(),
+                bitrate.to_string(),
+            ],
+        ),
+        EncoderProfile::new(
+            "h264_videotoolbox",
+            vec![
+                "-c:v".into(),
+                "h264_videotoolbox".into(),
+                "-b:v".into(),
+                bitrate.to_string(),
+            ],
+        ),
+        EncoderProfile::new(
+            "h264_omx",
+            vec![
+                "-c:v".into(),
+                "h264_omx".into(),
+                "-b:v".into(),
+                bitrate.to_string(),
+            ],
+        ),
+    ]
+}
+
 // Run a short ffmpeg probe to verify that the encoder profile actually works at runtime.
 // Many builds list encoders at compile-time (`ffmpeg -encoders`) even when the
 // hardware/driver isn't present; this runtime probe prevents selecting a broken
@@ -257,7 +393,7 @@ async fn verify_hw_encoder(profile: &EncoderProfile) -> Result<(), String> {
 /// verifying it works. Priority: NVENC → QSV → VAAPI → AMF → VideoToolbox → OMX.
 /// Returns the encoder `-c:v` name plus encoder-specific ffmpeg options, or
 /// `None` if no working hardware encoder is found.
-pub async fn detect_best_hw_encoder(video_quality: u32) -> Option<(String, Vec<String>)> {
+pub async fn detect_best_hw_encoder(encoding: &VideoEncoding) -> Option<(String, Vec<String>)> {
     // First check the build-time availability to avoid unnecessarily probing
     // encoders that aren't compiled into ffmpeg.
     let encoders_out = match tokio::process::Command::new("ffmpeg")
@@ -269,7 +405,12 @@ pub async fn detect_best_hw_encoder(video_quality: u32) -> Option<(String, Vec<S
         Err(_) => String::new(),
     };
 
-    for profile in build_hw_encoder_profiles(video_quality) {
+    let profiles = match encoding {
+        VideoEncoding::Quality(quality) => build_hw_encoder_profiles(*quality),
+        VideoEncoding::ConstantBitrate(bitrate) => build_cbr_hw_encoder_profiles(bitrate),
+    };
+
+    for profile in profiles {
         if !encoders_out.contains(&profile.codec) {
             continue; // not present in this ffmpeg build
         }
@@ -331,7 +472,7 @@ pub async fn probe_hw_encoders() -> Result<(), Box<dyn std::error::Error + Send 
     }
 
     // final selection using detect_best_hw_encoder
-    match detect_best_hw_encoder(23).await {
+    match detect_best_hw_encoder(&VideoEncoding::Quality(23)).await {
         Some((enc, _opts)) => println!("\nSelected encoder: {}", enc),
         None => {
             println!("\nNo working hardware encoder detected; software (libx264) will be used.")
@@ -345,7 +486,7 @@ pub async fn probe_hw_encoders() -> Result<(), Box<dyn std::error::Error + Send 
 pub fn build_ffmpeg_args(
     playback_url: &str,
     output_path: &str,
-    video_quality: u32,
+    encoding: &VideoEncoding,
     hw_encoder: Option<(String, Vec<String>)>,
     max_bitrate: Option<&str>,
 ) -> Vec<String> {
@@ -357,20 +498,35 @@ pub fn build_ffmpeg_args(
         ffmpeg_args.push(playback_url.to_string());
         ffmpeg_args.extend(opts);
     } else {
-        let quality = clamp_video_quality(video_quality).to_string();
-
-        // software fallback
-        println!("No hardware encoder available, using variable bitrate software encoding");
-        ffmpeg_args.push("-i".into());
-        ffmpeg_args.push(playback_url.to_string());
-        ffmpeg_args.extend(vec![
-            "-c:v".into(),
-            "libx264".into(),
-            "-preset".into(),
-            "veryfast".into(),
-            "-crf".into(),
-            quality,
-        ]);
+        match encoding {
+            VideoEncoding::Quality(video_quality) => {
+                let quality = clamp_video_quality(*video_quality).to_string();
+                println!("No hardware encoder available, using variable bitrate software encoding");
+                ffmpeg_args.push("-i".into());
+                ffmpeg_args.push(playback_url.to_string());
+                ffmpeg_args.extend(vec![
+                    "-c:v".into(),
+                    "libx264".into(),
+                    "-preset".into(),
+                    "veryfast".into(),
+                    "-crf".into(),
+                    quality,
+                ]);
+            }
+            VideoEncoding::ConstantBitrate(bitrate) => {
+                println!("No hardware encoder available, using constant bitrate software encoding");
+                ffmpeg_args.push("-i".into());
+                ffmpeg_args.push(playback_url.to_string());
+                let b: &str = bitrate;
+                ffmpeg_args.extend(
+                    [
+                        "-c:v", "libx264", "-preset", "veryfast", "-b:v", b, "-maxrate", b,
+                        "-bufsize", b,
+                    ]
+                    .map(String::from),
+                );
+            }
+        }
     }
 
     // Apply optional max bitrate cap
@@ -397,7 +553,10 @@ pub fn build_ffmpeg_args(
 
 #[cfg(test)]
 mod tests {
-    use super::{build_ffmpeg_args, build_hw_encoder_profiles, videotoolbox_quality_percent};
+    use super::{
+        VideoEncoding, build_cbr_hw_encoder_profiles, build_ffmpeg_args, build_hw_encoder_profiles,
+        videotoolbox_quality_percent,
+    };
 
     #[test]
     fn videotoolbox_quality_mapping_prefers_lower_quality_values() {
@@ -412,7 +571,7 @@ mod tests {
         let args = build_ffmpeg_args(
             "https://example.com/live.m3u8",
             "output.mp4",
-            19,
+            &VideoEncoding::Quality(19),
             None,
             None,
         );
@@ -428,13 +587,30 @@ mod tests {
         let args = build_ffmpeg_args(
             "https://example.com/live.m3u8",
             "output.mp4",
-            19,
+            &VideoEncoding::Quality(19),
             None,
             Some("6M"),
         );
 
         assert!(args.windows(2).any(|window| window == ["-maxrate", "6M"]));
         assert!(args.windows(2).any(|window| window == ["-bufsize", "6M"]));
+    }
+
+    #[test]
+    fn build_ffmpeg_args_cbr_software_uses_bitrate_flags() {
+        let args = build_ffmpeg_args(
+            "https://example.com/live.m3u8",
+            "output.mp4",
+            &VideoEncoding::ConstantBitrate("6M".to_string()),
+            None,
+            None,
+        );
+
+        assert!(args.windows(2).any(|window| window == ["-c:v", "libx264"]));
+        assert!(args.windows(2).any(|window| window == ["-b:v", "6M"]));
+        assert!(args.windows(2).any(|window| window == ["-maxrate", "6M"]));
+        assert!(args.windows(2).any(|window| window == ["-bufsize", "6M"]));
+        assert!(!args.iter().any(|arg| arg == "-crf"));
     }
 
     #[test]
@@ -487,6 +663,60 @@ mod tests {
             amf.options
                 .windows(2)
                 .any(|window| window == ["-qvbr_quality_level", "23"])
+        );
+    }
+
+    #[test]
+    fn build_cbr_hw_encoder_profiles_include_bitrate_flags() {
+        let profiles = build_cbr_hw_encoder_profiles("6M");
+
+        let nvenc = profiles
+            .iter()
+            .find(|profile| profile.codec == "h264_nvenc")
+            .expect("nvenc profile should exist");
+        assert!(
+            nvenc
+                .options
+                .windows(2)
+                .any(|window| window == ["-rc", "cbr"])
+        );
+        assert!(
+            nvenc
+                .options
+                .windows(2)
+                .any(|window| window == ["-b:v", "6M"])
+        );
+
+        let vaapi = profiles
+            .iter()
+            .find(|profile| profile.codec == "h264_vaapi")
+            .expect("vaapi profile should exist");
+        assert!(
+            vaapi
+                .options
+                .windows(2)
+                .any(|window| window == ["-rc_mode", "CBR"])
+        );
+        assert!(
+            vaapi
+                .options
+                .windows(2)
+                .any(|window| window == ["-b:v", "6M"])
+        );
+
+        let amf = profiles
+            .iter()
+            .find(|profile| profile.codec == "h264_amf")
+            .expect("amf profile should exist");
+        assert!(
+            amf.options
+                .windows(2)
+                .any(|window| window == ["-rc", "cbr"])
+        );
+        assert!(
+            amf.options
+                .windows(2)
+                .any(|window| window == ["-b:v", "6M"])
         );
     }
 }
