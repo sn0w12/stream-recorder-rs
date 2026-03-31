@@ -176,6 +176,10 @@ impl Uploader for FilesterUploader {
         "filester"
     }
 
+    fn max_file_size_mb(&self) -> &u64 {
+        &10000
+    }
+
     async fn is_ready(&self) -> bool {
         true
     }

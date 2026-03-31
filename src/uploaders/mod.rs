@@ -139,6 +139,9 @@ pub trait Uploader: Send + Sync {
     /// This name is used for logging and identifying which uploader is being used.
     fn name(&self) -> &str;
 
+    /// Get the maximum file size (in MB) that this uploader supports.
+    fn max_file_size_mb(&self) -> &u64;
+
     /// Check if this uploader is configured and ready to use.
     ///
     /// Returns `true` if the uploader has all necessary credentials and configuration

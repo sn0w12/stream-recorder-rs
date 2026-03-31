@@ -134,6 +134,10 @@ impl Uploader for FileditchUploader {
         "fileditch"
     }
 
+    fn max_file_size_mb(&self) -> &u64 {
+        &25000
+    }
+
     async fn is_ready(&self) -> bool {
         true
     }

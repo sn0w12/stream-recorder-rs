@@ -3,6 +3,8 @@ use crate::{
     uploaders::{Uploader, UploaderConfig, build_uploaders},
 };
 use anyhow::Result;
+use bunkr_client::config::config::Config as BunkrConfig;
+use bunkr_client::preprocess::preprocess::{cleanup_preprocess, preprocess_file};
 use clap::Subcommand;
 use std::{collections::HashMap, time::Duration};
 use tokio::time::sleep;
@@ -73,8 +75,46 @@ pub async fn handle_upload_command(file: String, uploader: Option<String>) -> Re
 }
 
 /// Helper function to attempt upload with automatic retry logic using the unified Uploader interface.
-/// Retries automatically on server errors (5xx) with exponential backoff.
+/// Preprocesses the file per-uploader (e.g. splitting videos that exceed the uploader's max file size),
+/// then retries automatically on server errors (5xx) with exponential backoff.
 pub async fn try_upload(
+    uploader: &dyn Uploader,
+    file_path: &str,
+    config: &UploaderConfig,
+    upload_results: &mut HashMap<String, Vec<String>>,
+    max_retries: u32,
+) {
+    // Convert uploader's max file size from MB to bytes
+    let max_file_size_bytes = uploader.max_file_size_mb().saturating_mul(1024 * 1024);
+
+    let bunkr_config = BunkrConfig {
+        preprocess_videos: Some(true),
+        ..Default::default()
+    };
+
+    // Preprocess the file (may split if too large for this uploader)
+    let preprocess_result = match preprocess_file(file_path, max_file_size_bytes, &bunkr_config) {
+        Ok(result) => result,
+        Err(e) => {
+            eprintln!("{} preprocessing failed: {}", uploader.name(), e);
+            return;
+        }
+    };
+
+    for file in &preprocess_result.files_to_upload {
+        try_upload_single(uploader, file, config, upload_results, max_retries).await;
+    }
+
+    cleanup_preprocess(
+        &preprocess_result.preprocess_id,
+        file_path,
+        &preprocess_result.files_to_upload,
+    );
+}
+
+/// Uploads a single file with automatic retry logic.
+/// Retries automatically on server errors (5xx) with exponential backoff.
+async fn try_upload_single(
     uploader: &dyn Uploader,
     file_path: &str,
     config: &UploaderConfig,
