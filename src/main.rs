@@ -14,6 +14,7 @@ mod discord;
 mod platform;
 mod uploaders;
 
+use crate::cli::version::{VersionCheckResult, check_version};
 use crate::config::Config;
 use crate::platform::PlatformConfig;
 use crate::print::section::StartupInfo;
@@ -256,6 +257,18 @@ async fn print_startup_info(platforms: &[PlatformConfig]) {
     }
 
     let mut info = StartupInfo::new();
+
+    info.begin_section("Info");
+    let ver_status = check_version().await;
+    match ver_status {
+        VersionCheckResult::UpToDate => info.ok("version", "up to date"),
+        VersionCheckResult::Outdated { latest_version } => {
+            info.warn("version", format!("outdated, latest is {}", latest_version))
+        }
+        VersionCheckResult::Error(err) => {
+            info.err("version", format!("error checking version: {}", err))
+        }
+    }
 
     info.begin_section("Platforms");
     if platforms.is_empty() {
