@@ -18,7 +18,7 @@ use crate::cli::version::{VersionCheckResult, check_version};
 use crate::config::Config;
 use crate::platform::PlatformConfig;
 use crate::print::section::StartupInfo;
-use crate::stream::encoding::{detect_best_hw_encoder, probe_hw_encoders};
+use crate::stream::encoding::{VideoEncoding, detect_best_hw_encoder, probe_hw_encoders};
 use crate::template::{TemplateValue, get_template_string, render_template};
 use crate::uploaders::UploaderType;
 use anyhow::Result;
@@ -326,8 +326,14 @@ async fn print_startup_info(platforms: &[PlatformConfig]) {
     }
 
     info.begin_section("Encoder");
-    let video_quality = Config::get().get_video_quality();
-    match detect_best_hw_encoder(video_quality).await {
+    let config = Config::get();
+    let video_quality = config.get_video_quality();
+    let video_bitrate = config.get_video_bitrate();
+    let encoding = match video_bitrate {
+        Some(bitrate) => VideoEncoding::ConstantBitrate(bitrate.to_string()),
+        None => VideoEncoding::Quality(video_quality),
+    };
+    match detect_best_hw_encoder(&encoding).await {
         Some((enc, _)) => info.ok(&enc, "hardware acceleration"),
         None => info.warn("libx264", "no hardware encoder found, using software"),
     }

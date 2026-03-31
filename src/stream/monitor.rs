@@ -3,7 +3,7 @@ use crate::config::Config;
 use crate::platform::{PipelineOutcome, PlatformConfig};
 use crate::print::table::{Cell, Table};
 use crate::stream::api::run_pipeline;
-use crate::stream::encoding::{build_ffmpeg_args, detect_best_hw_encoder};
+use crate::stream::encoding::{VideoEncoding, build_ffmpeg_args, detect_best_hw_encoder};
 use crate::stream::messages::{
     send_minimum_duration_webhook, send_recording_complete_webhook, send_recording_start_webhook,
     send_template_webhook,
@@ -113,12 +113,17 @@ async fn record_stream_raw(
 
     // Detect hardware encoder and build ffmpeg arguments
     let video_quality = config.get_video_quality();
+    let video_bitrate = config.get_video_bitrate();
     let max_bitrate = config.get_max_bitrate();
-    let hw_encoder = detect_best_hw_encoder(video_quality).await;
+    let encoding = match video_bitrate {
+        Some(bitrate) => VideoEncoding::ConstantBitrate(bitrate.to_string()),
+        None => VideoEncoding::Quality(video_quality),
+    };
+    let hw_encoder = detect_best_hw_encoder(&encoding).await;
     let ffmpeg_args = build_ffmpeg_args(
         &stream_info.playback_url,
         &output_path,
-        video_quality,
+        &encoding,
         hw_encoder,
         max_bitrate,
     );

@@ -415,6 +415,7 @@ define_config! {
     thumbnail_size: Option<String> = Some("320x180".to_string()) => Some("320x180".to_string()), str, "Size of each thumbnail in the grid, in WIDTHxHEIGHT format",
     thumbnail_grid: Option<String> = Some("3x3".to_string()) => Some("3x3".to_string()), str, "Grid layout for thumbnails, in COLSxROWS format",
     max_bitrate: Option<String> = None => None, str_opt, "Maximum video bitrate (e.g. 6M, 2500k). When set, adds -maxrate and -bufsize to ffmpeg",
+    video_bitrate: Option<String> = None => None, str_opt, "Constant video bitrate for CBR encoding (e.g. 6M, 5000k). When set, uses CBR mode and overrides video_quality.",
 }
 
 // ============================================================================
