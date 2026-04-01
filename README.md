@@ -55,9 +55,6 @@ stream-recorder -h
     PLATFORM_API_TOKEN=YOUR_TOKEN_HERE
     ```
 
-    > [!NOTE]
-    > If both keyring and .env file contain tokens, the keyring tokens will take precedence.
-
 3. **Configure monitored accounts** (use `platform_id:username` format):
 
     ```bash
