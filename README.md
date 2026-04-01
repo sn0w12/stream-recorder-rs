@@ -119,24 +119,51 @@ Configuration is stored in `~/.config/stream-recorder/config.toml` (Linux/macOS)
 
 ### Available Settings
 
-| Setting                            | Description                                                                                                    | Default        |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------- |
-| `output_directory`                 | Directory to save recordings                                                                                   | `./recordings` |
-| `monitors`                         | List of usernames to monitor                                                                                   | `none`         |
-| `discord_webhook_url`              | Discord webhook URL for notifications                                                                          | `none`         |
-| `min_free_space_gb`                | Minimum free disk space before cleanup                                                                         | `20`           |
-| `upload_complete_message_template` | Template for upload completion messages                                                                        | `none`         |
-| `max_upload_retries`               | Maximum number of upload retries                                                                               | `3`            |
-| `min_stream_duration`              | Minimum stream duration before recording                                                                       | `none`         |
-| `video_quality`                    | Quality target for variable bitrate video encoding (lower is better)                                           | `26`           |
-| `video_bitrate`                    | Constant video bitrate for CBR encoding (e.g. 6M, 5000k). When set, uses CBR mode and overrides video_quality. | `none`         |
-| `max_bitrate`                      | Maximum video bitrate (e.g. 6M, 2500k). When set, adds -maxrate and -bufsize to ffmpeg                         | `none`         |
-| `stream_reconnect_delay_minutes`   | Delay in minutes to wait for stream continuation before post-processing. Streams resumed are merged.           | `none`         |
-| `disabled_uploaders`               | List of uploaders to skip uploading to                                                                         | `none`         |
-| `step_delay_seconds`               | Delay in seconds between each step in a platform                                                               | `0.5`          |
-| `fetch_interval_seconds`           | The interval in seconds monitors are fetched at                                                                | `120`          |
-| `thumbnail_size`                   | Size of each thumbnail in the grid, in WIDTHxHEIGHT format                                                     | `320x180`      |
-| `thumbnail_grid`                   | Grid layout for thumbnails, in COLSxROWS format                                                                | `3x3`          |
+#### Monitoring
+
+| Setting                          | Description                                                                                          | Default |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------- | ------- |
+| `monitors`                       | List of usernames to monitor                                                                         | `none`  |
+| `min_stream_duration`            | Minimum stream duration before recording                                                             | `none`  |
+| `stream_reconnect_delay_minutes` | Delay in minutes to wait for stream continuation before post-processing. Streams resumed are merged. | `none`  |
+| `step_delay_seconds`             | Delay in seconds between each step in a platform                                                     | `0.5`   |
+| `fetch_interval_seconds`         | The interval in seconds monitors are fetched at                                                      | `120`   |
+
+#### Video
+
+| Setting         | Description                                                                                                    | Default |
+| --------------- | -------------------------------------------------------------------------------------------------------------- | ------- |
+| `video_quality` | Quality target for variable bitrate video encoding (lower is better)                                           | `26`    |
+| `video_bitrate` | Constant video bitrate for CBR encoding (e.g. 6M, 5000k). When set, uses CBR mode and overrides video_quality. | `none`  |
+| `max_bitrate`   | Maximum video bitrate (e.g. 6M, 2500k). When set, adds -maxrate and -bufsize to ffmpeg                         | `none`  |
+
+#### Uploads
+
+| Setting              | Description                            | Default |
+| -------------------- | -------------------------------------- | ------- |
+| `max_upload_retries` | Maximum number of upload retries       | `3`     |
+| `disabled_uploaders` | List of uploaders to skip uploading to | `none`  |
+
+#### Thumbnails
+
+| Setting          | Description                                                | Default   |
+| ---------------- | ---------------------------------------------------------- | --------- |
+| `thumbnail_size` | Size of each thumbnail in the grid, in WIDTHxHEIGHT format | `320x180` |
+| `thumbnail_grid` | Grid layout for thumbnails, in COLSxROWS format            | `3x3`     |
+
+#### Notifications
+
+| Setting                            | Description                             | Default |
+| ---------------------------------- | --------------------------------------- | ------- |
+| `discord_webhook_url`              | Discord webhook URL for notifications   | `none`  |
+| `upload_complete_message_template` | Template for upload completion messages | `none`  |
+
+#### Storage
+
+| Setting             | Description                            | Default        |
+| ------------------- | -------------------------------------- | -------------- |
+| `output_directory`  | Directory to save recordings           | `./recordings` |
+| `min_free_space_gb` | Minimum free disk space before cleanup | `20`           |
 
 ### Configuration Commands
 
@@ -156,7 +183,7 @@ stream-recorder config reset output_directory
 # Get config file path
 stream-recorder config get-path
 
-# Print the configuration table in README/markdown format
+# Print the configuration tables in README/markdown format
 stream-recorder config md
 ```
 

@@ -1,4 +1,4 @@
-use crate::print::table::{Cell, Table, Trunc};
+use crate::print::table::{Cell, SectionAlign, Table, Trunc};
 use crate::thumb::parse_thumbnail_string;
 use crate::utils::app_config_dir;
 use anyhow::{Context, Result};
@@ -13,67 +13,151 @@ static CONFIG: OnceLock<Config> = OnceLock::new();
 macro_rules! define_config {
     (
         $(
-            $field:ident: $ty:ty = $toml_default:expr => $runtime_default:expr, $kind:ident, $desc:expr $(, [$validator:expr])?
-        ),* $(,)?
+            $category:ident: {
+                $(
+                    $field:ident: $ty:ty = $toml_default:expr => $runtime_default:expr, $kind:ident, $desc:expr $(, [$validator:expr])?
+                ),* $(,)?
+            } $(,)?
+        )*
     ) => {
-        // Generate Config struct
         #[derive(Debug, Deserialize, Serialize, Clone)]
         pub struct Config {
-            $(pub $field: $ty,)*
+            $(
+                $(
+                    pub $field: $ty,
+                )*
+            )*
         }
 
         impl Default for Config {
             fn default() -> Self {
                 Config {
-                    $($field: $toml_default,)*
+                    $(
+                        $(
+                            $field: $toml_default,
+                        )*
+                    )*
                 }
             }
         }
 
-        // Generate ConfigKey enum
-        #[derive(Clone, Copy, Debug)]
+        #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+        #[allow(non_camel_case_types)]
+        pub enum ConfigCategory {
+            $(
+                $category,
+            )*
+        }
+
+        impl ConfigCategory {
+            pub fn as_str(&self) -> &str {
+                match self {
+                    $(
+                        ConfigCategory::$category => stringify!($category),
+                    )*
+                }
+            }
+
+            pub const fn all() -> &'static [Self] {
+                &[
+                    $(
+                        ConfigCategory::$category,
+                    )*
+                ]
+            }
+
+            pub fn keys(&self) -> &'static [ConfigKey] {
+                match self {
+                    $(
+                        ConfigCategory::$category => &[
+                            $(
+                                ConfigKey::$field,
+                            )*
+                        ],
+                    )*
+                }
+            }
+
+            pub fn display_name(&self) -> String {
+                title_case_identifier(self.as_str())
+            }
+        }
+
+        #[derive(Clone, Copy, Debug, Eq, PartialEq)]
         #[allow(non_camel_case_types)]
         pub enum ConfigKey {
-            $($field,)*
+            $(
+                $(
+                    $field,
+                )*
+            )*
         }
 
         impl ConfigKey {
             pub fn as_str(&self) -> &str {
                 match self {
-                    $(ConfigKey::$field => stringify!($field),)*
+                    $(
+                        $(
+                            ConfigKey::$field => stringify!($field),
+                        )*
+                    )*
                 }
             }
 
             pub fn from_str(s: &str) -> Option<Self> {
                 match s {
-                    $(stringify!($field) => Some(ConfigKey::$field),)*
+                    $(
+                        $(
+                            stringify!($field) => Some(ConfigKey::$field),
+                        )*
+                    )*
                     _ => None,
                 }
             }
 
             pub const fn all() -> &'static [Self] {
-                &[$(ConfigKey::$field,)*]
+                &[
+                    $(
+                        $(
+                            ConfigKey::$field,
+                        )*
+                    )*
+                ]
+            }
+
+            pub fn category(&self) -> ConfigCategory {
+                match self {
+                    $(
+                        $(
+                            ConfigKey::$field => ConfigCategory::$category,
+                        )*
+                    )*
+                }
             }
 
             pub fn is_array(&self) -> bool {
                 match self {
-                    $(ConfigKey::$field => impl_is_array!($kind),)*
+                    $(
+                        $(
+                            ConfigKey::$field => impl_is_array!($kind),
+                        )*
+                    )*
                 }
             }
         }
 
-        // Generate typed getters
         impl Config {
             $(
-                paste::paste! {
-                    pub fn [<get_ $field>](&self) -> impl_getter_type!($kind) {
-                        impl_getter!($kind, self.$field, $runtime_default)
+                $(
+                    paste::paste! {
+                        pub fn [<get_ $field>](&self) -> impl_getter_type!($kind) {
+                            impl_getter!($kind, self.$field, $runtime_default)
+                        }
                     }
-                }
+                )*
             )*
         }
 
-        // Generate CLI methods
         impl Config {
             /// Validate the raw stored values for every setting.
             ///
@@ -82,24 +166,36 @@ macro_rules! define_config {
             /// This is used by `load`, `save`, and `set_value`, and is also
             /// available to callers that deserialize `Config` manually.
             pub fn validate(&self) -> Result<()> {
-                $(impl_validate!(stringify!($field), &self.$field $(, $validator)? )?;)*
+                $(
+                    $(
+                        impl_validate!(stringify!($field), &self.$field $(, $validator)? )?;
+                    )*
+                )*
                 Ok(())
             }
 
             pub fn get_value(&self, key: &str) -> String {
                 match ConfigKey::from_str(key) {
-                    $(Some(ConfigKey::$field) => impl_cli_get!($kind, self.$field, $runtime_default),)*
+                    $(
+                        $(
+                            Some(ConfigKey::$field) => impl_cli_get!($kind, self.$field, $runtime_default),
+                        )*
+                    )*
                     None => "unknown key".to_string(),
                 }
             }
 
             pub fn set_value(&mut self, key: &str, value: &str) -> Result<()> {
                 match ConfigKey::from_str(key) {
-                    $(Some(ConfigKey::$field) => {
-                        let parsed_value = impl_cli_set!($kind, value)?;
-                        impl_validate!(stringify!($field), &parsed_value $(, $validator)? )?;
-                        self.$field = parsed_value;
-                    })*
+                    $(
+                        $(
+                            Some(ConfigKey::$field) => {
+                                let parsed_value = impl_cli_set!($kind, value)?;
+                                impl_validate!(stringify!($field), &parsed_value $(, $validator)? )?;
+                                self.$field = parsed_value;
+                            }
+                        )*
+                    )*
                     None => return Err(anyhow::anyhow!("Unknown key: {}", key)),
                 }
                 Ok(())
@@ -107,135 +203,100 @@ macro_rules! define_config {
 
             pub fn get_default_string(&self, key: ConfigKey) -> String {
                 match key {
-                    $(ConfigKey::$field => impl_default_str!($kind, $runtime_default),)*
+                    $(
+                        $(
+                            ConfigKey::$field => impl_default_str!($kind, $runtime_default),
+                        )*
+                    )*
                 }
             }
 
             pub fn get_description(&self, key: &str) -> String {
                 match ConfigKey::from_str(key) {
-                    $(Some(ConfigKey::$field) => $desc.to_string(),)*
+                    $(
+                        $(
+                            Some(ConfigKey::$field) => $desc.to_string(),
+                        )*
+                    )*
                     None => "unknown key".to_string(),
                 }
             }
-
-            pub fn print_filtered(&self, filter: Option<String>, show_desc: bool) {
-                let mut table = Table::new();
-
-                let mut headers = vec![
-                    Cell::new("Key"),
-                    Cell::new("Value"),
-                    Cell::new("Default"),
-                ];
-                if show_desc {
-                    headers.insert(1, Cell::new("Description"));
-                } else {
-                    table.set_column_max_width(1, 70);
-                }
-                table.set_headers(headers);
-
-                let filter_lc = filter.map(|s| s.to_lowercase());
-
-                for key in ConfigKey::all() {
-                    if let Some(ref f) = filter_lc {
-                        if key.as_str().to_lowercase() != *f {
-                            continue;
-                        }
-                    }
-
-                    let current = self.get_value(key.as_str());
-                    let default = self.get_default_string(*key);
-
-                    // Color green if current value is changed
-                    let current_color = if current != default {
-                        Green
-                    } else {
-                        BrightBlack
-                    };
-                    let current_truncation = if key.is_array() {
-                        Trunc::NewLine
-                    } else {
-                        Trunc::Middle
-                    };
-
-                    let mut row = vec![
-                        Cell::new(key.as_str()),
-                        Cell::new(current)
-                            .color(current_color)
-                            .truncate(current_truncation),
-                        Cell::new(default).color(BrightBlack),
-                    ];
-                    if show_desc {
-                        row.insert(1, Cell::new(self.get_description(key.as_str())));
-                    }
-                    table.add_row(row);
-                }
-
-                table.print();
-            }
-
-            pub fn markdown_table() -> String {
-                use std::fmt::Write;
-
-                let config = Self::default();
-                let mut rows = Vec::new();
-
-                for key in ConfigKey::all() {
-                    rows.push([
-                        format!("`{}`", key.as_str()),
-                        config.get_description(key.as_str()),
-                        format!("`{}`", config.get_default_string(*key)),
-                    ]);
-                }
-
-                let mut widths = ["Setting".chars().count(), "Description".chars().count(), "Default".chars().count()];
-                for row in &rows {
-                    for (index, cell) in row.iter().enumerate() {
-                        widths[index] = widths[index].max(cell.chars().count());
-                    }
-                }
-
-                let mut output = String::new();
-                writeln!(
-                    output,
-                    "| {:<setting_width$} | {:<description_width$} | {:<default_width$} |",
-                    "Setting",
-                    "Description",
-                    "Default",
-                    setting_width = widths[0],
-                    description_width = widths[1],
-                    default_width = widths[2],
-                )
-                .unwrap();
-                writeln!(
-                    output,
-                    "| {:<setting_width$} | {:<description_width$} | {:<default_width$} |",
-                    "-".repeat(widths[0]),
-                    "-".repeat(widths[1]),
-                    "-".repeat(widths[2]),
-                    setting_width = widths[0],
-                    description_width = widths[1],
-                    default_width = widths[2],
-                )
-                .unwrap();
-
-                for row in rows {
-                    writeln!(
-                        output,
-                        "| {:<setting_width$} | {:<description_width$} | {:<default_width$} |",
-                        row[0],
-                        row[1],
-                        row[2],
-                        setting_width = widths[0],
-                        description_width = widths[1],
-                        default_width = widths[2],
-                    )
-                    .unwrap();
-                }
-
-                output
-            }
         }
     };
+}
+
+fn title_case_identifier(identifier: &str) -> String {
+    identifier
+        .split('_')
+        .filter(|segment| !segment.is_empty())
+        .map(|segment| {
+            let mut chars = segment.chars();
+            match chars.next() {
+                Some(first) => format!("{}{}", first.to_ascii_uppercase(), chars.as_str()),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn markdown_widths(rows: &[[String; 3]]) -> [usize; 3] {
+    let mut widths = [
+        "Setting".chars().count(),
+        "Description".chars().count(),
+        "Default".chars().count(),
+    ];
+
+    for row in rows {
+        for (index, cell) in row.iter().enumerate() {
+            widths[index] = widths[index].max(cell.chars().count());
+        }
+    }
+
+    widths
+}
+
+fn write_markdown_table(output: &mut String, rows: &[[String; 3]]) {
+    use std::fmt::Write;
+
+    let widths = markdown_widths(rows);
+
+    writeln!(
+        output,
+        "| {:<setting_width$} | {:<description_width$} | {:<default_width$} |",
+        "Setting",
+        "Description",
+        "Default",
+        setting_width = widths[0],
+        description_width = widths[1],
+        default_width = widths[2],
+    )
+    .unwrap();
+    writeln!(
+        output,
+        "| {:<setting_width$} | {:<description_width$} | {:<default_width$} |",
+        "-".repeat(widths[0]),
+        "-".repeat(widths[1]),
+        "-".repeat(widths[2]),
+        setting_width = widths[0],
+        description_width = widths[1],
+        default_width = widths[2],
+    )
+    .unwrap();
+
+    for row in rows {
+        writeln!(
+            output,
+            "| {:<setting_width$} | {:<description_width$} | {:<default_width$} |",
+            row[0],
+            row[1],
+            row[2],
+            setting_width = widths[0],
+            description_width = widths[1],
+            default_width = widths[2],
+        )
+        .unwrap();
+    }
 }
 
 // Helper macros for different field types
@@ -521,10 +582,14 @@ fn validate_ffmpeg_bitrate(value: &Option<String>) -> Result<()> {
 // - optional validation hooks
 //
 // Entry format:
-//   name: StoredType = toml_default => runtime_default, kind, "description"
-//   name: StoredType = toml_default => runtime_default, kind, "description", [validator_fn]
+//   category_name: {
+//       name: StoredType = toml_default => runtime_default, kind, "description"
+//       name: StoredType = toml_default => runtime_default, kind, "description", [validator_fn]
+//   }
 //
 // Meaning of each piece:
+// - `category_name`: grouping used for CLI and README headings; rendered in
+//   title case (for example `video_settings` becomes `Video Settings`)
 // - `StoredType`: exact type serialized in `config.toml`
 // - `toml_default`: value used by `Config::default()` when the key is absent
 // - `runtime_default`: fallback returned by generated getters when the stored
@@ -540,25 +605,149 @@ fn validate_ffmpeg_bitrate(value: &Option<String>) -> Result<()> {
 // ============================================================================
 
 define_config! {
-    output_directory: Option<String> = None => Some("./recordings".to_string()), str, "Directory to save recordings",
-    monitors: Option<Vec<String>> = None => Vec::<String>::new(), vec, "List of usernames to monitor",
-    discord_webhook_url: Option<String> = None => None, str_opt, "Discord webhook URL for notifications",
-    min_free_space_gb: Option<f64> = Some(20.0) => Some(20.0), f64, "Minimum free disk space before cleanup",
-    upload_complete_message_template: Option<String> = None => None, str_opt, "Template for upload completion messages",
-    max_upload_retries: Option<u32> = Some(3) => Some(3), u32, "Maximum number of upload retries",
-    min_stream_duration: Option<f64> = None => None, f64_opt, "Minimum stream duration before recording",
-    video_quality: Option<u32> = Some(26) => Some(26), u32, "Quality target for variable bitrate video encoding (lower is better)", [validate_video_quality],
-    stream_reconnect_delay_minutes: Option<f64> = None => None, f64_opt, "Delay in minutes to wait for stream continuation before post-processing. Streams resumed are merged.",
-    disabled_uploaders: Option<Vec<String>> = None => Vec::<String>::new(), vec, "List of uploaders to skip uploading to",
-    step_delay_seconds: Option<f64> = None => Some(0.5), f64, "Delay in seconds between each step in a platform",
-    fetch_interval_seconds: Option<f64> = None => Some(120.0), f64, "The interval in seconds monitors are fetched at",
-    thumbnail_size: Option<String> = Some("320x180".to_string()) => Some("320x180".to_string()), str, "Size of each thumbnail in the grid, in WIDTHxHEIGHT format", [validate_thumbnail_size],
-    thumbnail_grid: Option<String> = Some("3x3".to_string()) => Some("3x3".to_string()), str, "Grid layout for thumbnails, in COLSxROWS format", [validate_thumbnail_grid],
-    max_bitrate: Option<String> = None => None, str_opt, "Maximum video bitrate (e.g. 6M, 2500k). When set, adds -maxrate and -bufsize to ffmpeg", [validate_ffmpeg_bitrate],
-    video_bitrate: Option<String> = None => None, str_opt, "Constant video bitrate for CBR encoding (e.g. 6M, 5000k). When set, uses CBR mode and overrides video_quality.", [validate_ffmpeg_bitrate],
+    monitoring: {
+        monitors: Option<Vec<String>> = None => Vec::<String>::new(), vec, "List of usernames to monitor",
+        min_stream_duration: Option<f64> = None => None, f64_opt, "Minimum stream duration before recording",
+        stream_reconnect_delay_minutes: Option<f64> = None => None, f64_opt, "Delay in minutes to wait for stream continuation before post-processing. Streams resumed are merged.",
+        step_delay_seconds: Option<f64> = None => Some(0.5), f64, "Delay in seconds between each step in a platform",
+        fetch_interval_seconds: Option<f64> = None => Some(120.0), f64, "The interval in seconds monitors are fetched at",
+    }
+    video: {
+        video_quality: Option<u32> = Some(26) => Some(26), u32, "Quality target for variable bitrate video encoding (lower is better)", [validate_video_quality],
+        video_bitrate: Option<String> = None => None, str_opt, "Constant video bitrate for CBR encoding (e.g. 6M, 5000k). When set, uses CBR mode and overrides video_quality.", [validate_ffmpeg_bitrate],
+        max_bitrate: Option<String> = None => None, str_opt, "Maximum video bitrate (e.g. 6M, 2500k). When set, adds -maxrate and -bufsize to ffmpeg", [validate_ffmpeg_bitrate],
+    }
+    uploads: {
+        max_upload_retries: Option<u32> = Some(3) => Some(3), u32, "Maximum number of upload retries",
+        disabled_uploaders: Option<Vec<String>> = None => Vec::<String>::new(), vec, "List of uploaders to skip uploading to",
+    }
+    thumbnails: {
+        thumbnail_size: Option<String> = Some("320x180".to_string()) => Some("320x180".to_string()), str, "Size of each thumbnail in the grid, in WIDTHxHEIGHT format", [validate_thumbnail_size],
+        thumbnail_grid: Option<String> = Some("3x3".to_string()) => Some("3x3".to_string()), str, "Grid layout for thumbnails, in COLSxROWS format", [validate_thumbnail_grid],
+    }
+    notifications: {
+        discord_webhook_url: Option<String> = None => None, str_opt, "Discord webhook URL for notifications",
+        upload_complete_message_template: Option<String> = None => None, str_opt, "Template for upload completion messages",
+    }
+    storage: {
+        output_directory: Option<String> = None => Some("./recordings".to_string()), str, "Directory to save recordings",
+        min_free_space_gb: Option<f64> = Some(20.0) => Some(20.0), f64, "Minimum free disk space before cleanup",
+    }
 }
 
 impl Config {
+    fn render_filtered(&self, filter: Option<&str>, show_desc: bool) -> String {
+        let filter_lc = filter.map(|value| value.to_lowercase());
+        let is_filtered = filter_lc.as_deref().map_or(false, |f| !f.is_empty());
+
+        let mut table = Table::new();
+        let mut has_rows = false;
+
+        let mut headers = vec![Cell::new("Key"), Cell::new("Value"), Cell::new("Default")];
+        if show_desc {
+            headers.insert(1, Cell::new("Description"));
+        } else {
+            table.set_column_max_width(1, 70);
+        }
+        table.set_headers(headers);
+
+        for category in ConfigCategory::all() {
+            let keys: Vec<ConfigKey> = ConfigKey::all()
+                .iter()
+                .copied()
+                .filter(|key| key.category() == *category)
+                .filter(|key| match filter_lc.as_deref() {
+                    Some(value) => key.as_str().eq_ignore_ascii_case(value),
+                    None => true,
+                })
+                .collect();
+
+            if keys.is_empty() {
+                continue;
+            }
+
+            has_rows = true;
+            if !is_filtered {
+                table
+                    .add_section(category.display_name())
+                    .align(SectionAlign::Left);
+            }
+
+            for key in keys {
+                let current = self.get_value(key.as_str());
+                let default = self.get_default_string(key);
+                let current_color = if current != default {
+                    Green
+                } else {
+                    BrightBlack
+                };
+                let current_truncation = if key.is_array() {
+                    Trunc::NewLine
+                } else {
+                    Trunc::Middle
+                };
+
+                let mut row = vec![
+                    Cell::new(key.as_str()),
+                    Cell::new(current)
+                        .color(current_color)
+                        .truncate(current_truncation),
+                    Cell::new(default).color(BrightBlack),
+                ];
+                if show_desc {
+                    row.insert(1, Cell::new(self.get_description(key.as_str())));
+                }
+                table.add_row(row);
+            }
+        }
+
+        if has_rows {
+            table.render()
+        } else {
+            String::new()
+        }
+    }
+
+    pub fn print_filtered(&self, filter: Option<String>, show_desc: bool) {
+        let rendered = self.render_filtered(filter.as_deref(), show_desc);
+
+        if !rendered.is_empty() {
+            println!("{rendered}");
+        }
+    }
+
+    pub fn markdown_table() -> String {
+        use std::fmt::Write;
+
+        let config = Self::default();
+        let mut output = String::new();
+
+        for (index, category) in ConfigCategory::all().iter().enumerate() {
+            if index > 0 {
+                writeln!(output).unwrap();
+            }
+
+            writeln!(output, "#### {}", category.display_name()).unwrap();
+            writeln!(output).unwrap();
+
+            let rows: Vec<[String; 3]> = category
+                .keys()
+                .iter()
+                .map(|key| {
+                    [
+                        format!("`{}`", key.as_str()),
+                        config.get_description(key.as_str()),
+                        format!("`{}`", config.get_default_string(*key)),
+                    ]
+                })
+                .collect();
+
+            write_markdown_table(&mut output, &rows);
+        }
+
+        output.trim_end().to_string()
+    }
+
     /// Load the configuration from disk and store it in the global singleton.
     ///
     /// Must be called once at program startup before any call to [`Config::get`].
@@ -619,103 +808,79 @@ impl Config {
 #[cfg(test)]
 mod readme_sync_tests {
     use super::*;
-    use std::collections::{HashMap, HashSet};
 
-    /// Parse the README's "Available Settings" table and return a map of
-    /// setting -> (description, default_str).
-    fn parse_readme_table() -> HashMap<String, (String, String)> {
+    fn extract_readme_settings_section() -> String {
         let readme = std::fs::read_to_string("README.md").expect("README.md must be present");
 
-        // Find the table header. The README contains a table with header
-        // `| Setting                            | Description | Default |`.
-        let mut in_table = false;
-        let mut rows = Vec::new();
+        let mut in_section = false;
+        let mut lines = Vec::new();
 
         for line in readme.lines() {
-            let l = line.trim_end();
-            if l.starts_with("| Setting") {
-                in_table = true;
+            if line == "### Available Settings" {
+                in_section = true;
                 continue;
             }
-            if in_table {
-                if l.starts_with("| ---") || l.starts_with("|---") {
-                    // separator row, skip
-                    continue;
+
+            if in_section {
+                if line.starts_with("### ") {
+                    break;
                 }
-                if l.starts_with('|') {
-                    // table row
-                    rows.push(l.to_string());
-                    continue;
-                }
-                // end of table
-                break;
+                lines.push(line);
             }
         }
 
-        let mut map = HashMap::new();
-        for row in rows {
-            // split columns by '|' and trim
-            let parts: Vec<&str> = row.split('|').map(|s| s.trim()).collect();
-            if parts.len() < 4 {
+        lines.join("\n").trim().to_string()
+    }
+
+    fn strip_ansi(input: &str) -> String {
+        let mut plain = String::new();
+        let mut chars = input.chars();
+
+        while let Some(ch) = chars.next() {
+            if ch == '\u{1b}' {
+                for next in chars.by_ref() {
+                    if next == 'm' {
+                        break;
+                    }
+                }
                 continue;
             }
-            let key = parts[1].trim().trim_matches('`').to_string();
-            let desc = parts[2].trim().to_string();
-            let default = parts[3].trim().trim_matches('`').to_string();
-            map.insert(key, (desc, default));
+
+            plain.push(ch);
         }
 
-        map
+        plain
     }
 
     #[test]
-    fn readme_and_config_keys_match() {
-        let readme_map = parse_readme_table();
-        let readme_keys: HashSet<String> = readme_map.keys().cloned().collect();
-
-        let cfg_keys: HashSet<String> = ConfigKey::all()
+    fn category_lists_cover_all_config_keys_in_order() {
+        let categorized_keys: Vec<ConfigKey> = ConfigCategory::all()
             .iter()
-            .map(|k| k.as_str().to_string())
+            .flat_map(|category| category.keys().iter().copied())
             .collect();
 
         assert_eq!(
-            readme_keys, cfg_keys,
-            "Config keys in README.md do not match code"
+            categorized_keys.as_slice(),
+            ConfigKey::all(),
+            "Config keys must appear in exactly one category"
         );
     }
 
     #[test]
-    fn readme_descriptions_match_config() {
-        let readme_map = parse_readme_table();
-        let cfg = Config::default();
-
-        for (key, (readme_desc, _)) in readme_map.iter() {
-            let cfg_desc = cfg.get_description(key);
-            assert_eq!(cfg_desc, *readme_desc, "Description mismatch for {}", key);
-        }
+    fn readme_settings_section_matches_generated_markdown() {
+        assert_eq!(extract_readme_settings_section(), Config::markdown_table());
     }
 
     #[test]
-    fn readme_defaults_match_config() {
-        let readme_map = parse_readme_table();
-        let cfg = Config::default();
+    fn markdown_table_contains_all_config_categories() {
+        let markdown = Config::markdown_table();
 
-        for (key, (_, readme_default)) in readme_map.iter() {
-            let ck = ConfigKey::from_str(key).expect("unknown key in README");
-            let cfg_default = cfg.get_default_string(ck);
-            // Normalize numeric formatting: trim trailing .0 if present in README
-            let mut rd = if readme_default.ends_with(".0") {
-                readme_default.trim_end_matches(".0").to_string()
-            } else {
-                readme_default.clone()
-            };
-
-            // Normalize "None"/"none" casing from README
-            if rd.eq_ignore_ascii_case("none") {
-                rd = "none".to_string();
-            }
-
-            assert_eq!(cfg_default, rd, "Default mismatch for {}", key);
+        for category in ConfigCategory::all() {
+            assert!(
+                markdown.contains(&format!("#### {}", category.display_name())),
+                "Markdown table is missing category {}",
+                category.as_str()
+            );
         }
     }
 
@@ -730,6 +895,59 @@ mod readme_sync_tests {
                 key.as_str()
             );
         }
+    }
+
+    #[test]
+    fn render_filtered_groups_settings_by_category() {
+        let rendered = strip_ansi(&Config::default().render_filtered(None, false));
+        let mut last_index = 0;
+
+        assert_eq!(
+            rendered.matches('┌').count(),
+            1,
+            "expected a single table top border"
+        );
+        assert_eq!(
+            rendered.matches('└').count(),
+            1,
+            "expected a single table bottom border"
+        );
+
+        for category in ConfigCategory::all() {
+            let marker = category.display_name();
+            let index = rendered
+                .find(&marker)
+                .unwrap_or_else(|| panic!("missing category heading: {}", category.as_str()));
+
+            assert!(
+                index >= last_index,
+                "category {} rendered out of order",
+                category.as_str()
+            );
+            last_index = index;
+        }
+
+        for key in ConfigKey::all() {
+            assert!(
+                rendered.contains(key.as_str()),
+                "grouped output is missing key {}",
+                key.as_str()
+            );
+        }
+    }
+
+    #[test]
+    fn render_filtered_single_key_shows_only_matching_category() {
+        let rendered = strip_ansi(&Config::default().render_filtered(Some("video_quality"), true));
+
+        assert_eq!(
+            rendered.matches('┌').count(),
+            1,
+            "expected a single table top border"
+        );
+        assert!(rendered.contains("video_quality"));
+        assert!(!rendered.contains("Monitoring"));
+        assert!(!rendered.contains("thumbnail_size"));
     }
 
     #[test]

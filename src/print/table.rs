@@ -46,6 +46,16 @@ pub enum Trunc {
     NewLine,
 }
 
+/// Alignment used for section labels inside a table.
+#[allow(dead_code)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum SectionAlign {
+    #[default]
+    Center,
+    Left,
+    Right,
+}
+
 #[derive(Clone, Copy, Debug)]
 struct ColumnStyle {
     color: Option<Color>,
@@ -76,6 +86,27 @@ struct PreparedCell {
     is_header: bool,
 }
 
+enum TableRow {
+    Cells(Vec<Cell>),
+    Section(SectionRow),
+}
+
+enum PreparedRow {
+    Cells(Vec<PreparedCell>),
+    Section(SectionRow),
+}
+
+#[derive(Clone, Debug)]
+struct SectionRow {
+    title: String,
+    align: SectionAlign,
+}
+
+pub struct SectionBuilder<'a> {
+    table: &'a mut Table,
+    row_index: usize,
+}
+
 impl Cell {
     pub fn new(content: impl Into<String>) -> Self {
         Self {
@@ -103,7 +134,7 @@ impl Cell {
 /// A table with optional headers, automatically sized columns, and colors.
 pub struct Table {
     headers: Vec<Cell>,
-    rows: Vec<Vec<Cell>>,
+    rows: Vec<TableRow>,
     columns: HashMap<usize, ColumnStyle>,
     style: TableStyle,
 }
@@ -125,7 +156,21 @@ impl Table {
 
     /// Add a data row.
     pub fn add_row(&mut self, row: Vec<Cell>) {
-        self.rows.push(row);
+        self.rows.push(TableRow::Cells(row));
+    }
+
+    /// Add a full-width section separator inside the table.
+    pub fn add_section(&mut self, title: impl Into<String>) -> SectionBuilder<'_> {
+        let row_index = self.rows.len();
+        self.rows.push(TableRow::Section(SectionRow {
+            title: title.into(),
+            align: SectionAlign::Center,
+        }));
+
+        SectionBuilder {
+            table: self,
+            row_index,
+        }
     }
 
     /// Set a default color for a column (0‑based index).
@@ -151,6 +196,11 @@ impl Table {
         for line in self.render_lines() {
             println!("{line}");
         }
+    }
+
+    /// Render the formatted table as a single string.
+    pub fn render(&self) -> String {
+        self.render_lines().join("\n")
     }
 
     fn column_style_mut(&mut self, col: usize) -> &mut ColumnStyle {
@@ -215,10 +265,42 @@ impl Table {
         )
     }
 
+    fn render_section_line(&self, section: &SectionRow, col_widths: &[usize]) -> String {
+        let total_inner_width = col_widths.iter().sum::<usize>() + (3 * col_widths.len()) - 1;
+        let label = truncate_line(
+            &format!(" {} ", section.title),
+            Some(total_inner_width),
+            Trunc::End,
+        );
+        let remaining = total_inner_width.saturating_sub(label.chars().count());
+        let (left_fill, right_fill) = match section.align {
+            SectionAlign::Left => (1, remaining - 1),
+            SectionAlign::Center => (remaining / 2, remaining - (remaining / 2)),
+            SectionAlign::Right => (remaining - 1, 1),
+        };
+
+        format!(
+            "{}{}{}{}{}",
+            self.style.mid_left,
+            self.style.horiz.repeat(left_fill),
+            style_text(&label, None, true),
+            self.style.horiz.repeat(right_fill),
+            self.style.mid_right
+        )
+    }
+
     fn render_lines(&self) -> Vec<String> {
         // Determine total number of columns = max(header len, any row len)
         let header_len = self.headers.len();
-        let max_row_len = self.rows.iter().map(|row| row.len()).max().unwrap_or(0);
+        let max_row_len = self
+            .rows
+            .iter()
+            .filter_map(|row| match row {
+                TableRow::Cells(cells) => Some(cells.len()),
+                TableRow::Section(_) => None,
+            })
+            .max()
+            .unwrap_or(0);
         let col_count = header_len.max(max_row_len);
         if col_count == 0 {
             return Vec::new();
@@ -226,16 +308,35 @@ impl Table {
 
         let prepared_header =
             (!self.headers.is_empty()).then(|| self.prepare_row(&self.headers, col_count, true));
-        let prepared_rows: Vec<Vec<PreparedCell>> = self
+        let prepared_rows: Vec<PreparedRow> = self
             .rows
             .iter()
-            .map(|row| self.prepare_row(row, col_count, false))
+            .map(|row| match row {
+                TableRow::Cells(cells) => {
+                    PreparedRow::Cells(self.prepare_row(cells, col_count, false))
+                }
+                TableRow::Section(section) => PreparedRow::Section(section.clone()),
+            })
             .collect();
 
         // Compute column widths based on the already-truncated visible content.
         let mut col_widths = vec![0; col_count];
-        for row in prepared_header.iter().chain(prepared_rows.iter()) {
+        for row in prepared_header.iter() {
             for (i, cell) in row.iter().enumerate() {
+                for line in &cell.lines {
+                    let width = line.chars().count();
+                    if width > col_widths[i] {
+                        col_widths[i] = width;
+                    }
+                }
+            }
+        }
+        for row in &prepared_rows {
+            let PreparedRow::Cells(cells) = row else {
+                continue;
+            };
+
+            for (i, cell) in cells.iter().enumerate() {
                 for line in &cell.lines {
                     let width = line.chars().count();
                     if width > col_widths[i] {
@@ -273,20 +374,30 @@ impl Table {
                 lines.push(self.render_row_line(header, line_idx, &col_widths));
             }
 
-            // Separator after header
-            let mid_join = format!("{}{}{}", h, s.mid_joint, h);
-            let mid_inner = col_pieces.join(&mid_join);
-            lines.push(format!(
-                "{}{}{}{}{}",
-                s.mid_left, h, mid_inner, h, s.mid_right
-            ));
+            if prepared_rows.is_empty()
+                || !matches!(prepared_rows.first(), Some(PreparedRow::Section(_)))
+            {
+                let mid_join = format!("{}{}{}", h, s.mid_joint, h);
+                let mid_inner = col_pieces.join(&mid_join);
+                lines.push(format!(
+                    "{}{}{}{}{}",
+                    s.mid_left, h, mid_inner, h, s.mid_right
+                ));
+            }
         }
 
         // Print data rows
         for row in &prepared_rows {
-            let row_height = row.iter().map(|cell| cell.lines.len()).max().unwrap_or(1);
-            for line_idx in 0..row_height {
-                lines.push(self.render_row_line(row, line_idx, &col_widths));
+            match row {
+                PreparedRow::Cells(cells) => {
+                    let row_height = cells.iter().map(|cell| cell.lines.len()).max().unwrap_or(1);
+                    for line_idx in 0..row_height {
+                        lines.push(self.render_row_line(cells, line_idx, &col_widths));
+                    }
+                }
+                PreparedRow::Section(section) => {
+                    lines.push(self.render_section_line(section, &col_widths))
+                }
             }
         }
 
@@ -299,6 +410,16 @@ impl Table {
         ));
 
         lines
+    }
+}
+
+impl<'a> SectionBuilder<'a> {
+    pub fn align(self, align: SectionAlign) -> Self {
+        if let Some(TableRow::Section(section)) = self.table.rows.get_mut(self.row_index) {
+            section.align = align;
+        }
+
+        self
     }
 }
 
@@ -465,6 +586,30 @@ mod tests {
     }
 
     #[test]
+    fn renders_center_aligned_sections_inside_a_single_table() {
+        assert_eq!(
+            section_table_lines(SectionAlign::Center),
+            expected_section_lines("├─── Alpha ────┤")
+        );
+    }
+
+    #[test]
+    fn renders_left_aligned_sections_inside_a_single_table() {
+        assert_eq!(
+            section_table_lines(SectionAlign::Left),
+            expected_section_lines("├─ Alpha ──────┤")
+        );
+    }
+
+    #[test]
+    fn renders_right_aligned_sections_inside_a_single_table() {
+        assert_eq!(
+            section_table_lines(SectionAlign::Right),
+            expected_section_lines("├────── Alpha ─┤")
+        );
+    }
+
+    #[test]
     fn applies_column_and_cell_truncation() {
         let mut table = Table::new();
         table.set_headers(vec![Cell::new("Value"), Cell::new("Other")]);
@@ -518,6 +663,25 @@ mod tests {
             .into_iter()
             .map(|line| strip_ansi(&line))
             .collect()
+    }
+
+    fn section_table_lines(align: SectionAlign) -> Vec<String> {
+        let mut table = Table::new();
+        table.set_headers(vec![Cell::new("Name"), Cell::new("Value")]);
+        table.add_section("Alpha").align(align);
+        table.add_row(vec![Cell::new("a"), Cell::new("1")]);
+
+        plain_lines(&table)
+    }
+
+    fn expected_section_lines(section_line: &str) -> Vec<String> {
+        vec![
+            "┌──────┬───────┐".to_string(),
+            "│ Name │ Value │".to_string(),
+            section_line.to_string(),
+            "│ a    │ 1     │".to_string(),
+            "└──────┴───────┘".to_string(),
+        ]
     }
 
     fn strip_ansi(input: &str) -> String {
