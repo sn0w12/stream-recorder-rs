@@ -192,7 +192,7 @@ async fn main() -> Result<()> {
 }
 
 /// Runs startup tests to make sure everything is working before we start recording.
-/// This is only to check for core functionality like ffmpeg, not to validate user configuration (e.g., tokens).
+/// This checks core functionality but it does not validate any external systems.
 async fn startup_tests() -> Result<()> {
     // Check if ffmpeg is available
     let output = std::process::Command::new("ffmpeg")
@@ -210,6 +210,16 @@ async fn startup_tests() -> Result<()> {
             ));
         }
     }
+
+    let config = Config::get();
+    config.validate().map_err(|e| {
+        anyhow::anyhow!(
+            "Configuration validation failed: {}. \
+             Please fix the configuration and try again.",
+            e
+        )
+    })?;
+
     Ok(())
 }
 
@@ -334,16 +344,10 @@ async fn print_startup_info(platforms: &[PlatformConfig]) {
         None => VideoEncoding::Quality(video_quality),
     };
     match detect_best_hw_encoder(&encoding).await {
-        Some((enc, _)) => info.ok(
-            &enc,
-            format!("hardware acceleration, {}", encoding),
-        ),
+        Some((enc, _)) => info.ok(&enc, format!("hardware acceleration, {}", encoding)),
         None => info.warn(
             "libx264",
-            format!(
-                "no hardware encoder found, using software, {}",
-                encoding
-            ),
+            format!("no hardware encoder found, using software, {}", encoding),
         ),
     }
 

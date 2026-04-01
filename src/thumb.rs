@@ -233,8 +233,11 @@ fn build_xstack_layout(
     Ok(layout.join("|"))
 }
 
-/// Parses a thumbnail string in the format "XxY" (e.g., "3x3")
-fn parse_thumbnail_string(s: &str) -> Option<(u32, u32)> {
+/// Parses a thumbnail string in the format "XxY" (e.g., "3x3").
+///
+/// This is shared by thumbnail generation and config validation so invalid
+/// values fail early when the config is loaded or edited.
+pub fn parse_thumbnail_string(s: &str) -> Option<(u32, u32)> {
     let parts: Vec<&str> = s.split('x').collect();
     if parts.len() != 2 {
         return None;

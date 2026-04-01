@@ -1,6 +1,7 @@
 use crate::print::table::{Cell, Table};
+use crate::thumb::parse_thumbnail_string;
 use crate::utils::app_config_dir;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use colored::Color::*;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -9,15 +10,10 @@ use std::sync::OnceLock;
 
 static CONFIG: OnceLock<Config> = OnceLock::new();
 
-// ============================================================================
-// MACRO-BASED CONFIG - Define everything in ONE place!
-// To add a new config field, just add ONE line below in define_config!
-// ============================================================================
-
 macro_rules! define_config {
     (
         $(
-            $field:ident: $ty:ty = $toml_default:expr => $runtime_default:expr, $kind:ident, $desc:expr
+            $field:ident: $ty:ty = $toml_default:expr => $runtime_default:expr, $kind:ident, $desc:expr $(, [$validator:expr])?
         ),* $(,)?
     ) => {
         // Generate Config struct
@@ -79,6 +75,17 @@ macro_rules! define_config {
 
         // Generate CLI methods
         impl Config {
+            /// Validate the raw stored values for every setting.
+            ///
+            /// Validators run against the serialized field type, before any
+            /// runtime fallback default is applied by the generated getters.
+            /// This is used by `load`, `save`, and `set_value`, and is also
+            /// available to callers that deserialize `Config` manually.
+            pub fn validate(&self) -> Result<()> {
+                $(impl_validate!(stringify!($field), &self.$field $(, $validator)? )?;)*
+                Ok(())
+            }
+
             pub fn get_value(&self, key: &str) -> String {
                 match ConfigKey::from_str(key) {
                     $(Some(ConfigKey::$field) => impl_cli_get!($kind, self.$field, $runtime_default),)*
@@ -89,7 +96,9 @@ macro_rules! define_config {
             pub fn set_value(&mut self, key: &str, value: &str) -> Result<()> {
                 match ConfigKey::from_str(key) {
                     $(Some(ConfigKey::$field) => {
-                        self.$field = impl_cli_set!($kind, value)?;
+                        let parsed_value = impl_cli_set!($kind, value)?;
+                        impl_validate!(stringify!($field), &parsed_value $(, $validator)? )?;
+                        self.$field = parsed_value;
                     })*
                     None => return Err(anyhow::anyhow!("Unknown key: {}", key)),
                 }
@@ -385,6 +394,15 @@ macro_rules! impl_default_str {
     };
 }
 
+macro_rules! impl_validate {
+    ($key:expr, $value:expr, $validator:expr) => {
+        $validator($value).with_context(|| format!("Invalid value for '{}'", $key))
+    };
+    ($key:expr, $value:expr) => {
+        Ok::<(), anyhow::Error>(())
+    };
+}
+
 macro_rules! impl_is_array {
     (vec) => {
         true
@@ -394,9 +412,122 @@ macro_rules! impl_is_array {
     };
 }
 
+fn validate_video_quality(value: &Option<u32>) -> Result<()> {
+    let Some(value) = value else {
+        return Ok(());
+    };
+
+    if (1..=51).contains(value) {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!("video quality must be between 1 and 51"))
+    }
+}
+
+fn validate_thumbnail_pair(value: &Option<String>, label: &str, format_hint: &str) -> Result<()> {
+    let Some(value) = value.as_deref() else {
+        return Ok(());
+    };
+
+    let (first, second) = parse_thumbnail_string(value)
+        .ok_or_else(|| anyhow::anyhow!("{label} must use {format_hint} format"))?;
+
+    if first == 0 || second == 0 {
+        return Err(anyhow::anyhow!("{label} values must be greater than zero"));
+    }
+
+    Ok(())
+}
+
+fn validate_thumbnail_size(value: &Option<String>) -> Result<()> {
+    validate_thumbnail_pair(value, "thumbnail size", "WIDTHxHEIGHT")
+}
+
+fn validate_thumbnail_grid(value: &Option<String>) -> Result<()> {
+    validate_thumbnail_pair(value, "thumbnail grid", "COLSxROWS")
+}
+
+fn validate_ffmpeg_bitrate(value: &Option<String>) -> Result<()> {
+    let Some(value) = value.as_deref() else {
+        return Ok(());
+    };
+
+    let bitrate = value.trim();
+    if bitrate.is_empty() {
+        return Err(anyhow::anyhow!(
+            "bitrate cannot be empty; use 'none' to clear the setting"
+        ));
+    }
+
+    let split_index = bitrate
+        .find(|ch: char| !(ch.is_ascii_digit() || ch == '.'))
+        .unwrap_or(bitrate.len());
+    let (number_part, suffix) = bitrate.split_at(split_index);
+
+    if number_part.is_empty() {
+        return Err(anyhow::anyhow!(
+            "bitrate must start with a number, e.g. 2500k or 6M"
+        ));
+    }
+
+    if number_part.starts_with('.') || number_part.ends_with('.') {
+        return Err(anyhow::anyhow!(
+            "bitrate number must be a whole number or decimal like 2.5M"
+        ));
+    }
+
+    if number_part.chars().filter(|&ch| ch == '.').count() > 1 {
+        return Err(anyhow::anyhow!(
+            "bitrate number must contain at most one decimal point"
+        ));
+    }
+
+    let numeric_value = number_part
+        .parse::<f64>()
+        .map_err(|_| anyhow::anyhow!("bitrate must contain a valid positive number"))?;
+
+    if !numeric_value.is_finite() || numeric_value <= 0.0 {
+        return Err(anyhow::anyhow!("bitrate must be greater than zero"));
+    }
+
+    let suffix = suffix.to_ascii_lowercase();
+    if matches!(suffix.as_str(), "" | "k" | "m" | "g" | "ki" | "mi" | "gi") {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(
+            "bitrate must use an ffmpeg-style suffix like 2500k, 6M, or 2.5Mi"
+        ))
+    }
+}
+
 // ============================================================================
-// DEFINE ALL CONFIG FIELDS HERE - Single source of truth!
-// Just add one line per field. Everything else is auto-generated.
+// DEFINE ALL CONFIG FIELDS HERE - single source of truth.
+//
+// Each line expands into:
+// - a raw field on `Config`
+// - a `ConfigKey` enum entry
+// - a typed getter (`get_<field>()`)
+// - CLI parsing/printing support
+// - README/markdown table rows
+// - optional validation hooks
+//
+// Entry format:
+//   name: StoredType = toml_default => runtime_default, kind, "description"
+//   name: StoredType = toml_default => runtime_default, kind, "description", [validator_fn]
+//
+// Meaning of each piece:
+// - `StoredType`: exact type serialized in `config.toml`
+// - `toml_default`: value used by `Config::default()` when the key is absent
+// - `runtime_default`: fallback returned by generated getters when the stored
+//   value is `None`
+// - `kind`: chooses getter/CLI conversion behavior (`str`, `str_opt`, `vec`,
+//   `f64`, `u32`, `f64_opt`)
+// - `description`: human-readable text shown by `config get` and README sync
+// - `validator_fn`: optional `fn(&StoredType) -> Result<()>` checked on set,
+//   save, and load
+//
+// The two defaults are separate on purpose: some settings should serialize as
+// `None` but still behave as if they have a runtime fallback when read.
 // ============================================================================
 
 define_config! {
@@ -407,20 +538,16 @@ define_config! {
     upload_complete_message_template: Option<String> = None => None, str_opt, "Template for upload completion messages",
     max_upload_retries: Option<u32> = Some(3) => Some(3), u32, "Maximum number of upload retries",
     min_stream_duration: Option<f64> = None => None, f64_opt, "Minimum stream duration before recording",
-    video_quality: Option<u32> = Some(26) => Some(26), u32, "Quality target for variable bitrate video encoding (lower is better)",
+    video_quality: Option<u32> = Some(26) => Some(26), u32, "Quality target for variable bitrate video encoding (lower is better)", [validate_video_quality],
     stream_reconnect_delay_minutes: Option<f64> = None => None, f64_opt, "Delay in minutes to wait for stream continuation before post-processing. Streams resumed are merged.",
     disabled_uploaders: Option<Vec<String>> = None => Vec::<String>::new(), vec, "List of uploaders to skip uploading to",
     step_delay_seconds: Option<f64> = None => Some(0.5), f64, "Delay in seconds between each step in a platform",
     fetch_interval_seconds: Option<f64> = None => Some(120.0), f64, "The interval in seconds monitors are fetched at",
-    thumbnail_size: Option<String> = Some("320x180".to_string()) => Some("320x180".to_string()), str, "Size of each thumbnail in the grid, in WIDTHxHEIGHT format",
-    thumbnail_grid: Option<String> = Some("3x3".to_string()) => Some("3x3".to_string()), str, "Grid layout for thumbnails, in COLSxROWS format",
-    max_bitrate: Option<String> = None => None, str_opt, "Maximum video bitrate (e.g. 6M, 2500k). When set, adds -maxrate and -bufsize to ffmpeg",
-    video_bitrate: Option<String> = None => None, str_opt, "Constant video bitrate for CBR encoding (e.g. 6M, 5000k). When set, uses CBR mode and overrides video_quality.",
+    thumbnail_size: Option<String> = Some("320x180".to_string()) => Some("320x180".to_string()), str, "Size of each thumbnail in the grid, in WIDTHxHEIGHT format", [validate_thumbnail_size],
+    thumbnail_grid: Option<String> = Some("3x3".to_string()) => Some("3x3".to_string()), str, "Grid layout for thumbnails, in COLSxROWS format", [validate_thumbnail_grid],
+    max_bitrate: Option<String> = None => None, str_opt, "Maximum video bitrate (e.g. 6M, 2500k). When set, adds -maxrate and -bufsize to ffmpeg", [validate_ffmpeg_bitrate],
+    video_bitrate: Option<String> = None => None, str_opt, "Constant video bitrate for CBR encoding (e.g. 6M, 5000k). When set, uses CBR mode and overrides video_quality.", [validate_ffmpeg_bitrate],
 }
-
-// ============================================================================
-// Core Config methods
-// ============================================================================
 
 impl Config {
     /// Load the configuration from disk and store it in the global singleton.
@@ -452,15 +579,20 @@ impl Config {
 
     pub fn load() -> Result<Self> {
         let config_path = Self::config_path();
-        if config_path.exists() {
+        let config = if config_path.exists() {
             let content = fs::read_to_string(config_path)?;
-            Ok(toml::from_str(&content)?)
+            toml::from_str(&content)?
         } else {
-            Ok(Self::default())
-        }
+            Self::default()
+        };
+
+        config.validate()?;
+        Ok(config)
     }
 
     pub fn save(&self) -> Result<()> {
+        self.validate()?;
+
         let config_path = Self::config_path();
         if let Some(parent) = config_path.parent() {
             fs::create_dir_all(parent)?;
@@ -589,5 +721,70 @@ mod readme_sync_tests {
                 key.as_str()
             );
         }
+    }
+
+    #[test]
+    fn set_value_accepts_valid_ffmpeg_bitrate() {
+        let mut config = Config::default();
+
+        config
+            .set_value("video_bitrate", "2.5M")
+            .expect("set_value should accept a valid ffmpeg bitrate");
+
+        assert_eq!(config.get_video_bitrate(), Some("2.5M"));
+    }
+
+    #[test]
+    fn set_value_rejects_invalid_ffmpeg_bitrate() {
+        let mut config = Config::default();
+
+        let err = config
+            .set_value("video_bitrate", "fast")
+            .expect_err("set_value should reject an invalid ffmpeg bitrate");
+
+        assert!(
+            err.to_string()
+                .contains("Invalid value for 'video_bitrate'"),
+            "unexpected error: {err}"
+        );
+        assert!(config.get_video_bitrate().is_none());
+    }
+
+    #[test]
+    fn set_value_rejects_out_of_range_video_quality() {
+        let mut config = Config::default();
+
+        let err = config
+            .set_value("video_quality", "0")
+            .expect_err("set_value should reject out-of-range video quality");
+
+        assert!(
+            err.to_string()
+                .contains("Invalid value for 'video_quality'"),
+            "unexpected error: {err:#}"
+        );
+        assert!(
+            err.chain()
+                .any(|cause| cause.to_string().contains("between 1 and 51")),
+            "unexpected error chain: {err:#}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_invalid_thumbnail_size() {
+        let config = Config {
+            thumbnail_size: Some("320".to_string()),
+            ..Config::default()
+        };
+
+        let err = config
+            .validate()
+            .expect_err("validate should reject malformed thumbnail size");
+
+        assert!(
+            err.to_string()
+                .contains("Invalid value for 'thumbnail_size'"),
+            "unexpected error: {err}"
+        );
     }
 }
