@@ -606,6 +606,18 @@ fn validate_positive_u32(value: &Option<u32>) -> Result<()> {
     }
 }
 
+fn validate_url(value: &Option<String>) -> Result<()> {
+    let Some(value) = value.as_deref() else {
+        return Ok(());
+    };
+
+    if value.starts_with("https://") || value.starts_with("http://") {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!("URL must start with http:// or https://"))
+    }
+}
+
 // ============================================================================
 // DEFINE ALL CONFIG FIELDS HERE - single source of truth.
 //
@@ -662,7 +674,7 @@ define_config! {
         thumbnail_grid: Option<String> = Some("3x3".to_string()) => Some("3x3".to_string()), str, "Grid layout for thumbnails, in COLSxROWS format", [validate_thumbnail_grid],
     }
     notifications: {
-        discord_webhook_url: Option<String> = None => None, str_opt, "Discord webhook URL for notifications",
+        discord_webhook_url: Option<String> = None => None, str_opt, "Discord webhook URL for notifications", [validate_url],
         upload_complete_message_template: Option<String> = None => None, str_opt, "Template for upload completion messages",
     }
     storage: {
