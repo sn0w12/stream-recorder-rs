@@ -670,7 +670,7 @@ impl Config {
             if !is_filtered {
                 table
                     .add_section(category.display_name())
-                    .align(SectionAlign::Left);
+                    .align(SectionAlign::Center);
             }
 
             for key in keys {
