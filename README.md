@@ -55,7 +55,8 @@ stream-recorder -h
     PLATFORM_API_TOKEN=YOUR_TOKEN_HERE
     ```
 
-    **Note:** If both keyring and .env file contain tokens, the keyring tokens will take precedence.
+    > [!NOTE]
+    > If both keyring and .env file contain tokens, the keyring tokens will take precedence.
 
 3. **Configure monitored accounts** (use `platform_id:username` format):
 
@@ -121,24 +122,24 @@ Configuration is stored in `~/.config/stream-recorder/config.toml` (Linux/macOS)
 
 ### Available Settings
 
-| Setting                            | Description                                                                                          | Default        |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------- |
-| `output_directory`                 | Directory to save recordings                                                                         | `./recordings` |
-| `monitors`                         | List of usernames to monitor                                                                         | `none`         |
-| `discord_webhook_url`              | Discord webhook URL for notifications                                                                | `none`         |
-| `min_free_space_gb`                | Minimum free disk space before cleanup                                                               | `20`           |
-| `upload_complete_message_template` | Template for upload completion messages                                                              | `none`         |
-| `max_upload_retries`               | Maximum number of upload retries                                                                     | `3`            |
-| `min_stream_duration`              | Minimum stream duration before recording                                                             | `none`         |
-| `video_quality`                    | Quality target for variable bitrate video encoding (lower is better)                                 | `26`           |
-| `video_bitrate`                    | Constant video bitrate for CBR encoding (e.g. 6M, 5000k). When set, uses CBR mode and overrides video_quality. | `none`  |
-| `max_bitrate`                      | Maximum video bitrate (e.g. 6M, 2500k). When set, adds -maxrate and -bufsize to ffmpeg               | `none`         |
-| `stream_reconnect_delay_minutes`   | Delay in minutes to wait for stream continuation before post-processing. Streams resumed are merged. | `none`         |
-| `disabled_uploaders`               | List of uploaders to skip uploading to                                                               | `none`         |
-| `step_delay_seconds`               | Delay in seconds between each step in a platform                                                     | `0.5`          |
-| `fetch_interval_seconds`           | The interval in seconds monitors are fetched at                                                      | `120`          |
-| `thumbnail_size`                   | Size of each thumbnail in the grid, in WIDTHxHEIGHT format                                           | `320x180`      |
-| `thumbnail_grid`                   | Grid layout for thumbnails, in COLSxROWS format                                                      | `3x3`          |
+| Setting                            | Description                                                                                                    | Default        |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------- |
+| `output_directory`                 | Directory to save recordings                                                                                   | `./recordings` |
+| `monitors`                         | List of usernames to monitor                                                                                   | `none`         |
+| `discord_webhook_url`              | Discord webhook URL for notifications                                                                          | `none`         |
+| `min_free_space_gb`                | Minimum free disk space before cleanup                                                                         | `20`           |
+| `upload_complete_message_template` | Template for upload completion messages                                                                        | `none`         |
+| `max_upload_retries`               | Maximum number of upload retries                                                                               | `3`            |
+| `min_stream_duration`              | Minimum stream duration before recording                                                                       | `none`         |
+| `video_quality`                    | Quality target for variable bitrate video encoding (lower is better)                                           | `26`           |
+| `video_bitrate`                    | Constant video bitrate for CBR encoding (e.g. 6M, 5000k). When set, uses CBR mode and overrides video_quality. | `none`         |
+| `max_bitrate`                      | Maximum video bitrate (e.g. 6M, 2500k). When set, adds -maxrate and -bufsize to ffmpeg                         | `none`         |
+| `stream_reconnect_delay_minutes`   | Delay in minutes to wait for stream continuation before post-processing. Streams resumed are merged.           | `none`         |
+| `disabled_uploaders`               | List of uploaders to skip uploading to                                                                         | `none`         |
+| `step_delay_seconds`               | Delay in seconds between each step in a platform                                                               | `0.5`          |
+| `fetch_interval_seconds`           | The interval in seconds monitors are fetched at                                                                | `120`          |
+| `thumbnail_size`                   | Size of each thumbnail in the grid, in WIDTHxHEIGHT format                                                     | `320x180`      |
+| `thumbnail_grid`                   | Grid layout for thumbnails, in COLSxROWS format                                                                | `3x3`          |
 
 ### Configuration Commands
 
@@ -254,7 +255,3 @@ The tool automatically manages disk space by:
 - Monitoring free space in the output directory
 - Deleting oldest recordings when space falls below `min_free_space_gb`
 - Removing associated thumbnail files
-
-### License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
