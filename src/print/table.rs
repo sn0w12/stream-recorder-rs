@@ -86,13 +86,14 @@ impl Cell {
     }
 
     #[must_use]
+    /// Set a color for this cell, overriding any column default.
     pub fn color(mut self, color: Color) -> Self {
         self.color = Some(color);
         self
     }
 
-    #[allow(dead_code)]
     #[must_use]
+    /// Set a truncation mode for this cell, overriding any column default.
     pub fn truncate(mut self, truncation: Trunc) -> Self {
         self.truncation = Some(truncation);
         self
