@@ -306,6 +306,7 @@ macro_rules! impl_getter_type {
     (vec) => { Vec<String> };         // Return Vec with default
     (f64) => { f64 };                  // Return f64 with default
     (u32) => { u32 };                  // Return u32 with default
+    (u32_opt) => { Option<u32> };     // Return Option<u32> when no default
     (f64_opt) => { Option<f64> };     // Return Option when no default
 }
 
@@ -324,6 +325,9 @@ macro_rules! impl_getter {
     };
     (u32, $field:expr, $default:expr) => {
         $field.unwrap_or($default.unwrap())
+    };
+    (u32_opt, $field:expr, $default:expr) => {
+        $field
     };
     (f64_opt, $field:expr, $default:expr) => {
         $field
@@ -363,6 +367,11 @@ macro_rules! impl_cli_get {
                 .map(|v| v.to_string())
                 .unwrap_or_else(|| "none".into())
         })
+    };
+    (u32_opt, $field:expr, $default:expr) => {
+        $field
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "none".into())
     };
     (f64_opt, $field:expr, $default:expr) => {
         $field
@@ -420,6 +429,18 @@ macro_rules! impl_cli_set {
         };
         Ok::<Option<u32>, anyhow::Error>(result)
     }};
+    (u32_opt, $value:expr) => {{
+        let result: Option<u32> = if $value == "none" {
+            None
+        } else {
+            Some(
+                $value
+                    .parse()
+                    .with_context(|| format!("expected u32, got '{}'", $value))?,
+            )
+        };
+        Ok::<Option<u32>, anyhow::Error>(result)
+    }};
     (f64_opt, $value:expr) => {{
         let result: Option<f64> = if $value == "none" {
             None
@@ -458,6 +479,9 @@ macro_rules! impl_default_str {
         $default
             .map(|v| v.to_string())
             .unwrap_or_else(|| "none".to_string())
+    };
+    (u32_opt, $default:expr) => {
+        "none".to_string()
     };
     (f64_opt, $default:expr) => {
         "none".to_string()
@@ -570,6 +594,18 @@ fn validate_ffmpeg_bitrate(value: &Option<String>) -> Result<()> {
     }
 }
 
+fn validate_positive_u32(value: &Option<u32>) -> Result<()> {
+    let Some(value) = value else {
+        return Ok(());
+    };
+
+    if *value > 0 {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!("value must be greater than zero"))
+    }
+}
+
 // ============================================================================
 // DEFINE ALL CONFIG FIELDS HERE - single source of truth.
 //
@@ -632,13 +668,15 @@ define_config! {
     storage: {
         output_directory: Option<String> = None => Some("./recordings".to_string()), str, "Directory to save recordings",
         min_free_space_gb: Option<f64> = Some(20.0) => Some(20.0), f64, "Minimum free disk space before cleanup",
+        retention_max_age_days: Option<u32> = None => None, u32_opt, "Delete recordings older than this many days", [validate_positive_u32],
+        retention_keep_latest_per_user: Option<u32> = None => None, u32_opt, "Keep only this many of the newest recordings per user", [validate_positive_u32],
     }
 }
 
 impl Config {
     fn render_filtered(&self, filter: Option<&str>, show_desc: bool) -> String {
         let filter_lc = filter.map(|value| value.to_lowercase());
-        let is_filtered = filter_lc.as_deref().map_or(false, |f| !f.is_empty());
+        let is_filtered = filter_lc.as_deref().is_some_and(|f| !f.is_empty());
 
         let mut table = Table::new();
         let mut has_rows = false;
@@ -1012,6 +1050,40 @@ mod readme_sync_tests {
             err.to_string()
                 .contains("Invalid value for 'thumbnail_size'"),
             "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn set_value_accepts_retention_limits() {
+        let mut config = Config::default();
+
+        config
+            .set_value("retention_max_age_days", "14")
+            .expect("set_value should accept a positive retention age");
+        config
+            .set_value("retention_keep_latest_per_user", "3")
+            .expect("set_value should accept a positive retention limit");
+
+        assert_eq!(config.get_value("retention_max_age_days"), "14");
+        assert_eq!(config.get_value("retention_keep_latest_per_user"), "3");
+    }
+
+    #[test]
+    fn set_value_rejects_zero_retention_limits() {
+        let mut config = Config::default();
+
+        let age_err = config
+            .set_value("retention_max_age_days", "0")
+            .expect_err("set_value should reject zero age retention");
+        assert!(age_err.to_string().contains("retention_max_age_days"));
+
+        let keep_err = config
+            .set_value("retention_keep_latest_per_user", "0")
+            .expect_err("set_value should reject zero per-user retention");
+        assert!(
+            keep_err
+                .to_string()
+                .contains("retention_keep_latest_per_user")
         );
     }
 }
