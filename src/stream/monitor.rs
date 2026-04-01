@@ -87,6 +87,7 @@ impl Drop for StreamRecorder {
 /// post-processing — callers are responsible for that.
 async fn record_stream_raw(
     stream_info: StreamInfo,
+    continuation: bool,
 ) -> Result<(StreamInfo, String), Box<dyn std::error::Error + Send + Sync>> {
     println!(
         "Starting recording for stream: {} (user_id: {}, title: {})",
@@ -106,9 +107,11 @@ async fn record_stream_raw(
     let output_path = format!("{}/{}_{}.mp4", user_dir, slugified_username, timestamp_str);
 
     // Send Discord webhook for recording start
-    let webhook_url = config.get_discord_webhook_url();
-    if let Err(e) = send_recording_start_webhook(webhook_url, &stream_info).await {
-        eprintln!("Error sending start webhook: {}", e);
+    if !continuation {
+        let webhook_url = config.get_discord_webhook_url();
+        if let Err(e) = send_recording_start_webhook(webhook_url, &stream_info).await {
+            eprintln!("Error sending start webhook: {}", e);
+        }
     }
 
     // Detect hardware encoder and build ffmpeg arguments
@@ -145,7 +148,7 @@ async fn record_stream_raw(
 pub async fn record_stream(
     stream_info: StreamInfo,
 ) -> Result<(StreamInfo, String), Box<dyn std::error::Error + Send + Sync>> {
-    let (stream_info, output_path) = record_stream_raw(stream_info).await?;
+    let (stream_info, output_path) = record_stream_raw(stream_info, false).await?;
 
     // Spawn post-processing on a new task
     let stream_info_clone = stream_info.clone();
@@ -339,10 +342,9 @@ pub async fn monitor_stream(
                     let reconnect_delay = Config::get().get_stream_reconnect_delay_minutes();
 
                     if let Some(delay_minutes) = reconnect_delay {
-                        // ── Continuation mode ─────────────────────────────────────
                         // Record the first stream of the session.
                         let primary_stream_info = stream_info.clone();
-                        match record_stream_raw(stream_info).await {
+                        match record_stream_raw(stream_info, false).await {
                             Ok((_, first_path)) => {
                                 let mut session_files = vec![first_path];
                                 let mut deadline = tokio::time::Instant::now()
@@ -387,7 +389,8 @@ pub async fn monitor_stream(
                                                     "Continuation stream detected for {}, recording...",
                                                     username
                                                 );
-                                                match record_stream_raw(new_stream_info).await {
+                                                match record_stream_raw(new_stream_info, true).await
+                                                {
                                                     Ok((_, new_path)) => {
                                                         session_files.push(new_path);
                                                         // Reset the deadline so we keep watching
@@ -436,7 +439,6 @@ pub async fn monitor_stream(
                             Err(e) => eprintln!("Error recording stream for {}: {}", username, e),
                         }
                     } else {
-                        // ── Standard mode (original behaviour) ────────────────────
                         if let Err(e) = record_stream(stream_info).await {
                             eprintln!("Error recording stream: {}", e);
                         }
