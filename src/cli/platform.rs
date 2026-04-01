@@ -186,17 +186,17 @@ pub async fn handle_platform_command(action: PlatformAction) -> Result<()> {
             } else {
                 let mut table = Table::new();
                 table.set_headers(vec![
-                    Cell::new("No.", None),
-                    Cell::new("Name", None),
-                    Cell::new("Description", None),
-                    Cell::new("Stars", None),
+                    Cell::new("No."),
+                    Cell::new("Name"),
+                    Cell::new("Description"),
+                    Cell::new("Stars"),
                 ]);
                 for (i, item) in body.items.iter().enumerate() {
                     table.add_row(vec![
-                        Cell::new((i + 1).to_string(), None),
-                        Cell::new(item.full_name.clone(), None),
-                        Cell::new(item.description.clone().unwrap_or_default(), None),
-                        Cell::new(item.stargazers_count.to_string(), None),
+                        Cell::new((i + 1).to_string()),
+                        Cell::new(item.full_name.clone()),
+                        Cell::new(item.description.clone().unwrap_or_default()),
+                        Cell::new(item.stargazers_count.to_string()),
                     ]);
                 }
                 table.print();

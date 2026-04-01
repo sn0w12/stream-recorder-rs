@@ -1,4 +1,4 @@
-use crate::print::table::{Cell, Table};
+use crate::print::table::{Cell, Table, Trunc};
 use crate::thumb::parse_thumbnail_string;
 use crate::utils::app_config_dir;
 use anyhow::{Context, Result};
@@ -122,12 +122,14 @@ macro_rules! define_config {
                 let mut table = Table::new();
 
                 let mut headers = vec![
-                    Cell::new("Key", None),
-                    Cell::new("Value", None),
-                    Cell::new("Default", None),
+                    Cell::new("Key"),
+                    Cell::new("Value"),
+                    Cell::new("Default"),
                 ];
                 if show_desc {
-                    headers.insert(1, Cell::new("Description", None));
+                    headers.insert(1, Cell::new("Description"));
+                } else {
+                    table.set_column_max_width(1, 70);
                 }
                 table.set_headers(headers);
 
@@ -145,18 +147,25 @@ macro_rules! define_config {
 
                     // Color green if current value is changed
                     let current_color = if current != default {
-                        Some(Green)
+                        Green
                     } else {
-                        Some(BrightBlack)
+                        BrightBlack
+                    };
+                    let current_truncation = if key.is_array() {
+                        Trunc::NewLine
+                    } else {
+                        Trunc::Middle
                     };
 
                     let mut row = vec![
-                        Cell::new(key.as_str(), None),
-                        Cell::new(current, current_color),
-                        Cell::new(default, Some(BrightBlack)),
+                        Cell::new(key.as_str()),
+                        Cell::new(current)
+                            .color(current_color)
+                            .truncate(current_truncation),
+                        Cell::new(default).color(BrightBlack),
                     ];
                     if show_desc {
-                        row.insert(1, Cell::new(self.get_description(key.as_str()), None));
+                        row.insert(1, Cell::new(self.get_description(key.as_str())));
                     }
                     table.add_row(row);
                 }

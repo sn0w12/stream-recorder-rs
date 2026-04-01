@@ -639,12 +639,9 @@ async fn post_process_stream(
     }
 
     let mut upload_table = Table::new();
-    upload_table.set_headers(vec![Cell::new("Uploader", None), Cell::new("URLs", None)]);
+    upload_table.set_headers(vec![Cell::new("Uploader"), Cell::new("URLs")]);
     for (uploader, urls) in &upload_results {
-        upload_table.add_row(vec![
-            Cell::new(uploader, None),
-            Cell::new(urls.join(", "), None),
-        ]);
+        upload_table.add_row(vec![Cell::new(uploader), Cell::new(urls.join(", "))]);
     }
     upload_table.print();
 
