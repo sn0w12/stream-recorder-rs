@@ -1,3 +1,4 @@
+use std::fmt;
 use std::process::Stdio;
 
 /// Selects how video is encoded during recording.
@@ -7,6 +8,15 @@ pub enum VideoEncoding {
     Quality(u32),
     /// Constant bitrate (e.g. `"6M"`, `"5000k"`).
     ConstantBitrate(String),
+}
+
+impl fmt::Display for VideoEncoding {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            VideoEncoding::Quality(video_quality) => write!(f, "quality {}", video_quality),
+            VideoEncoding::ConstantBitrate(bitrate) => write!(f, "constant bitrate {}", bitrate),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

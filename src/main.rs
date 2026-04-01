@@ -334,8 +334,17 @@ async fn print_startup_info(platforms: &[PlatformConfig]) {
         None => VideoEncoding::Quality(video_quality),
     };
     match detect_best_hw_encoder(&encoding).await {
-        Some((enc, _)) => info.ok(&enc, "hardware acceleration"),
-        None => info.warn("libx264", "no hardware encoder found, using software"),
+        Some((enc, _)) => info.ok(
+            &enc,
+            format!("hardware acceleration, {}", encoding),
+        ),
+        None => info.warn(
+            "libx264",
+            format!(
+                "no hardware encoder found, using software, {}",
+                encoding
+            ),
+        ),
     }
 
     info.print();
