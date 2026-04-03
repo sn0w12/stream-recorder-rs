@@ -411,6 +411,7 @@ pub fn build_ffmpeg_args(
     encoding: &VideoEncoding,
     hw_encoder: Option<(String, Vec<String>)>,
     max_bitrate: Option<&str>,
+    max_fps: Option<u32>,
 ) -> Vec<String> {
     let mut ffmpeg_args: Vec<String> = vec!["-loglevel".into(), "quiet".into()];
 
@@ -465,6 +466,11 @@ pub fn build_ffmpeg_args(
         ]);
     }
 
+    // Apply optional max FPS cap
+    if let Some(fps) = max_fps {
+        ffmpeg_args.extend(vec!["-filter:v".into(), format!("fps={}", fps)]);
+    }
+
     // Add audio encoding and output path
     ffmpeg_args.extend(vec![
         "-c:a".into(),
@@ -499,6 +505,7 @@ mod tests {
             &VideoEncoding::Quality(19),
             None,
             None,
+            None,
         );
 
         assert!(args.windows(2).any(|window| window == ["-c:v", "libx264"]));
@@ -515,10 +522,28 @@ mod tests {
             &VideoEncoding::Quality(19),
             None,
             Some("6M"),
+            None,
         );
 
         assert!(args.windows(2).any(|window| window == ["-maxrate", "6M"]));
         assert!(args.windows(2).any(|window| window == ["-bufsize", "6M"]));
+    }
+
+    #[test]
+    fn build_ffmpeg_args_with_max_fps() {
+        let args = build_ffmpeg_args(
+            "https://example.com/live.m3u8",
+            "output.mp4",
+            &VideoEncoding::Quality(19),
+            None,
+            None,
+            Some(30),
+        );
+
+        assert!(
+            args.windows(2)
+                .any(|window| window == ["-filter:v", "fps=30"])
+        );
     }
 
     #[test]
@@ -527,6 +552,7 @@ mod tests {
             "https://example.com/live.m3u8",
             "output.mp4",
             &VideoEncoding::ConstantBitrate("6M".to_string()),
+            None,
             None,
             None,
         );

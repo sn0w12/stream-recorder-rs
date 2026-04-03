@@ -136,6 +136,7 @@ Configuration is stored in `~/.config/stream-recorder/config.toml` (Linux/macOS)
 | `video_quality` | Quality target for variable bitrate video encoding (lower is better)                                           | `26`    |
 | `video_bitrate` | Constant video bitrate for CBR encoding (e.g. 6M, 5000k). When set, uses CBR mode and overrides video_quality. | `none`  |
 | `max_bitrate`   | Maximum video bitrate (e.g. 6M, 2500k). When set, adds -maxrate and -bufsize to ffmpeg                         | `none`  |
+| `max_fps`       | Maximum framerate a stream will be recorded at.                                                                | `none`  |
 
 #### Uploads
 

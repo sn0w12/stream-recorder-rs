@@ -228,6 +228,7 @@ async fn record_stream_raw(
     let video_quality = config.get_video_quality();
     let video_bitrate = config.get_video_bitrate();
     let max_bitrate = config.get_max_bitrate();
+    let max_fps = config.get_max_fps();
     let encoding = match video_bitrate {
         Some(bitrate) => VideoEncoding::ConstantBitrate(bitrate.to_string()),
         None => VideoEncoding::Quality(video_quality),
@@ -239,6 +240,7 @@ async fn record_stream_raw(
         &encoding,
         hw_encoder,
         max_bitrate,
+        max_fps,
     );
 
     let mut cmd = tokio::process::Command::new("ffmpeg");
