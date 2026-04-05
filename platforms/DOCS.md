@@ -25,7 +25,7 @@ A platform config is a small HTTP pipeline:
 5. At some point the pipeline must extract `playback_url`, because that is the
    stream URL passed to FFmpeg.
 
-Here are the current internally used extracted values, it is recommended you include as many as you can.
+Here are the current internally used extracted values, it is recommended you include as many as you can. You can see it in the [code](../src/stream/monitor.rs#L38).
 
 | Name           | Required | Purpose                        |
 | -------------- | -------- | ------------------------------ |

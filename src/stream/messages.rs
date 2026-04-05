@@ -70,7 +70,7 @@ pub async fn send_recording_start_webhook(
         spoiler: false,
         components: stream_header_components(
             &stream_info.username,
-            stream_info.avatar_url.clone(),
+            stream_info.extracted.avatar_url.clone(),
             "Stream Recording Started",
         ),
     });
@@ -102,7 +102,7 @@ pub async fn send_recording_complete_webhook(
         components: {
             let mut components = stream_header_components(
                 &stream_info.username,
-                stream_info.avatar_url.clone(),
+                stream_info.extracted.avatar_url.clone(),
                 "Stream Recording Completed",
             );
             components.push(Component::Divider(DividerComponent {
@@ -110,7 +110,14 @@ pub async fn send_recording_complete_webhook(
                 spacing: 1,
             }));
             components.push(Component::Text(TextComponent {
-                content: format!("**Title**\n{}", stream_info.stream_title.clone()),
+                content: format!(
+                    "**Title**\n{}",
+                    stream_info
+                        .extracted
+                        .stream_title
+                        .clone()
+                        .unwrap_or_default()
+                ),
             }));
             components.push(Component::Text(TextComponent {
                 content: format!("**Duration**\n{}", duration_str),
@@ -147,7 +154,7 @@ pub async fn send_template_webhook(
         spoiler: false,
         components: stream_header_components(
             &stream_info.username,
-            stream_info.avatar_url.clone(),
+            stream_info.extracted.avatar_url.clone(),
             "Stream Processing Completed",
         ),
     });
@@ -195,7 +202,7 @@ pub async fn send_minimum_duration_webhook(
         spoiler: false,
         components: stream_header_components(
             &stream_info.username,
-            stream_info.avatar_url.clone(),
+            stream_info.extracted.avatar_url.clone(),
             "Stream Too Short",
         ),
     });

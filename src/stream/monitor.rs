@@ -29,10 +29,18 @@ use walkdir::WalkDir;
 #[derive(Clone)]
 pub struct StreamInfo {
     pub username: String,
-    pub stream_title: String,
-    pub playback_url: String,
-    pub avatar_url: Option<String>,
     pub platform: PlatformConfig,
+    pub extracted: ExtractedStreamValues,
+}
+
+/// Contains values extracted from the platform pipeline.
+#[derive(Clone)]
+pub struct ExtractedStreamValues {
+    // Required values
+    pub playback_url: String,
+    // Optional values
+    pub stream_title: Option<String>,
+    pub avatar_url: Option<String>,
 }
 
 /// Struct to manage the ffmpeg process, ensuring it's killed when dropped.
@@ -200,7 +208,12 @@ async fn record_stream_raw(
 ) -> Result<(StreamInfo, String), Box<dyn std::error::Error + Send + Sync>> {
     println!(
         "Starting recording for stream: {} (title: {})",
-        stream_info.username, stream_info.stream_title
+        stream_info.username,
+        stream_info
+            .extracted
+            .stream_title
+            .clone()
+            .unwrap_or_default()
     );
 
     let config = Config::get();
@@ -234,7 +247,7 @@ async fn record_stream_raw(
     };
     let hw_encoder = detect_best_hw_encoder(&encoding).await;
     let ffmpeg_args = build_ffmpeg_args(
-        &stream_info.playback_url,
+        &stream_info.extracted.playback_url,
         &output_path,
         &encoding,
         hw_encoder,
@@ -432,17 +445,16 @@ pub async fn monitor_stream(
             Ok(PipelineOutcome::Live(vars)) => {
                 let playback_url = vars.get("playback_url").cloned();
                 if let Some(url) = playback_url {
-                    let stream_title = vars
-                        .get("stream_title")
-                        .map(|s| platform.clean_title(s))
-                        .unwrap_or_default();
+                    let stream_title = vars.get("stream_title").map(|s| platform.clean_title(s));
                     let avatar_url = vars.get("avatar_url").cloned();
                     let stream_info = StreamInfo {
                         username: username.to_string(),
-                        stream_title,
-                        playback_url: url,
-                        avatar_url,
                         platform: platform.clone(),
+                        extracted: ExtractedStreamValues {
+                            playback_url: url,
+                            stream_title,
+                            avatar_url,
+                        },
                     };
 
                     let reconnect_delay = Config::get().get_stream_reconnect_delay_minutes();
@@ -479,13 +491,16 @@ pub async fn monitor_stream(
                                             {
                                                 let new_stream_info = StreamInfo {
                                                     username: username.to_string(),
-                                                    stream_title: new_vars
-                                                        .get("stream_title")
-                                                        .map(|s| platform.clean_title(s))
-                                                        .unwrap_or_default(),
-                                                    playback_url: new_url,
-                                                    avatar_url: new_vars.get("avatar_url").cloned(),
                                                     platform: platform.clone(),
+                                                    extracted: ExtractedStreamValues {
+                                                        playback_url: new_url,
+                                                        stream_title: new_vars
+                                                            .get("stream_title")
+                                                            .map(|s| platform.clean_title(s)),
+                                                        avatar_url: new_vars
+                                                            .get("avatar_url")
+                                                            .cloned(),
+                                                    },
                                                 };
                                                 println!(
                                                     "Continuation stream detected for {}, recording...",
@@ -763,7 +778,13 @@ async fn post_process_stream(
     );
     template_context.insert(
         "stream_title".to_string(),
-        TemplateValue::String(stream_info.stream_title.clone()),
+        TemplateValue::String(
+            stream_info
+                .extracted
+                .stream_title
+                .clone()
+                .unwrap_or_default(),
+        ),
     );
     for (uploader, urls) in &upload_results {
         template_context.insert(
