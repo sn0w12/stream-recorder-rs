@@ -29,7 +29,6 @@ use walkdir::WalkDir;
 #[derive(Clone)]
 pub struct StreamInfo {
     pub username: String,
-    pub user_id: String,
     pub stream_title: String,
     pub playback_url: String,
     pub avatar_url: Option<String>,
@@ -200,8 +199,8 @@ async fn record_stream_raw(
     continuation: bool,
 ) -> Result<(StreamInfo, String), Box<dyn std::error::Error + Send + Sync>> {
     println!(
-        "Starting recording for stream: {} (user_id: {}, title: {})",
-        stream_info.username, stream_info.user_id, stream_info.stream_title
+        "Starting recording for stream: {} (title: {})",
+        stream_info.username, stream_info.stream_title
     );
 
     let config = Config::get();
@@ -437,14 +436,9 @@ pub async fn monitor_stream(
                         .get("stream_title")
                         .map(|s| platform.clean_title(s))
                         .unwrap_or_default();
-                    let user_id = vars
-                        .get("user_id")
-                        .cloned()
-                        .unwrap_or_else(|| username.to_string());
                     let avatar_url = vars.get("avatar_url").cloned();
                     let stream_info = StreamInfo {
                         username: username.to_string(),
-                        user_id,
                         stream_title,
                         playback_url: url,
                         avatar_url,
@@ -485,10 +479,6 @@ pub async fn monitor_stream(
                                             {
                                                 let new_stream_info = StreamInfo {
                                                     username: username.to_string(),
-                                                    user_id: new_vars
-                                                        .get("user_id")
-                                                        .cloned()
-                                                        .unwrap_or_else(|| username.to_string()),
                                                     stream_title: new_vars
                                                         .get("stream_title")
                                                         .map(|s| platform.clean_title(s))
@@ -762,10 +752,6 @@ async fn post_process_stream(
     template_context.insert(
         "username".to_string(),
         TemplateValue::String(stream_info.username.clone()),
-    );
-    template_context.insert(
-        "user_id".to_string(),
-        TemplateValue::String(stream_info.user_id.clone()),
     );
     template_context.insert(
         "output_path".to_string(),
