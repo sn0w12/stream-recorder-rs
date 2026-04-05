@@ -33,7 +33,7 @@ stream-recorder -h
 
 1. **Install a platform**
 
-    To begin recording streams, you need to either install or create a platform json file. If you are looking to create your own, look into `/platforms/*` for examples.
+    To begin recording streams, you need to either install or create a platform json file. If you are looking to create your own, read the [docs](./platforms/DOCS.md) or look into `/platforms/*` for examples.
 
     To install an already existing one, you can use the cli.
 
