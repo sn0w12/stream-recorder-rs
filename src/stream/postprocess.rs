@@ -202,7 +202,12 @@ pub async fn post_process_stream(stream_info: StreamInfo, output_path: String) -
 
     let duration_str = format_duration(duration_minutes);
     let size_str = format_file_size(file_size_mb);
-    send_recording_complete_notification(&stream_info, &duration_str, &size_str).await;
+    let webhook_url = Config::get().get_discord_webhook_url();
+    if let Err(error) =
+        send_recording_complete_webhook(webhook_url, &stream_info, &duration_str, &size_str).await
+    {
+        eprintln!("Error sending recorded webhook: {}", error);
+    }
 
     let thumbnail_path = generate_thumbnail(&output_path).await;
     let upload_results = upload_recording(&stream_info, &output_path).await;
@@ -287,19 +292,6 @@ fn build_ffconcat_manifest(files: &[String]) -> StreamResult<String> {
     Ok(manifest)
 }
 
-async fn send_recording_complete_notification(
-    stream_info: &StreamInfo,
-    duration_str: &str,
-    size_str: &str,
-) {
-    let webhook_url = Config::get().get_discord_webhook_url();
-    if let Err(error) =
-        send_recording_complete_webhook(webhook_url, stream_info, duration_str, size_str).await
-    {
-        eprintln!("Error sending recorded webhook: {}", error);
-    }
-}
-
 async fn generate_thumbnail(output_path: &str) -> String {
     let config = Config::get();
     let thumbnail_path = output_path.replace(".mp4", "_thumb.jpg");
@@ -369,13 +361,41 @@ async fn send_template_notification(
         return;
     };
 
-    let template_context =
-        build_template_context(stream_info, output_path, thumbnail_path, upload_results);
-    let content = format!(
-        "```\n{}\n```",
-        render_template(&template, &template_context)
+    let mut context: HashMap<String, TemplateValue> = HashMap::new();
+    context.insert(
+        "date".to_string(),
+        TemplateValue::String(Utc::now().format("%Y-%m-%d").to_string()),
     );
+    context.insert(
+        "username".to_string(),
+        TemplateValue::String(stream_info.username.clone()),
+    );
+    context.insert(
+        "output_path".to_string(),
+        TemplateValue::String(output_path.to_string()),
+    );
+    context.insert(
+        "thumbnail_path".to_string(),
+        TemplateValue::String(thumbnail_path.to_string()),
+    );
+    context.insert(
+        "stream_title".to_string(),
+        TemplateValue::String(
+            stream_info
+                .extracted
+                .stream_title
+                .clone()
+                .unwrap_or_default(),
+        ),
+    );
+    for (uploader, urls) in upload_results {
+        context.insert(
+            format!("{}_urls", uploader),
+            TemplateValue::Array(urls.clone()),
+        );
+    }
 
+    let content = format!("```\n{}\n```", render_template(&template, &context));
     let webhook_url = Config::get().get_discord_webhook_url();
     if let Err(error) = send_template_webhook(
         webhook_url,
@@ -387,48 +407,6 @@ async fn send_template_notification(
     {
         eprintln!("Error sending template webhook: {}", error);
     }
-}
-
-fn build_template_context(
-    stream_info: &StreamInfo,
-    output_path: &str,
-    thumbnail_path: &str,
-    upload_results: &HashMap<String, Vec<String>>,
-) -> HashMap<String, TemplateValue> {
-    let mut template_context = HashMap::new();
-    let date = Utc::now().format("%Y-%m-%d").to_string();
-    template_context.insert("date".to_string(), TemplateValue::String(date));
-    template_context.insert(
-        "username".to_string(),
-        TemplateValue::String(stream_info.username.clone()),
-    );
-    template_context.insert(
-        "output_path".to_string(),
-        TemplateValue::String(output_path.to_string()),
-    );
-    template_context.insert(
-        "thumbnail_path".to_string(),
-        TemplateValue::String(thumbnail_path.to_string()),
-    );
-    template_context.insert(
-        "stream_title".to_string(),
-        TemplateValue::String(
-            stream_info
-                .extracted
-                .stream_title
-                .clone()
-                .unwrap_or_default(),
-        ),
-    );
-
-    for (uploader, urls) in upload_results {
-        template_context.insert(
-            format!("{}_urls", uploader),
-            TemplateValue::Array(urls.clone()),
-        );
-    }
-
-    template_context
 }
 
 async fn get_video_metadata(output_path: &str) -> StreamResult<(f64, f64)> {
@@ -522,117 +500,66 @@ async fn manage_disk_space() -> StreamResult<()> {
     let mut files_by_age = files.clone();
     files_by_age.sort_by_key(|file| file.modified);
 
+    // Apply retention policies to determine which files to delete
     let mut planned_deletions = HashSet::new();
-    apply_age_retention(
-        &files,
-        &mut planned_deletions,
-        config.get_retention_max_age_days(),
-    );
-    apply_per_user_retention(
-        &files,
-        &mut planned_deletions,
-        config.get_retention_keep_latest_per_user(),
-    );
-
-    let attempted = delete_planned_recordings(&files_by_age, &planned_deletions).await;
-    if available_space(output_dir_path)? >= min_free_bytes {
-        return Ok(());
+    if let Some(max_age_days) = config.get_retention_max_age_days() {
+        let age_candidates = retention_age_candidates(&files, max_age_days, SystemTime::now());
+        if !age_candidates.is_empty() {
+            println!(
+                "Applying age-based retention: deleting {} recording(s) older than {} day(s)...",
+                age_candidates.len(),
+                max_age_days
+            );
+        }
+        planned_deletions.extend(age_candidates);
     }
-
-    println!(
-        "Free space {} GB is below minimum {} GB, cleaning up old streams...",
-        available_space(output_dir_path)? as f64 / 1_000_000_000.0,
-        min_free_gb
-    );
-
-    free_disk_space(output_dir_path, min_free_bytes, &files_by_age, attempted).await?;
-    Ok(())
-}
-
-fn apply_age_retention(
-    files: &[RecordingFile],
-    planned_deletions: &mut HashSet<PathBuf>,
-    max_age_days: Option<u32>,
-) {
-    let Some(max_age_days) = max_age_days else {
-        return;
-    };
-
-    let age_candidates = retention_age_candidates(files, max_age_days, SystemTime::now());
-    if !age_candidates.is_empty() {
-        println!(
-            "Applying age-based retention: deleting {} recording(s) older than {} day(s)...",
-            age_candidates.len(),
-            max_age_days
-        );
-    }
-
-    planned_deletions.extend(age_candidates);
-}
-
-fn apply_per_user_retention(
-    files: &[RecordingFile],
-    planned_deletions: &mut HashSet<PathBuf>,
-    keep_latest_per_user: Option<u32>,
-) {
-    let Some(keep_latest_per_user) = keep_latest_per_user else {
-        return;
-    };
-
-    let keep_set = retention_keep_latest_per_user(files, keep_latest_per_user);
-    let per_user_count = files
-        .iter()
-        .filter(|file| !keep_set.contains(&file.path) && !planned_deletions.contains(&file.path))
-        .count();
-
-    if per_user_count > 0 {
-        println!(
-            "Applying per-user retention: keeping the newest {} recording(s) per user and deleting {} older file(s)...",
-            keep_latest_per_user, per_user_count
-        );
-    }
-
-    planned_deletions.extend(
-        files
+    if let Some(keep_latest_per_user) = config.get_retention_keep_latest_per_user() {
+        let keep_set = retention_keep_latest_per_user(&files, keep_latest_per_user);
+        let per_user_count = files
             .iter()
-            .filter(|file| !keep_set.contains(&file.path))
-            .map(|file| file.path.clone()),
-    );
-}
+            .filter(|file| {
+                !keep_set.contains(&file.path) && !planned_deletions.contains(&file.path)
+            })
+            .count();
+        if per_user_count > 0 {
+            println!(
+                "Applying per-user retention: keeping the newest {} recording(s) per user and deleting {} older file(s)...",
+                keep_latest_per_user, per_user_count
+            );
+        }
+        planned_deletions.extend(
+            files
+                .iter()
+                .filter(|file| !keep_set.contains(&file.path))
+                .map(|file| file.path.clone()),
+        );
+    }
 
-async fn delete_planned_recordings(
-    files_by_age: &[RecordingFile],
-    planned_deletions: &HashSet<PathBuf>,
-) -> HashSet<PathBuf> {
+    // Delete all retention-flagged files
     let mut attempted = HashSet::new();
-
-    for file in files_by_age {
+    for file in &files_by_age {
         if planned_deletions.contains(&file.path) {
             attempted.insert(file.path.clone());
             delete_recording_assets(&file.path).await;
         }
     }
 
-    attempted
-}
-
-async fn free_disk_space(
-    output_dir_path: &Path,
-    min_free_bytes: u64,
-    files_by_age: &[RecordingFile],
-    mut attempted: HashSet<PathBuf>,
-) -> StreamResult<()> {
-    for file in files_by_age {
-        if available_space(output_dir_path)? >= min_free_bytes {
-            break;
+    // Free additional space if still below the minimum threshold
+    if available_space(output_dir_path)? < min_free_bytes {
+        println!(
+            "Free space {} GB is below minimum {} GB, cleaning up old streams...",
+            available_space(output_dir_path)? as f64 / 1_000_000_000.0,
+            min_free_gb
+        );
+        for file in &files_by_age {
+            if available_space(output_dir_path)? >= min_free_bytes {
+                break;
+            }
+            if !attempted.contains(&file.path) {
+                attempted.insert(file.path.clone());
+                delete_recording_assets(&file.path).await;
+            }
         }
-
-        if attempted.contains(&file.path) {
-            continue;
-        }
-
-        attempted.insert(file.path.clone());
-        delete_recording_assets(&file.path).await;
     }
 
     Ok(())
