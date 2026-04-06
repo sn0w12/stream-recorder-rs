@@ -40,37 +40,32 @@ pub fn handle_token_command(action: TokenAction) -> Result<()> {
             save_token("filester_token", &token, "Filester token")
         }
         TokenAction::SavePlatform { platform_id, token } => {
-            let platforms = PlatformConfig::load_all()?;
-            let platform =
-                PlatformConfig::find_by_id(&platforms, &platform_id).ok_or_else(|| {
-                    anyhow::anyhow!(
-                        "Unknown platform '{}'. Check your platforms directory.",
-                        platform_id
-                    )
-                })?;
-            let token_name = platform.token_name.as_deref().ok_or_else(|| {
-                anyhow::anyhow!("Platform '{}' does not use a token.", platform_id)
-            })?;
-            save_token(token_name, &token, &format!("{} token", platform.name))
+            let (token_name, platform_name) = get_token_info_for_platform(&platform_id)?;
+            save_token(&token_name, &token, &format!("{} token", platform_name))
         }
         TokenAction::RemoveBunkr => remove_token("bunkr_token", "Bunkr token"),
         TokenAction::RemoveGofile => remove_token("gofile_token", "GoFile token"),
         TokenAction::RemoveFilester => remove_token("filester_token", "Filester token"),
         TokenAction::RemovePlatform { platform_id } => {
-            let platforms = PlatformConfig::load_all()?;
-            let platform =
-                PlatformConfig::find_by_id(&platforms, &platform_id).ok_or_else(|| {
-                    anyhow::anyhow!(
-                        "Unknown platform '{}'. Check your platforms directory.",
-                        platform_id
-                    )
-                })?;
-            let token_name = platform.token_name.as_deref().ok_or_else(|| {
-                anyhow::anyhow!("Platform '{}' does not use a token.", platform_id)
-            })?;
-            remove_token(token_name, &format!("{} token", platform.name))
+            let (token_name, platform_name) = get_token_info_for_platform(&platform_id)?;
+            remove_token(&token_name, &format!("{} token", platform_name))
         }
     }
+}
+
+fn get_token_info_for_platform(platform_id: &str) -> Result<(String, String)> {
+    let platforms = PlatformConfig::load_all()?;
+    let platform = PlatformConfig::find_by_id(&platforms, platform_id).ok_or_else(|| {
+        anyhow::anyhow!(
+            "Unknown platform '{}'. Check your platforms directory.",
+            platform_id
+        )
+    })?;
+    let token_name = platform
+        .token_name
+        .as_deref()
+        .ok_or_else(|| anyhow::anyhow!("Platform '{}' does not use a token.", platform_id))?;
+    Ok((token_name.to_string(), platform.name.clone()))
 }
 
 fn save_token(key: &str, token: &str, display_name: &str) -> Result<()> {
