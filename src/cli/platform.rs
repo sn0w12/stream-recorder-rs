@@ -69,38 +69,7 @@ struct RepoItem {
 pub async fn handle_platform_command(action: PlatformAction) -> Result<()> {
     match action {
         PlatformAction::List => {
-            let platforms = PlatformConfig::load_all()?;
-            if platforms.is_empty() {
-                println!("No platforms installed.");
-                println!("Install one with: platform install <url>");
-            } else {
-                println!("Installed platforms:");
-                for p in &platforms {
-                    let token_status = if let Some(token_name) = &p.token_name {
-                        if crate::utils::get_token_by_name(token_name).is_some() {
-                            "token configured"
-                        } else {
-                            "no token"
-                        }
-                    } else {
-                        "no token required"
-                    };
-                    let update_status = if p.source_url.is_some() {
-                        "updatable"
-                    } else {
-                        "no source URL"
-                    };
-                    println!(
-                        "  {} ({}) v{} — {} steps, {}, {}",
-                        p.id,
-                        p.name,
-                        p.version,
-                        p.steps.len(),
-                        token_status,
-                        update_status
-                    );
-                }
-            }
+            handle_list_monitors()?;
             Ok(())
         }
         PlatformAction::Install { url } => {
@@ -206,6 +175,42 @@ pub async fn handle_platform_command(action: PlatformAction) -> Result<()> {
             Ok(())
         }
     }
+}
+
+fn handle_list_monitors() -> Result<()> {
+    let platforms = PlatformConfig::load_all()?;
+    if platforms.is_empty() {
+        println!("No platforms installed.");
+        println!("Install one with: platform install <url>");
+    } else {
+        println!("Installed platforms:");
+        for p in &platforms {
+            let token_status = if let Some(token_name) = &p.token_name {
+                if crate::utils::get_token_by_name(token_name).is_some() {
+                    "token configured"
+                } else {
+                    "no token"
+                }
+            } else {
+                "no token required"
+            };
+            let update_status = if p.source_url.is_some() {
+                "updatable"
+            } else {
+                "no source URL"
+            };
+            println!(
+                "  {} ({}) v{} — {} steps, {}, {}",
+                p.id,
+                p.name,
+                p.version,
+                p.steps.len(),
+                token_status,
+                update_status
+            );
+        }
+    }
+    Ok(())
 }
 
 async fn handle_debug_command(
