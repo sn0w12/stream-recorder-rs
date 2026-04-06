@@ -32,6 +32,9 @@ semver = "1.0"
 colored = "3"
 handlebars = "6.4.0"
 
+[dev-dependencies]
+criterion = "0.5.1"
+
 [target.'cfg(target_os = "windows")'.dependencies]
 keyring = { version = "3.6", features = ["windows-native"] }
 
@@ -46,3 +49,10 @@ opt-level = 3
 lto = true
 panic = "abort"
 strip = true
+
+[profile.bench]
+lto = true
+
+[[bench]]
+name = "local_hot_paths"
+harness = false
