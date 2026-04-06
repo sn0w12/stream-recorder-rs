@@ -1,6 +1,7 @@
-use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use serde_json::json;
 use std::collections::HashMap;
+use std::hint::black_box;
 
 use stream_recorder::platform::{
     LiveCheck, LiveCheckCondition, PipelineStep, PlatformConfig, TitleCleanRule, extract_json_value,
