@@ -129,6 +129,12 @@ impl GoFileUploader {
     }
 }
 
+impl Default for GoFileUploader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl Uploader for GoFileUploader {
     async fn upload_file(

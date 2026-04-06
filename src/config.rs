@@ -104,7 +104,7 @@ macro_rules! define_config {
                 }
             }
 
-            pub fn from_str(s: &str) -> Option<Self> {
+            pub fn from_key(s: &str) -> Option<Self> {
                 match s {
                     $(
                         $(
@@ -175,7 +175,7 @@ macro_rules! define_config {
             }
 
             pub fn get_value(&self, key: &str) -> String {
-                match ConfigKey::from_str(key) {
+                match ConfigKey::from_key(key) {
                     $(
                         $(
                             Some(ConfigKey::$field) => impl_cli_get!($kind, self.$field, $runtime_default),
@@ -186,7 +186,7 @@ macro_rules! define_config {
             }
 
             pub fn set_value(&mut self, key: &str, value: &str) -> Result<()> {
-                match ConfigKey::from_str(key) {
+                match ConfigKey::from_key(key) {
                     $(
                         $(
                             Some(ConfigKey::$field) => {
@@ -212,7 +212,7 @@ macro_rules! define_config {
             }
 
             pub fn get_description(&self, key: &str) -> String {
-                match ConfigKey::from_str(key) {
+                match ConfigKey::from_key(key) {
                     $(
                         $(
                             Some(ConfigKey::$field) => $desc.to_string(),

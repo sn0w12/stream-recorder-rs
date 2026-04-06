@@ -169,3 +169,9 @@ impl StartupInfo {
         }
     }
 }
+
+impl Default for StartupInfo {
+    fn default() -> Self {
+        Self::new()
+    }
+}

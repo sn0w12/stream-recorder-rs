@@ -50,6 +50,12 @@ impl FilesterUploader {
     }
 }
 
+impl Default for FilesterUploader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl Uploader for FilesterUploader {
     async fn upload_file(

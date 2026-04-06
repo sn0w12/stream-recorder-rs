@@ -71,6 +71,12 @@ impl FileditchUploader {
     }
 }
 
+impl Default for FileditchUploader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl Uploader for FileditchUploader {
     async fn upload_file(

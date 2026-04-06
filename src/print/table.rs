@@ -413,6 +413,12 @@ impl Table {
     }
 }
 
+impl Default for Table {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'a> SectionBuilder<'a> {
     pub fn align(self, align: SectionAlign) -> Self {
         if let Some(TableRow::Section(section)) = self.table.rows.get_mut(self.row_index) {

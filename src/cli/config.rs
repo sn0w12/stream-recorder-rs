@@ -48,7 +48,7 @@ pub fn handle_config_command(action: ConfigAction) -> Result<()> {
         ConfigAction::Add { key, value } => {
             let mut config = Config::load()?;
             let config_key =
-                ConfigKey::from_str(&key).ok_or_else(|| anyhow::anyhow!("Unknown key: {}", key))?;
+                ConfigKey::from_key(&key).ok_or_else(|| anyhow::anyhow!("Unknown key: {}", key))?;
             if !config_key.is_array() {
                 return Err(anyhow::anyhow!("Key '{}' is not an array setting", key));
             }
@@ -71,7 +71,7 @@ pub fn handle_config_command(action: ConfigAction) -> Result<()> {
         ConfigAction::Remove { key, value } => {
             let mut config = Config::load()?;
             let config_key =
-                ConfigKey::from_str(&key).ok_or_else(|| anyhow::anyhow!("Unknown key: {}", key))?;
+                ConfigKey::from_key(&key).ok_or_else(|| anyhow::anyhow!("Unknown key: {}", key))?;
             if !config_key.is_array() {
                 return Err(anyhow::anyhow!("Key '{}' is not an array setting", key));
             }
@@ -98,7 +98,7 @@ pub fn handle_config_command(action: ConfigAction) -> Result<()> {
         ConfigAction::Reset { key } => {
             let mut config = Config::load()?;
             let config_key =
-                ConfigKey::from_str(&key).ok_or_else(|| anyhow::anyhow!("Unknown key: {}", key))?;
+                ConfigKey::from_key(&key).ok_or_else(|| anyhow::anyhow!("Unknown key: {}", key))?;
             let default = config.get_default_string(config_key);
             config.set_value(&key, &default)?;
             config.save()?;

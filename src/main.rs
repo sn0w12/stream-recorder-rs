@@ -569,7 +569,7 @@ mod tests {
     fn test_stream_reconnect_delay_key_recognised_by_config() {
         use crate::config::ConfigKey;
         assert!(
-            ConfigKey::from_str("stream_reconnect_delay_minutes").is_some(),
+            ConfigKey::from_key("stream_reconnect_delay_minutes").is_some(),
             "stream_reconnect_delay_minutes should be a recognised config key"
         );
     }

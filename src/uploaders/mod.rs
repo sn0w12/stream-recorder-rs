@@ -5,53 +5,6 @@
 //! - Uploading files
 //! - Checking if the uploader is ready/configured
 //! - Getting the uploader's name
-//!
-//! # Adding a New Uploader
-//!
-//! To add a new uploader:
-//!
-//! 1. Create a new module file (e.g., `newservice.rs`)
-//! 2. Implement the `Uploader` trait for your service
-//! 3. Add the module to this file and export it
-//! 4. Use it in `monitor.rs` like the existing uploaders
-//!
-//! ## Example
-//!
-//! ```rust,ignore
-//! use async_trait::async_trait;
-//! use super::{Uploader, UploaderConfig, UploadResult, error::UploadError};
-//!
-//! pub struct MyUploader {
-//!     api_key: String,
-//! }
-//!
-//! impl MyUploader {
-//!     pub fn new(api_key: String) -> Self {
-//!         Self { api_key }
-//!     }
-//! }
-//!
-//! #[async_trait]
-//! impl Uploader for MyUploader {
-//!     async fn upload_file(&self, file_path: &str, config: &UploaderConfig)
-//!         -> Result<UploadResult, UploadError>
-//!     {
-//!         // Upload implementation here
-//!         Ok(UploadResult {
-//!             urls: vec!["https://example.com/file".to_string()],
-//!             raw_response: None,
-//!         })
-//!     }
-//!
-//!     fn name(&self) -> &str {
-//!         "myuploader"
-//!     }
-//!
-//!     async fn is_ready(&self) -> bool {
-//!         !self.api_key.is_empty()
-//!     }
-//! }
-//! ```
 
 pub mod bunkr;
 pub mod error;
