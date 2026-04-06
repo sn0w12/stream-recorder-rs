@@ -1,4 +1,4 @@
-use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion};
 use serde_json::json;
 use std::collections::HashMap;
 use std::hint::black_box;
@@ -129,10 +129,10 @@ fn sample_context() -> HashMap<String, TemplateValue> {
 }
 
 fn sample_template() -> &'static str {
-    include_str!("../templates/example.hbr")
+    include_str!("../../templates/example.hbr")
 }
 
-fn bench_json_path_extraction(c: &mut Criterion) {
+pub fn bench_json_path_extraction(c: &mut Criterion) {
     let value = sample_response();
     let mut group = c.benchmark_group("json_path_extraction");
 
@@ -155,7 +155,7 @@ fn bench_json_path_extraction(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_pipeline_extraction_loop(c: &mut Criterion) {
+pub fn bench_pipeline_extraction_loop(c: &mut Criterion) {
     let value = sample_response();
     let extractors = sample_pipeline_extractors();
     let mut group = c.benchmark_group("pipeline_extraction_loop");
@@ -177,7 +177,7 @@ fn bench_pipeline_extraction_loop(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_live_check_matching(c: &mut Criterion) {
+pub fn bench_live_check_matching(c: &mut Criterion) {
     let value = sample_response();
     let mut group = c.benchmark_group("live_check_matching");
 
@@ -215,7 +215,7 @@ fn bench_live_check_matching(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_title_cleaning(c: &mut Criterion) {
+pub fn bench_title_cleaning(c: &mut Criterion) {
     let mut group = c.benchmark_group("title_cleaning");
     let title = "  :smile: Hello   [VOD]   World :tada:  ";
 
@@ -245,7 +245,7 @@ fn bench_title_cleaning(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_template_rendering(c: &mut Criterion) {
+pub fn bench_template_rendering(c: &mut Criterion) {
     let mut group = c.benchmark_group("template_rendering");
     let template = sample_template();
     let context = sample_context();
@@ -256,13 +256,3 @@ fn bench_template_rendering(c: &mut Criterion) {
 
     group.finish();
 }
-
-criterion_group!(
-    benches,
-    bench_json_path_extraction,
-    bench_pipeline_extraction_loop,
-    bench_live_check_matching,
-    bench_title_cleaning,
-    bench_template_rendering
-);
-criterion_main!(benches);

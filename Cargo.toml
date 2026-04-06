@@ -50,9 +50,9 @@ lto = true
 panic = "abort"
 strip = true
 
-[profile.bench]
-lto = true
+[lib]
+bench = false
 
 [[bench]]
-name = "local_hot_paths"
+name = "main"
 harness = false
