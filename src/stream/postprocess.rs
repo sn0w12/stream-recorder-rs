@@ -485,28 +485,6 @@ fn format_duration(duration_minutes: f64) -> String {
     }
 }
 
-async fn delete_video_and_thumbnail(output_path: &str) -> StreamResult<()> {
-    if let Err(error) = tokio::fs::remove_file(output_path).await {
-        eprintln!("Failed to delete video file {}: {}", output_path, error);
-    } else {
-        println!("Deleted video file: {}", output_path);
-    }
-
-    let output_path_buf = Path::new(output_path);
-    if let Some(thumbnail_path) = recording_thumbnail_path(output_path_buf)
-        && thumbnail_path.exists()
-        && let Err(error) = tokio::fs::remove_file(&thumbnail_path).await
-    {
-        eprintln!(
-            "Failed to delete thumbnail {}: {}",
-            thumbnail_path.display(),
-            error
-        );
-    }
-
-    Ok(())
-}
-
 async fn handle_minimum_duration(
     output_path: &str,
     duration_minutes: f64,
@@ -519,8 +497,10 @@ async fn handle_minimum_duration(
             "Stream duration ({:.1} minutes) is below minimum threshold ({:.1} minutes), removing files without processing",
             duration_minutes, min_duration
         );
+        let output_path_buf = Path::new(output_path);
+
         send_minimum_duration_webhook(webhook_url, &stream_info).await?;
-        delete_video_and_thumbnail(output_path).await?;
+        delete_recording_assets(output_path_buf).await;
         return Ok(true);
     }
 
