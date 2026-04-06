@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775491081471,
+  "lastUpdate": 1775491095783,
   "repoUrl": "https://github.com/sn0w12/stream-recorder-rs",
   "entries": {
     "Rust Benchmark": [
@@ -305,6 +305,108 @@ window.BENCHMARK_DATA = {
             "name": "template_rendering/example_template",
             "value": 205337,
             "range": "± 4011",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "105451515+sn0w12@users.noreply.github.com",
+            "name": "sn0w",
+            "username": "sn0w12"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2aded0392d9978a5b13b819669f44f70dfa909f1",
+          "message": "Merge pull request #10 from sn0w12/dependabot/cargo/tempfile-3.27.0\n\nBump tempfile from 3.23.0 to 3.27.0",
+          "timestamp": "2026-04-06T17:52:59+02:00",
+          "tree_id": "e00d06ace0a9df852942e754dfb140408dbd3aa1",
+          "url": "https://github.com/sn0w12/stream-recorder-rs/commit/2aded0392d9978a5b13b819669f44f70dfa909f1"
+        },
+        "date": 1775491095247,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "json_path_extraction/extract_json_value/flat",
+            "value": 42,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "json_path_extraction/extract_json_value/nested",
+            "value": 120,
+            "range": "± 4",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "json_path_extraction/extract_json_value/array",
+            "value": 123,
+            "range": "± 3",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "json_path_extraction/extract_json_value/missing",
+            "value": 113,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "json_path_extraction/extract_json_value/null_or_missing",
+            "value": 77,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "pipeline_extraction_loop/extract_all_fields",
+            "value": 738,
+            "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "live_check_matching/matches/path_exists",
+            "value": 123,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "live_check_matching/matches/equals_match",
+            "value": 120,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "live_check_matching/matches/equals_miss",
+            "value": 123,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "title_cleaning/clean_title/no_rules",
+            "value": 13,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "title_cleaning/clean_title/one_rule",
+            "value": 339664,
+            "range": "± 3317",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "title_cleaning/clean_title/three_rules",
+            "value": 412522,
+            "range": "± 5474",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "template_rendering/example_template",
+            "value": 205302,
+            "range": "± 3652",
             "unit": "ns/iter"
           }
         ]
