@@ -304,9 +304,9 @@ async fn print_startup_info(platforms: &[PlatformConfig]) {
         info.plain("No users configured", Some(Yellow));
     } else {
         for monitor in &monitors {
-            let (platform_id, _username) = match parse_monitor_string(monitor) {
-                Some(pair) => pair,
-                None => {
+            let (platform_id, _username) = match utils::split_monitor_reference(monitor) {
+                Ok(pair) => pair,
+                Err(_) => {
                     info.err(monitor, "malformed monitor string");
                     continue;
                 }
@@ -366,9 +366,9 @@ async fn run_recording(platforms: &[PlatformConfig], cli_token: Option<String>) 
     }
 
     for monitor_str in monitors {
-        let (platform_id, username) = match parse_monitor_string(&monitor_str) {
-            Some(pair) => pair,
-            None => continue,
+        let (platform_id, username) = match utils::split_monitor_reference(&monitor_str) {
+            Ok(pair) => pair,
+            Err(_) => continue,
         };
 
         let platform = match PlatformConfig::find_by_id(platforms, &platform_id) {
@@ -404,31 +404,6 @@ async fn run_recording(platforms: &[PlatformConfig], cli_token: Option<String>) 
     println!("Shutting down...");
 
     Ok(())
-}
-
-/// Parses a monitor string into a (platform_id, username) pair.
-///
-/// Requires the `platform_id:username` format. Returns `None` for strings
-/// that do not contain a `:` separator, logging a helpful error message.
-fn parse_monitor_string(s: &str) -> Option<(String, String)> {
-    if let Some((platform, username)) = s.split_once(':') {
-        if platform.is_empty() || username.is_empty() {
-            eprintln!(
-                "Skipping malformed monitor '{}': both platform_id and username must be non-empty.",
-                s
-            );
-            return None;
-        }
-        Some((platform.to_string(), username.to_string()))
-    } else {
-        eprintln!(
-            "Skipping monitor '{}': missing platform prefix. \
-             Use 'platform_id:username' format. \
-             Update it with: config monitors remove {} && config monitors add <platform>:{}",
-            s, s, s
-        );
-        None
-    }
 }
 
 /// Resolves the authentication token for a platform.
@@ -477,44 +452,6 @@ async fn spawn_monitor_task(username: &str, token: &str, platform: PlatformConfi
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_parse_monitor_string_valid() {
-        let result = parse_monitor_string("platform:somecreator");
-        assert_eq!(
-            result,
-            Some(("platform".to_string(), "somecreator".to_string()))
-        );
-    }
-
-    #[test]
-    fn test_parse_monitor_string_no_prefix_returns_none() {
-        // Plain usernames without a platform prefix must now return None.
-        let result = parse_monitor_string("somecreator");
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_parse_monitor_string_empty_platform_returns_none() {
-        let result = parse_monitor_string(":somecreator");
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_parse_monitor_string_empty_username_returns_none() {
-        let result = parse_monitor_string("platform:");
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_parse_monitor_string_colon_in_username() {
-        // Only the first colon separates platform from username; the rest is part of the name.
-        let result = parse_monitor_string("myplatform:user:extra");
-        assert_eq!(
-            result,
-            Some(("myplatform".to_string(), "user:extra".to_string()))
-        );
-    }
 
     #[test]
     fn test_load_all_no_fallback_when_empty() {

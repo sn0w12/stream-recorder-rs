@@ -94,10 +94,6 @@ impl Uploader for BunkrUploader {
         "bunkr"
     }
 
-    fn max_file_size_mb(&self) -> &u64 {
-        &u64::MAX // Bunkr splits videos by itself based on data from its API.
-    }
-
     async fn is_ready(&self) -> bool {
         self.client.is_some()
     }

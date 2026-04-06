@@ -4,6 +4,7 @@ use crate::platform::PlatformConfig;
 use crate::print::table::{Cell, Table};
 use crate::stream::api::run_pipeline_debug;
 use crate::stream::api::{PipelineDebugReport, PipelineDebugStep};
+use crate::utils;
 use anyhow::Result;
 use clap::Subcommand;
 use reqwest::Client;
@@ -212,7 +213,16 @@ async fn handle_debug_command(
     token_override: Option<String>,
     show_response: bool,
 ) -> Result<()> {
-    let (platform_id, username) = parse_monitor_reference(monitor)?;
+    let (platform_id, username) = match utils::split_monitor_reference(monitor) {
+        Ok(pair) => pair,
+        Err(e) => {
+            return Err(anyhow::anyhow!(
+                "Invalid monitor reference '{}': {:?}",
+                monitor,
+                e
+            ));
+        }
+    };
     let platforms = PlatformConfig::load_all()?;
     let platform = PlatformConfig::find_by_id(&platforms, &platform_id)
         .cloned()
@@ -250,21 +260,6 @@ async fn handle_debug_command(
     }
 
     Ok(())
-}
-
-fn parse_monitor_reference(monitor: &str) -> Result<(String, String)> {
-    if let Some((platform_id, username)) = monitor.split_once(':') {
-        if platform_id.is_empty() || username.is_empty() {
-            return Err(anyhow::anyhow!(
-                "Monitor must use 'platform_id:username' format with both parts non-empty."
-            ));
-        }
-        return Ok((platform_id.to_string(), username.to_string()));
-    }
-
-    Err(anyhow::anyhow!(
-        "Monitor must use 'platform_id:username' format."
-    ))
 }
 
 fn resolve_platform_token(
@@ -353,30 +348,4 @@ fn print_debug_step(step: &PipelineDebugStep, show_response: bool) -> Result<()>
     }
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parse_monitor_reference_accepts_valid_value() {
-        let (platform_id, username) = parse_monitor_reference("platform:user").unwrap();
-        assert_eq!(platform_id, "platform");
-        assert_eq!(username, "user");
-    }
-
-    #[test]
-    fn parse_monitor_reference_rejects_missing_separator() {
-        let err = parse_monitor_reference("user").unwrap_err().to_string();
-        assert!(err.contains("platform_id:username"), "got: {}", err);
-    }
-
-    #[test]
-    fn parse_monitor_reference_rejects_empty_parts() {
-        let err = parse_monitor_reference("platform:")
-            .unwrap_err()
-            .to_string();
-        assert!(err.contains("both parts non-empty"), "got: {}", err);
-    }
 }

@@ -93,7 +93,9 @@ pub trait Uploader: Send + Sync {
     fn name(&self) -> &str;
 
     /// Get the maximum file size (in MB) that this uploader supports.
-    fn max_file_size_mb(&self) -> &u64;
+    fn max_file_size_mb(&self) -> &u64 {
+        &u64::MAX
+    }
 
     /// Check if this uploader is configured and ready to use.
     ///

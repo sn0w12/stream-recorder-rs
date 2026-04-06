@@ -167,10 +167,6 @@ impl Uploader for GoFileUploader {
         "gofile"
     }
 
-    fn max_file_size_mb(&self) -> &u64 {
-        &u64::MAX
-    }
-
     async fn is_ready(&self) -> bool {
         true // GoFile doesn't require authentication for basic uploads
     }

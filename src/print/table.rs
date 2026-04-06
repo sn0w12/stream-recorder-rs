@@ -116,18 +116,21 @@ impl Cell {
         }
     }
 
-    #[must_use]
-    /// Set a color for this cell, overriding any column default.
-    pub fn color(mut self, color: Color) -> Self {
-        self.color = Some(color);
+    fn with_style(mut self, update: impl FnOnce(&mut Self)) -> Self {
+        update(&mut self);
         self
     }
 
     #[must_use]
+    /// Set a color for this cell, overriding any column default.
+    pub fn color(self, color: Color) -> Self {
+        self.with_style(|cell| cell.color = Some(color))
+    }
+
+    #[must_use]
     /// Set a truncation mode for this cell, overriding any column default.
-    pub fn truncate(mut self, truncation: Trunc) -> Self {
-        self.truncation = Some(truncation);
-        self
+    pub fn truncate(self, truncation: Trunc) -> Self {
+        self.with_style(|cell| cell.truncation = Some(truncation))
     }
 }
 

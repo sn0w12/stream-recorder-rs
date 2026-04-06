@@ -59,12 +59,25 @@ fn platform_to_identity(stream_info: &StreamInfo) -> Identity {
     }
 }
 
+async fn send_components_to_thread(
+    webhook_url: Option<&str>,
+    thread_name: &str,
+    components: Vec<Component>,
+    attachments: Option<Vec<(String, reqwest::multipart::Part)>>,
+    identity: Identity,
+) -> Result<()> {
+    let mut client = WebhookClient::new(webhook_url.unwrap_or_default());
+    client
+        .send_to_thread(thread_name, None, Some(components), attachments, identity)
+        .await?;
+    Ok(())
+}
+
 /// Sends a Discord webhook notification for recording start.
 pub async fn send_recording_start_webhook(
     webhook_url: Option<&str>,
     stream_info: &StreamInfo,
 ) -> Result<()> {
-    let mut client = WebhookClient::new(webhook_url.unwrap_or_default());
     let component = Component::Container(ContainerComponent {
         accent_color: DiscordColor::rgb(255, 255, 0),
         spoiler: false,
@@ -76,16 +89,14 @@ pub async fn send_recording_start_webhook(
     });
     let identity = platform_to_identity(stream_info);
 
-    client
-        .send_to_thread(
-            &stream_info.username,
-            None,
-            Some(vec![component]),
-            None,
-            identity,
-        )
-        .await?;
-    Ok(())
+    send_components_to_thread(
+        webhook_url,
+        &stream_info.username,
+        vec![component],
+        None,
+        identity,
+    )
+    .await
 }
 
 /// Sends a Discord webhook notification for recorded stream completion.
@@ -95,7 +106,6 @@ pub async fn send_recording_complete_webhook(
     duration_str: &str,
     size_str: &str,
 ) -> Result<()> {
-    let mut client = WebhookClient::new(webhook_url.unwrap_or_default());
     let component = Component::Container(ContainerComponent {
         accent_color: DiscordColor::rgb(0, 255, 0),
         spoiler: false,
@@ -130,16 +140,14 @@ pub async fn send_recording_complete_webhook(
     });
     let identity = platform_to_identity(stream_info);
 
-    client
-        .send_to_thread(
-            &stream_info.username,
-            None,
-            Some(vec![component]),
-            None,
-            identity,
-        )
-        .await?;
-    Ok(())
+    send_components_to_thread(
+        webhook_url,
+        &stream_info.username,
+        vec![component],
+        None,
+        identity,
+    )
+    .await
 }
 
 pub async fn send_template_webhook(
@@ -148,7 +156,6 @@ pub async fn send_template_webhook(
     message: &str,
     attachment: String,
 ) -> Result<()> {
-    let mut client = WebhookClient::new(webhook_url.unwrap_or_default());
     let header_component = Component::Container(ContainerComponent {
         accent_color: DiscordColor::rgb(0, 0, 255),
         spoiler: false,
@@ -180,23 +187,20 @@ pub async fn send_template_webhook(
     });
     let identity = platform_to_identity(stream_info);
 
-    client
-        .send_to_thread(
-            &stream_info.username,
-            None,
-            Some(vec![header_component, message_component, image_component]),
-            Some(vec![(filename, part)]),
-            identity,
-        )
-        .await?;
-    Ok(())
+    send_components_to_thread(
+        webhook_url,
+        &stream_info.username,
+        vec![header_component, message_component, image_component],
+        Some(vec![(filename, part)]),
+        identity,
+    )
+    .await
 }
 
 pub async fn send_minimum_duration_webhook(
     webhook_url: Option<&str>,
     stream_info: &StreamInfo,
 ) -> Result<()> {
-    let mut client = WebhookClient::new(webhook_url.unwrap_or_default());
     let header_component = Component::Container(ContainerComponent {
         accent_color: DiscordColor::rgb(255, 0, 0),
         spoiler: false,
@@ -208,16 +212,14 @@ pub async fn send_minimum_duration_webhook(
     });
     let identity = platform_to_identity(stream_info);
 
-    client
-        .send_to_thread(
-            &stream_info.username,
-            None,
-            Some(vec![header_component]),
-            None,
-            identity,
-        )
-        .await?;
-    Ok(())
+    send_components_to_thread(
+        webhook_url,
+        &stream_info.username,
+        vec![header_component],
+        None,
+        identity,
+    )
+    .await
 }
 
 #[cfg(test)]

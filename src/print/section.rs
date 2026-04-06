@@ -27,6 +27,12 @@ impl StartupInfo {
         }
     }
 
+    fn push_item(&mut self, item: Item) {
+        if let Some(section) = self.sections.last_mut() {
+            section.items.push(item);
+        }
+    }
+
     /// Start a new section with the given title.
     pub fn begin_section(&mut self, title: impl Into<String>) {
         self.sections.push(Section {
@@ -37,52 +43,42 @@ impl StartupInfo {
 
     /// Add a "✓" item (green).
     pub fn ok(&mut self, name: impl Into<String>, note: impl Into<String>) {
-        if let Some(section) = self.sections.last_mut() {
-            section.items.push(Item::Ok {
-                name: name.into(),
-                note: note.into(),
-            });
-        }
+        self.push_item(Item::Ok {
+            name: name.into(),
+            note: note.into(),
+        });
     }
 
     /// Add a "✗" item (red).
     pub fn err(&mut self, name: impl Into<String>, note: impl Into<String>) {
-        if let Some(section) = self.sections.last_mut() {
-            section.items.push(Item::Err {
-                name: name.into(),
-                note: note.into(),
-            });
-        }
+        self.push_item(Item::Err {
+            name: name.into(),
+            note: note.into(),
+        });
     }
 
     /// Add a "→" item (yellow).
     pub fn warn(&mut self, name: impl Into<String>, note: impl Into<String>) {
-        if let Some(section) = self.sections.last_mut() {
-            section.items.push(Item::Warn {
-                name: name.into(),
-                note: note.into(),
-            });
-        }
+        self.push_item(Item::Warn {
+            name: name.into(),
+            note: note.into(),
+        });
     }
 
     /// Add a "•" item (plain).
     pub fn dot(&mut self, name: impl Into<String>, note: impl Into<String>) {
-        if let Some(section) = self.sections.last_mut() {
-            section.items.push(Item::Dot {
-                name: name.into(),
-                note: note.into(),
-            });
-        }
+        self.push_item(Item::Dot {
+            name: name.into(),
+            note: note.into(),
+        });
     }
 
     /// Add a plain text line (e.g., "No platforms configured").
     pub fn plain(&mut self, text: impl Into<String>, color: Option<Color>) {
-        if let Some(section) = self.sections.last_mut() {
-            section.items.push(Item::Plain {
-                text: text.into(),
-                color,
-            });
-        }
+        self.push_item(Item::Plain {
+            text: text.into(),
+            color,
+        });
     }
 
     /// Print all sections with globally consistent underlines and name alignment.
