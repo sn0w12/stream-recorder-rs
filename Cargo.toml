@@ -13,7 +13,7 @@ categories = ["command-line-utilities"]
 reqwest = { version = "0.13", default-features = false, features = ["multipart", "stream", "json", "rustls", "query"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-tokio = { version = "1.40", features = ["macros", "rt-multi-thread", "process", "signal", "fs"] }
+tokio = { version = "1.51", features = ["macros", "rt-multi-thread", "process", "signal", "fs"] }
 toml = "1.1"
 dirs = "6.0"
 anyhow = "1.0"
