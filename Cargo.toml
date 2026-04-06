@@ -23,7 +23,7 @@ chrono = "0.4"
 tokio-util = { version = "0.7", features = ["io"] }
 tempfile = "3.27"
 scopeguard = "1.2"
-regex = "1.10"
+regex = "1.12"
 fs2 = "0.4"
 walkdir = "2.5"
 async-trait = "0.1"
