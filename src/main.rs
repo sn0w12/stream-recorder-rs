@@ -1,18 +1,13 @@
 mod cli;
 mod config;
-mod print;
-mod template;
-mod thumb;
-mod utils;
-mod stream {
-    pub mod api;
-    pub mod encoding;
-    pub mod messages;
-    pub mod monitor;
-}
 mod discord;
 mod platform;
+mod print;
+mod stream;
+mod template;
+mod thumb;
 mod uploaders;
+mod utils;
 
 use crate::cli::version::{VersionCheckResult, check_version};
 use crate::config::Config;
