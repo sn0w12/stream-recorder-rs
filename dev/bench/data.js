@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775491095783,
+  "lastUpdate": 1775491196940,
   "repoUrl": "https://github.com/sn0w12/stream-recorder-rs",
   "entries": {
     "Rust Benchmark": [
@@ -407,6 +407,108 @@ window.BENCHMARK_DATA = {
             "name": "template_rendering/example_template",
             "value": 205302,
             "range": "± 3652",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "105451515+sn0w12@users.noreply.github.com",
+            "name": "sn0w",
+            "username": "sn0w12"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c454416eecb4c22255fa99651d8ab6928761aa81",
+          "message": "Merge pull request #13 from sn0w12/dependabot/cargo/quinn-proto-0.11.14\n\nBump quinn-proto from 0.11.13 to 0.11.14",
+          "timestamp": "2026-04-06T17:54:44+02:00",
+          "tree_id": "1c0569a76052d287e51fc0d7fe6bddf370e60835",
+          "url": "https://github.com/sn0w12/stream-recorder-rs/commit/c454416eecb4c22255fa99651d8ab6928761aa81"
+        },
+        "date": 1775491196479,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "json_path_extraction/extract_json_value/flat",
+            "value": 37,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "json_path_extraction/extract_json_value/nested",
+            "value": 96,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "json_path_extraction/extract_json_value/array",
+            "value": 95,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "json_path_extraction/extract_json_value/missing",
+            "value": 91,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "json_path_extraction/extract_json_value/null_or_missing",
+            "value": 61,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "pipeline_extraction_loop/extract_all_fields",
+            "value": 575,
+            "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "live_check_matching/matches/path_exists",
+            "value": 97,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "live_check_matching/matches/equals_match",
+            "value": 102,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "live_check_matching/matches/equals_miss",
+            "value": 101,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "title_cleaning/clean_title/no_rules",
+            "value": 12,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "title_cleaning/clean_title/one_rule",
+            "value": 305796,
+            "range": "± 1389",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "title_cleaning/clean_title/three_rules",
+            "value": 373362,
+            "range": "± 16761",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "template_rendering/example_template",
+            "value": 202627,
+            "range": "± 3238",
             "unit": "ns/iter"
           }
         ]
