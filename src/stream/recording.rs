@@ -1,4 +1,4 @@
-use super::{StreamResult, postprocess::post_process_stream, types::StreamInfo};
+use super::{StreamResult, types::StreamInfo};
 use crate::config::Config;
 use crate::stream::encoding::{VideoEncoding, build_ffmpeg_args, detect_best_hw_encoder};
 use crate::stream::messages::send_recording_start_webhook;
@@ -50,53 +50,40 @@ impl Drop for StreamRecorder {
     }
 }
 
-/// Core recording logic that starts ffmpeg and waits for the stream to end.
-pub async fn record_stream_raw(
-    stream_info: StreamInfo,
-    continuation: bool,
-) -> StreamResult<(StreamInfo, String)> {
+/// Starts ffmpeg for the given stream and waits until the recording ends.
+/// Returns the output file path.
+/// When `is_continuation` is true, the recording-start webhook is suppressed.
+pub async fn record_segment(
+    stream_info: &StreamInfo,
+    is_continuation: bool,
+) -> StreamResult<String> {
     println!(
         "Starting recording for stream: {} (title: {})",
         stream_info.username,
         stream_info
             .extracted
             .stream_title
-            .clone()
+            .as_deref()
             .unwrap_or_default()
     );
 
     let output_path = build_output_path(&stream_info.username)?;
 
-    if !continuation {
+    if !is_continuation {
         let webhook_url = Config::get().get_discord_webhook_url();
-        if let Err(error) = send_recording_start_webhook(webhook_url, &stream_info).await {
+        if let Err(error) = send_recording_start_webhook(webhook_url, stream_info).await {
             eprintln!("Error sending start webhook: {}", error);
         }
     }
 
-    let ffmpeg_args = build_recording_args(&stream_info, &output_path).await;
+    let ffmpeg_args = build_recording_args(stream_info, &output_path).await;
     let mut command = tokio::process::Command::new("ffmpeg");
     command.args(&ffmpeg_args);
 
     let recorder = StreamRecorder::new(&mut command).await?;
     recorder.wait().await?;
 
-    Ok((stream_info, output_path))
-}
-
-/// Records a stream and schedules post-processing on a separate task.
-pub async fn record_stream(stream_info: StreamInfo) -> StreamResult<(StreamInfo, String)> {
-    let (stream_info, output_path) = record_stream_raw(stream_info, false).await?;
-
-    let stream_info_clone = stream_info.clone();
-    let output_path_clone = output_path.clone();
-    tokio::spawn(async move {
-        if let Err(error) = post_process_stream(stream_info_clone, output_path_clone).await {
-            eprintln!("Error post-processing stream: {}", error);
-        }
-    });
-
-    Ok((stream_info, output_path))
+    Ok(output_path)
 }
 
 fn build_output_path(username: &str) -> StreamResult<String> {
