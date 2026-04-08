@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::utils::app_config_dir;
 use anyhow::Result;
 use regex::Regex;
@@ -335,14 +336,28 @@ impl PlatformConfig {
         Ok(())
     }
 
-    /// Applies the platform's `title_clean_regex` rules to `title` in order.
+    /// Combines global title-cleaning regexes from the main config with platform-specific ones.
+    fn get_regexes(&self) -> Vec<TitleCleanRule> {
+        let global_regexes = Config::get().get_title_clean_regex();
+        let mut all_regexes = Vec::new();
+
+        all_regexes.extend(global_regexes.into_iter().map(TitleCleanRule::Pattern));
+        if let Some(platform_regexes) = &self.title_clean_regex {
+            all_regexes.extend(platform_regexes.clone());
+        }
+        all_regexes
+    }
+
+    /// Applies the platform's title-cleaning rules to `title` in order.
     ///
-    /// Returns the cleaned string.  If `title_clean_regex` is absent or empty
+    /// Returns the cleaned string. If no global or platform rules are configured,
     /// the title is returned unchanged.
     pub fn clean_title(&self, title: &str) -> String {
-        let Some(ref patterns) = self.title_clean_regex else {
+        let patterns = self.get_regexes();
+        if patterns.is_empty() {
             return title.to_string();
-        };
+        }
+
         let mut result = title.to_string();
         for rule in patterns {
             // Patterns are validated on load/install, so this unwrap is safe.

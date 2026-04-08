@@ -138,6 +138,12 @@ Configuration is stored in `~/.config/stream-recorder/config.toml` (Linux/macOS)
 | `max_bitrate`   | Maximum video bitrate (e.g. 6M, 2500k). When set, adds -maxrate and -bufsize to ffmpeg                         | `none`  |
 | `max_fps`       | Maximum framerate a stream will be recorded at.                                                                | `none`  |
 
+#### Post Processing
+
+| Setting             | Description                                                                | Default |
+| ------------------- | -------------------------------------------------------------------------- | ------- |
+| `title_clean_regex` | Global regular expressions used to clean stream titles for uploader naming | `none`  |
+
 #### Uploads
 
 | Setting              | Description                            | Default |

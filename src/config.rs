@@ -618,6 +618,20 @@ fn validate_url(value: &Option<String>) -> Result<()> {
     }
 }
 
+fn validate_regex(value: &Option<Vec<String>>) -> Result<()> {
+    let Some(value) = value.as_deref() else {
+        return Ok(());
+    };
+
+    for regex_str in value {
+        regex::Regex::new(regex_str)
+            .map(|_| ())
+            .map_err(|e| anyhow::anyhow!("Invalid regular expression: {}", e))?;
+    }
+
+    Ok(())
+}
+
 // ============================================================================
 // DEFINE ALL CONFIG FIELDS HERE - single source of truth.
 //
@@ -665,6 +679,9 @@ define_config! {
         video_bitrate: Option<String> = None => None, str_opt, "Constant video bitrate for CBR encoding (e.g. 6M, 5000k). When set, uses CBR mode and overrides video_quality.", [validate_ffmpeg_bitrate],
         max_bitrate: Option<String> = None => None, str_opt, "Maximum video bitrate (e.g. 6M, 2500k). When set, adds -maxrate and -bufsize to ffmpeg", [validate_ffmpeg_bitrate],
         max_fps: Option<u32> = None => None, u32_opt, "Maximum framerate a stream will be recorded at.", [validate_positive_u32],
+    }
+    post_processing: {
+        title_clean_regex: Option<Vec<String>> = None => Vec::<String>::new(), vec, "Global regular expressions used to clean stream titles for uploader naming", [validate_regex],
     }
     uploads: {
         max_upload_retries: Option<u32> = Some(3) => Some(3), u32, "Maximum number of upload retries",
