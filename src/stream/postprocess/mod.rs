@@ -1,4 +1,5 @@
 pub mod storage;
+pub mod thumb;
 
 use super::{StreamResult, types::StreamInfo};
 use crate::cli::upload::try_upload;
@@ -8,14 +9,14 @@ use crate::stream::messages::{
     send_minimum_duration_webhook, send_recording_complete_webhook, send_template_webhook,
 };
 use crate::template::{TemplateValue, get_template_string, render_template};
-use crate::thumb::create_video_thumbnail_grid;
 use crate::uploaders::build_uploaders;
 use chrono::Utc;
 use serde_json::Value;
-use std::collections::{HashMap};
+use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime};
+use std::time::SystemTime;
+use thumb::create_video_thumbnail_grid;
 
 #[derive(Clone)]
 struct RecordingFile {
@@ -385,9 +386,7 @@ async fn handle_minimum_duration(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        build_ffconcat_manifest, concat_video_files,
-    };
+    use super::{build_ffconcat_manifest, concat_video_files};
 
     fn ffmpeg_is_available() -> bool {
         std::process::Command::new("ffmpeg")

@@ -5,7 +5,6 @@ mod platform;
 mod print;
 mod stream;
 mod template;
-mod thumb;
 mod uploaders;
 mod utils;
 

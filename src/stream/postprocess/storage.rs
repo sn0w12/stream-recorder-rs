@@ -191,10 +191,7 @@ fn retention_keep_latest_per_user(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        RecordingFile, retention_age_candidates,
-        retention_keep_latest_per_user,
-    };
+    use super::{RecordingFile, retention_age_candidates, retention_keep_latest_per_user};
     use std::collections::HashSet;
     use std::path::PathBuf;
     use std::time::{Duration, SystemTime};

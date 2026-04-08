@@ -1,5 +1,5 @@
 use crate::print::table::{Cell, SectionAlign, Table, Trunc};
-use crate::thumb::parse_thumbnail_string;
+use crate::stream::postprocess::thumb::parse_thumbnail_string;
 use crate::utils::app_config_dir;
 use anyhow::{Context, Result};
 use colored::Color::*;
