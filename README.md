@@ -87,15 +87,15 @@ The diagram below shows the main phases of a recording session and how the major
 
 ```mermaid
 flowchart TD
-    A[Start application] --> B[Load config and platform definitions]
-    B --> C[Create monitor tasks for configured accounts]
-    C --> D[Poll platform pipelines for live status]
+    A[Start application] --> B[Load config and platforms]
+    B --> C[Create monitor tasks]
+    C --> D[Poll platform pipelines]
 
     D --> E{Stream live?}
-    E -->|No| F[Wait and poll again]
+    E -->|No| F[Sleep]
     F --> D
 
-    E -->|Yes| G[Start recording with FFmpeg]
+    E -->|Yes| G[Start recording]
     G --> H[Save stream segment to disk]
     H --> I{Continuation window enabled?}
 
@@ -106,12 +106,8 @@ flowchart TD
     L -->|No| M[Merge session segments]
     M --> J
 
-    J --> N[Check retention and minimum duration rules]
-    N --> O[Generate thumbnail and metadata]
-    O --> Q[Upload to enabled services]
-    Q --> R[Send Discord notifications]
-    R --> S[Recording session complete]
-    S --> D
+    J --> N[Upload to enabled services]
+    N --> D
 
     style A fill:#d9f2ff,stroke:#1f6f8b,color:#111
     style D fill:#fff4d6,stroke:#a36a00,color:#111
