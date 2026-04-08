@@ -10,17 +10,16 @@ keywords = ["streaming", "recording", "live", "video"]
 categories = ["command-line-utilities"]
 
 [dependencies]
+clap = { version = "4.5", features = ["derive"] }
 reqwest = { version = "0.13", default-features = false, features = ["multipart", "stream", "json", "rustls", "query"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.51", features = ["macros", "rt-multi-thread", "process", "signal", "fs"] }
+tokio-util = { version = "0.7", features = ["io"] }
+anyhow = "1.0"
 toml = "1.1"
 dirs = "6.0"
-anyhow = "1.0"
-clap = { version = "4.5", features = ["derive"] }
-bunkr-client = { version = "0.1.5", default-features = false }
 chrono = "0.4"
-tokio-util = { version = "0.7", features = ["io"] }
 tempfile = "3.27"
 scopeguard = "1.2"
 regex = "1.10"
@@ -31,6 +30,7 @@ paste = "1.0"
 semver = "1.0"
 colored = "3"
 handlebars = "6.4.0"
+bunkr-client = { version = "0.1.5", default-features = false }
 
 [dev-dependencies]
 criterion = "0.8.2"
