@@ -41,6 +41,12 @@ stream-recorder -h
     stream-recorder platform install {url}
     ```
 
+    To find existing platforms, you can use the search command.
+
+    ```bash
+    stream-recorder platform search
+    ```
+
 2. **Save a platform API token** (if required by the platform):
 
     Using keyring (recommended):
