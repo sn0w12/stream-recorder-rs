@@ -355,7 +355,7 @@ impl PlatformConfig {
     pub fn clean_title(&self, title: &str) -> String {
         let patterns = self.get_regexes();
         if patterns.is_empty() {
-            return title.to_string();
+            return title.trim().to_string();
         }
 
         let mut result = title.to_string();
