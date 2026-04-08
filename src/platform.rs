@@ -618,13 +618,24 @@ fn resolve_github_url(url: &str) -> String {
 
 /// Traverses a JSON value using a dot-notation path with optional array-index support.
 ///
-/// # Supported formats
+/// ### Supported formats
 /// - `field` – top-level object key
 /// - `field.nested` – nested object keys separated by `.`
 /// - `field[0]` – array index
 /// - `field[0].nested` – array index followed by object key
 ///
 /// Returns `None` if any segment of the path is not found or the value is `null`.
+///
+/// ```
+/// use stream_recorder::platform::extract_json_value;
+/// use serde_json::json;
+///
+/// let v = json!({"response": {"stream": {"playbackUrl": "http://example.com"}}});
+/// assert_eq!(
+///     extract_json_value(&v, "response.stream.playbackUrl").and_then(|v| v.as_str()),
+///     Some("http://example.com")
+/// );
+/// ```
 pub fn extract_json_value<'a>(value: &'a Value, path: &str) -> Option<&'a Value> {
     let mut current = value;
     for segment in parse_path_segments(path) {
@@ -644,6 +655,7 @@ enum PathSegment {
     Index(usize),
 }
 
+/// Parses a dot-notation path with optional array indices into a sequence of segments.
 fn parse_path_segments(path: &str) -> Vec<PathSegment> {
     let mut segments = Vec::new();
     let mut remaining = path;
