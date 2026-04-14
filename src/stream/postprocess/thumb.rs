@@ -8,8 +8,8 @@ use tokio::process::Command;
 /// # Arguments
 /// * `input_path` - Path to the input video file
 /// * `output_path` - Path where the thumbnail will be saved
-/// * `width` - Width of each thumbnail in the grid (default: 320)
-/// * `height` - Height of each thumbnail in the grid (default: 180)
+/// * `size_str` - Size of each thumbnail in the format "WIDTHxHEIGHT" (default: "320x180")
+/// * `grid_str` - Grid layout in the format "COLSxROWS" (default: "3x3")
 ///
 /// # Returns
 /// Result indicating success or failure
