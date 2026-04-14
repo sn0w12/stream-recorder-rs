@@ -22,6 +22,7 @@ use std::collections::HashMap;
 
 use crate::cli::config::{ConfigAction, handle_config_command};
 use crate::cli::platform::{PlatformAction, handle_platform_command};
+use crate::cli::thumbnail::{ThumbnailAction, handle_thumbnail_action};
 use crate::cli::token::{TokenAction, handle_token_command};
 use crate::cli::upload::{UploadAction, handle_list_command, handle_upload_command};
 
@@ -66,6 +67,11 @@ enum Commands {
     Upload {
         #[command(subcommand)]
         action: UploadAction,
+    },
+    /// Generate a thumbnail from a recorded video
+    Thumbnail {
+        #[command(subcommand)]
+        action: ThumbnailAction,
     },
 }
 
@@ -167,6 +173,9 @@ async fn main() -> Result<()> {
                 handle_list_command().await?;
             }
         },
+        Some(Commands::Thumbnail { action }) => {
+            handle_thumbnail_action(action).await?;
+        }
         None => {
             match startup_tests().await {
                 Ok(_) => {}
