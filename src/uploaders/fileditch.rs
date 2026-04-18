@@ -5,9 +5,11 @@ use serde::Deserialize;
 use serde_json::Value;
 use tokio_util::io::ReaderStream;
 
+use crate::types::FileSize;
+
 use super::error::UploadError;
 use super::http::{file_name_from_path, map_io_error, map_reqwest_error, parse_json_response};
-use super::{FileSize, UploadResult, Uploader, UploaderConfig};
+use super::{UploadResult, Uploader, UploaderConfig};
 
 #[derive(Deserialize)]
 struct FileditchResponse {

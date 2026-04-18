@@ -2,9 +2,11 @@ use async_trait::async_trait;
 use reqwest::Client;
 use serde::Deserialize;
 
+use crate::types::FileSize;
+
 use super::error::UploadError;
 use super::http::{make_file_part, map_reqwest_error, parse_json_response};
-use super::{FileSize, UploadResult, Uploader, UploaderConfig};
+use super::{UploadResult, Uploader, UploaderConfig};
 
 #[derive(Deserialize)]
 #[allow(dead_code)]

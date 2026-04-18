@@ -170,12 +170,12 @@ Configuration is stored in `~/.config/stream-recorder/config.toml` (Linux/macOS)
 
 #### Storage
 
-| Setting                          | Description                                           | Default        |
-| -------------------------------- | ----------------------------------------------------- | -------------- |
-| `output_directory`               | Directory to save recordings                          | `./recordings` |
-| `min_free_space_gb`              | Minimum free disk space before cleanup                | `20`           |
-| `retention_max_age_days`         | Delete recordings older than this many days           | `none`         |
-| `retention_keep_latest_per_user` | Keep only this many of the newest recordings per user | `none`         |
+| Setting                          | Description                                               | Default        |
+| -------------------------------- | --------------------------------------------------------- | -------------- |
+| `output_directory`               | Directory to save recordings                              | `./recordings` |
+| `min_free_space`                 | Minimum free disk space before cleanup (e.g. 20GB, 500MB) | `20GB`         |
+| `retention_max_age_days`         | Delete recordings older than this many days               | `none`         |
+| `retention_keep_latest_per_user` | Keep only this many of the newest recordings per user     | `none`         |
 
 ### Configuration Commands
 

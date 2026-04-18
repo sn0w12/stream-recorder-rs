@@ -1,6 +1,7 @@
 use super::StreamResult;
 use crate::config::Config;
 use crate::stream::postprocess::RecordingFile;
+use crate::types::FileSize as FileSizeValue;
 use fs2::available_space;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -11,8 +12,8 @@ pub async fn manage_disk_space() -> StreamResult<()> {
     let config = Config::get();
     let output_dir = config.get_output_directory();
     let output_dir_path = Path::new(&output_dir);
-    let min_free_gb = config.get_min_free_space_gb();
-    let min_free_bytes = (min_free_gb * 1_000_000_000.0) as u64;
+    let min_free_space = config.get_min_free_space();
+    let min_free_bytes = min_free_space.as_bytes();
 
     let files = collect_recording_files(output_dir_path);
     if files.is_empty() {
@@ -69,9 +70,9 @@ pub async fn manage_disk_space() -> StreamResult<()> {
     // Free additional space if still below the minimum threshold
     if available_space(output_dir_path)? < min_free_bytes {
         println!(
-            "Free space {} GB is below minimum {} GB, cleaning up old streams...",
-            available_space(output_dir_path)? as f64 / 1_000_000_000.0,
-            min_free_gb
+            "Free space {} is below minimum {}, cleaning up old streams...",
+            FileSizeValue::from_bytes(available_space(output_dir_path)?),
+            min_free_space
         );
         for file in &files_by_age {
             if available_space(output_dir_path)? >= min_free_bytes {

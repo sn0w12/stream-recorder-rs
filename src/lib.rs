@@ -3,8 +3,8 @@ pub mod config;
 pub mod discord;
 pub mod platform;
 pub mod print;
+pub mod stream;
 pub mod template;
+pub mod types;
 pub mod uploaders;
 pub mod utils;
-
-pub mod stream;

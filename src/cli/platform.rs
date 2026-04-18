@@ -167,10 +167,14 @@ pub async fn handle_platform_command(action: PlatformAction) -> Result<()> {
                 println!("No results found.");
             } else {
                 let mut table = Table::with_columns(vec![
-                    Column::new("No.").max_width(max_number_width).align(Align::Center),
+                    Column::new("No.")
+                        .max_width(max_number_width)
+                        .align(Align::Center),
                     Column::new("Name"),
                     Column::new("Description").max_width(ColumnWidth::fill()),
-                    Column::new("Stars").max_width(max_star_width).align(Align::Center),
+                    Column::new("Stars")
+                        .max_width(max_star_width)
+                        .align(Align::Center),
                 ]);
                 for (i, item) in body.items.iter().enumerate() {
                     table.add_row(vec![
