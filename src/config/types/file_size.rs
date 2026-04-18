@@ -50,8 +50,4 @@ where
     fn validate(stored: &Self::Stored) -> Result<()> {
         V::validate(stored)
     }
-
-    fn reset_value(_: &Self::Default) -> Self::Stored {
-        None
-    }
 }

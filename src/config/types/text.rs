@@ -34,10 +34,6 @@ where
     fn validate(stored: &Self::Stored) -> Result<()> {
         V::validate(stored)
     }
-
-    fn reset_value(_: &Self::Default) -> Self::Stored {
-        None
-    }
 }
 
 pub struct OptionalText<V = NoValidation>(PhantomData<V>);
@@ -74,9 +70,5 @@ where
 
     fn validate(stored: &Self::Stored) -> Result<()> {
         V::validate(stored)
-    }
-
-    fn reset_value(_: &Self::Default) -> Self::Stored {
-        None
     }
 }

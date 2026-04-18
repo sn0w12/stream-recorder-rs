@@ -50,7 +50,14 @@ pub trait ConfigType {
     fn format_cli(stored: &Self::Stored, default: &Self::Default) -> String;
     fn format_default(default: &Self::Default) -> String;
     fn validate(stored: &Self::Stored) -> Result<()>;
-    fn reset_value(default: &Self::Default) -> Self::Stored;
+
+    fn reset_value(default: &Self::Default) -> Self::Stored
+    where
+        Self::Stored: Default,
+    {
+        let _ = default;
+        Self::Stored::default()
+    }
 
     fn is_array() -> bool {
         false

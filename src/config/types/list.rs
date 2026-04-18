@@ -43,10 +43,6 @@ where
         V::validate(stored)
     }
 
-    fn reset_value(_: &Self::Default) -> Self::Stored {
-        None
-    }
-
     fn is_array() -> bool {
         true
     }

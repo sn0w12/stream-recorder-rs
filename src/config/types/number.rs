@@ -37,10 +37,6 @@ where
     fn validate(stored: &Self::Stored) -> Result<()> {
         V::validate(stored)
     }
-
-    fn reset_value(_: &Self::Default) -> Self::Stored {
-        None
-    }
 }
 
 pub struct OptionalU32<V = NoValidation>(PhantomData<V>);
@@ -84,10 +80,6 @@ where
     fn validate(stored: &Self::Stored) -> Result<()> {
         V::validate(stored)
     }
-
-    fn reset_value(_: &Self::Default) -> Self::Stored {
-        None
-    }
 }
 
 pub struct Float<V = NoValidation>(PhantomData<V>);
@@ -121,10 +113,6 @@ where
 
     fn validate(stored: &Self::Stored) -> Result<()> {
         V::validate(stored)
-    }
-
-    fn reset_value(_: &Self::Default) -> Self::Stored {
-        None
     }
 }
 
@@ -164,9 +152,5 @@ where
 
     fn validate(stored: &Self::Stored) -> Result<()> {
         V::validate(stored)
-    }
-
-    fn reset_value(_: &Self::Default) -> Self::Stored {
-        None
     }
 }
