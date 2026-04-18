@@ -8,6 +8,7 @@ use anyhow::Result;
 use clap::Subcommand;
 use reqwest::Client;
 use serde::Deserialize;
+use tiny_table::Align;
 use tiny_table::{Cell, Column, ColumnWidth, Table};
 
 #[derive(Subcommand)]
@@ -150,15 +151,26 @@ pub async fn handle_platform_command(action: PlatformAction) -> Result<()> {
             }
 
             let body: RepoSearchResponse = resp.json().await?;
+            let max_number_width = ((page - 1) * 10 + body.items.len() as u32)
+                .to_string()
+                .len()
+                .max(3); // at least width for "No."
+            let max_star_width = body
+                .items
+                .iter()
+                .map(|item| item.stargazers_count.to_string().len())
+                .max()
+                .unwrap_or(1)
+                .max(5); // at least width for "Stars"
 
             if body.items.is_empty() {
                 println!("No results found.");
             } else {
                 let mut table = Table::with_columns(vec![
-                    Column::new("No.").max_width(0.05),
-                    Column::new("Name").max_width(0.2),
+                    Column::new("No.").max_width(max_number_width).align(Align::Center),
+                    Column::new("Name"),
                     Column::new("Description").max_width(ColumnWidth::fill()),
-                    Column::new("Stars").max_width(0.1),
+                    Column::new("Stars").max_width(max_star_width).align(Align::Center),
                 ]);
                 for (i, item) in body.items.iter().enumerate() {
                     table.add_row(vec![
