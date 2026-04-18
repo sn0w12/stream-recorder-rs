@@ -46,6 +46,121 @@ pub struct UploadResult {
     pub raw_response: Option<Value>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct FileSize(u64); // stored as bytes
+
+#[allow(dead_code)]
+impl FileSize {
+    const BYTES_PER_KB: u64 = 1_000;
+    const BYTES_PER_KIB: u64 = 1_024;
+    const BYTES_PER_MB: u64 = 1_000_000;
+    const BYTES_PER_MIB: u64 = 1_048_576;
+    const BYTES_PER_GB: u64 = 1_000_000_000;
+    const BYTES_PER_GIB: u64 = 1_073_741_824;
+
+    pub const ZERO: Self = Self(0);
+    pub const MAX: Self = Self(u64::MAX);
+
+    /// Create a FileSize from bytes.
+    pub const fn from_bytes(bytes: u64) -> Self {
+        Self(bytes)
+    }
+
+    /// From kilobytes (decimal, 1 KB = 1000 bytes)
+    pub const fn from_kb(kb: u64) -> Self {
+        Self(kb.saturating_mul(Self::BYTES_PER_KB))
+    }
+
+    /// From kibibytes (binary, 1 KiB = 1024 bytes)
+    pub const fn from_kib(kib: u64) -> Self {
+        Self(kib.saturating_mul(Self::BYTES_PER_KIB))
+    }
+
+    /// From megabytes (decimal, 1 MB = 1,000,000 bytes)
+    pub const fn from_mb(mb: u64) -> Self {
+        Self(mb.saturating_mul(Self::BYTES_PER_MB))
+    }
+
+    /// From mebibytes (binary, 1 MiB = 1,048,576 bytes)
+    pub const fn from_mib(mib: u64) -> Self {
+        Self(mib.saturating_mul(Self::BYTES_PER_MIB))
+    }
+
+    /// From gigabytes (decimal, 1 GB = 1,000,000,000 bytes)
+    pub const fn from_gb(gb: u64) -> Self {
+        Self(gb.saturating_mul(Self::BYTES_PER_GB))
+    }
+
+    /// From gibibytes (binary, 1 GiB = 1,073,741,824 bytes)
+    pub const fn from_gib(gib: u64) -> Self {
+        Self(gib.saturating_mul(Self::BYTES_PER_GIB))
+    }
+
+    /// From a human-readable string like "10MB", "5GiB", etc.
+    pub fn from_str(size_str: &str) -> Result<Self, String> {
+        let size_str = size_str.trim();
+        let (num_part, unit_part) = size_str
+            .chars()
+            .partition::<String, _>(|c| c.is_digit(10) || *c == '.');
+        let num: f64 = num_part
+            .parse()
+            .map_err(|e| format!("invalid number: {}", e))?;
+        let file_size = match unit_part.to_uppercase().as_str() {
+            "B" => Self::from_bytes(num as u64),
+            "KB" => Self::from_kb(num as u64),
+            "KIB" => Self::from_kib(num as u64),
+            "MB" => Self::from_mb(num as u64),
+            "MIB" => Self::from_mib(num as u64),
+            "GB" => Self::from_gb(num as u64),
+            "GIB" => Self::from_gib(num as u64),
+            "" => Self::from_bytes(num as u64), // default to bytes if no unit
+            _ => return Err(format!("invalid unit: {}", unit_part)),
+        };
+        Ok(file_size)
+    }
+
+    /// Get the file size in bytes.
+    pub const fn as_bytes(self) -> u64 {
+        self.0
+    }
+
+    /// Get the file size in kilobytes (decimal, 1 KB = 1000 bytes).
+    pub const fn as_kb(self) -> u64 {
+        self.0 / Self::BYTES_PER_KB
+    }
+
+    /// Get the file size in kibibytes (binary, 1 KiB = 1024 bytes).
+    pub const fn as_kib(self) -> u64 {
+        self.0 / Self::BYTES_PER_KIB
+    }
+
+    /// Get the file size in megabytes (decimal, 1 MB = 1,000,000 bytes).
+    pub const fn as_mb(self) -> u64 {
+        self.0 / Self::BYTES_PER_MB
+    }
+
+    /// Get the file size in mebibytes (binary, 1 MiB = 1,048,576 bytes).
+    pub const fn as_mib(self) -> u64 {
+        self.0 / Self::BYTES_PER_MIB
+    }
+
+    /// Get the file size in gigabytes (decimal, 1 GB = 1,000,000,000 bytes).
+    pub const fn as_gb(self) -> u64 {
+        self.0 / Self::BYTES_PER_GB
+    }
+
+    /// Get the file size in gibibytes (binary, 1 GiB = 1,073,741,824 bytes).
+    pub const fn as_gib(self) -> u64 {
+        self.0 / Self::BYTES_PER_GIB
+    }
+}
+
+impl Default for FileSize {
+    fn default() -> Self {
+        Self::ZERO
+    }
+}
+
 /// Common trait that all uploaders must implement.
 ///
 /// This trait provides a unified interface for uploading files to different hosting services.
@@ -93,9 +208,9 @@ pub trait Uploader: Send + Sync {
     /// This name is used for logging and identifying which uploader is being used.
     fn name(&self) -> &str;
 
-    /// Get the maximum file size (in MB) that this uploader supports.
-    fn max_file_size_mb(&self) -> &u64 {
-        &u64::MAX
+    /// Get the maximum file size this uploader supports.
+    fn max_file_size(&self) -> FileSize {
+        FileSize::MAX
     }
 
     /// Check if this uploader is configured and ready to use.

@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use super::error::UploadError;
 use super::http::{make_file_part, map_reqwest_error, parse_json_response};
-use super::{UploadResult, Uploader, UploaderConfig};
+use super::{FileSize, UploadResult, Uploader, UploaderConfig};
 
 #[derive(Deserialize)]
 #[allow(dead_code)]
@@ -156,8 +156,8 @@ impl Uploader for FilesterUploader {
         "filester"
     }
 
-    fn max_file_size_mb(&self) -> &u64 {
-        &10000
+    fn max_file_size(&self) -> FileSize {
+        FileSize::from_gb(10)
     }
 
     async fn is_ready(&self) -> bool {

@@ -84,8 +84,8 @@ pub async fn try_upload(
     upload_results: &mut HashMap<String, Vec<String>>,
     max_retries: u32,
 ) {
-    // Convert uploader's max file size from MB to bytes
-    let max_file_size_bytes = uploader.max_file_size_mb().saturating_mul(1024 * 1024);
+    // Use uploader-specific size limit directly in bytes.
+    let max_file_size_bytes = uploader.max_file_size().as_bytes();
 
     let bunkr_config = BunkrConfig {
         preprocess_videos: Some(true),

@@ -7,7 +7,7 @@ use tokio_util::io::ReaderStream;
 
 use super::error::UploadError;
 use super::http::{file_name_from_path, map_io_error, map_reqwest_error, parse_json_response};
-use super::{UploadResult, Uploader, UploaderConfig};
+use super::{FileSize, UploadResult, Uploader, UploaderConfig};
 
 #[derive(Deserialize)]
 struct FileditchResponse {
@@ -121,8 +121,8 @@ impl Uploader for FileditchUploader {
         "fileditch"
     }
 
-    fn max_file_size_mb(&self) -> &u64 {
-        &25000
+    fn max_file_size(&self) -> FileSize {
+        FileSize::from_gb(25)
     }
 
     async fn is_ready(&self) -> bool {
