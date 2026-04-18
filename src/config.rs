@@ -723,7 +723,7 @@ impl Config {
         let mut has_rows = false;
 
         let mut headers = vec![
-            Column::new("Key").max_width(0.1),
+            Column::new("Key"),
             Column::new("Value").max_width(ColumnWidth::fill()),
             Column::new("Default").max_width(0.2),
         ];
