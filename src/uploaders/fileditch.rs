@@ -6,6 +6,7 @@ use serde_json::Value;
 use tokio_util::io::ReaderStream;
 
 use super::error::UploadError;
+use super::http::{file_name_from_path, map_io_error, map_reqwest_error, parse_json_response};
 use super::{UploadResult, Uploader, UploaderConfig};
 
 #[derive(Deserialize)]
@@ -84,22 +85,12 @@ impl Uploader for FileditchUploader {
         file_path: &str,
         _config: &UploaderConfig,
     ) -> Result<UploadResult, UploadError> {
-        let file_name = std::path::Path::new(file_path)
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_string();
+        let file_name = file_name_from_path(file_path);
 
         let file = tokio::fs::File::open(file_path)
             .await
-            .map_err(|e| UploadError {
-                message: e.to_string(),
-                status_code: None,
-            })?;
-        let file_size = file.metadata().await.map_err(|e| UploadError {
-            message: e.to_string(),
-            status_code: None,
-        })?;
+            .map_err(map_io_error)?;
+        let file_size = file.metadata().await.map_err(map_io_error)?;
 
         if file_size.len() == 0 {
             return Err(UploadError {
@@ -119,19 +110,9 @@ impl Uploader for FileditchUploader {
             .body(body)
             .send()
             .await
-            .map_err(|e| UploadError {
-                message: e.to_string(),
-                status_code: e.status().map(|s| s.as_u16()),
-            })?;
+            .map_err(map_reqwest_error)?;
 
-        let status_code = response.status().as_u16();
-        let raw_response = response
-            .json::<serde_json::Value>()
-            .await
-            .map_err(|e| UploadError {
-                message: e.to_string(),
-                status_code: Some(status_code),
-            })?;
+        let (status_code, raw_response) = parse_json_response(response).await?;
 
         parse_upload_response(raw_response, status_code)
     }

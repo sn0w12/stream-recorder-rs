@@ -11,6 +11,7 @@ pub mod error;
 pub mod fileditch;
 pub mod filester;
 pub mod gofile;
+mod http;
 
 use async_trait::async_trait;
 use error::UploadError;

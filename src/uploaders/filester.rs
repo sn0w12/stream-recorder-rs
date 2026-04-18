@@ -3,6 +3,7 @@ use reqwest::Client;
 use serde::Deserialize;
 
 use super::error::UploadError;
+use super::http::{make_file_part, map_reqwest_error, parse_json_response};
 use super::{UploadResult, Uploader, UploaderConfig};
 
 #[derive(Deserialize)]
@@ -63,20 +64,7 @@ impl Uploader for FilesterUploader {
         file_path: &str,
         _config: &UploaderConfig,
     ) -> Result<UploadResult, UploadError> {
-        let file_name = std::path::Path::new(file_path)
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_string();
-
-        let file = tokio::fs::File::open(file_path)
-            .await
-            .map_err(|e| UploadError {
-                message: e.to_string(),
-                status_code: None,
-            })?;
-
-        let part = reqwest::multipart::Part::stream(file).file_name(file_name);
+        let part = make_file_part(file_path).await?;
         let form = reqwest::multipart::Form::new().part("file", part);
         let mut req = self
             .client
@@ -90,19 +78,8 @@ impl Uploader for FilesterUploader {
             req = req.header(reqwest::header::COOKIE, format!("auth_token={}", token));
         }
 
-        let response = req.send().await.map_err(|e| UploadError {
-            message: e.to_string(),
-            status_code: e.status().map(|s| s.as_u16()),
-        })?;
-
-        let status_code = response.status().as_u16();
-        let raw_response = response
-            .json::<serde_json::Value>()
-            .await
-            .map_err(|e| UploadError {
-                message: e.to_string(),
-                status_code: Some(status_code),
-            })?;
+        let response = req.send().await.map_err(map_reqwest_error)?;
+        let (status_code, raw_response) = parse_json_response(response).await?;
 
         let parsed: FilesterResponse =
             serde_json::from_value(raw_response.clone()).map_err(|e| UploadError {
@@ -153,10 +130,7 @@ impl Uploader for FilesterUploader {
             .header(reqwest::header::COOKIE, format!("auth_token={}", token))
             .send()
             .await
-            .map_err(|e| UploadError {
-                message: e.to_string(),
-                status_code: e.status().map(|s| s.as_u16()),
-            })?;
+            .map_err(map_reqwest_error)?;
 
         let status_code = resp.status().as_u16();
         let folder_resp: FilesterFolderResponse = resp.json().await.map_err(|e| UploadError {

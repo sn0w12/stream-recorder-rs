@@ -1,17 +1,21 @@
 use super::error::UploadError;
+use super::http::{make_file_part, map_reqwest_error, parse_json_response};
 use super::{UploadResult, Uploader, UploaderConfig};
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::Value;
-use tokio::fs::File;
 
 fn response_handler(response: &Value) -> Result<Value, UploadError> {
     if response["status"] == "ok" {
         Ok(response["data"].clone())
     } else if let Some(status) = response["status"].as_str() {
         if status.contains("error-") {
-            let error = status.split('-').nth(1).unwrap_or("unknown").to_string();
+            let error = status
+                .split_once('-')
+                .map(|(_, msg)| msg)
+                .unwrap_or("unknown")
+                .to_string();
             Err(UploadError {
                 message: error,
                 status_code: None,
@@ -46,15 +50,8 @@ struct ServersResponse {
 pub async fn get_server(zone: &str) -> Result<Server, UploadError> {
     let resp = reqwest::get("https://api.gofile.io/servers")
         .await
-        .map_err(|e| UploadError {
-            message: e.to_string(),
-            status_code: e.status().map(|s| s.as_u16()),
-        })?;
-    let status_code = resp.status().as_u16();
-    let json: Value = resp.json().await.map_err(|e| UploadError {
-        message: e.to_string(),
-        status_code: Some(status_code),
-    })?;
+        .map_err(map_reqwest_error)?;
+    let (_, json) = parse_json_response(resp).await?;
     let data = response_handler(&json)?;
     let servers_resp: ServersResponse = serde_json::from_value(data).map_err(|e| UploadError {
         message: e.to_string(),
@@ -87,17 +84,7 @@ pub async fn upload_file(
         get_server("eu").await?.name
     };
     let client = Client::new();
-    let file = File::open(file_path).await.map_err(|e| UploadError {
-        message: e.to_string(),
-        status_code: None,
-    })?;
-    let part = reqwest::multipart::Part::stream(file).file_name(
-        std::path::Path::new(file_path)
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_string(),
-    );
+    let part = make_file_part(file_path).await?;
     let mut form = reqwest::multipart::Form::new().part("file", part);
     if let Some(fid) = folder_id {
         form = form.text("folderId", fid.to_string());
@@ -112,11 +99,7 @@ pub async fn upload_file(
         message: e.to_string(),
         status_code: e.status().map(|s| s.as_u16()),
     })?;
-    let status_code = resp.status().as_u16();
-    let json: Value = resp.json().await.map_err(|e| UploadError {
-        message: e.to_string(),
-        status_code: Some(status_code),
-    })?;
+    let (_, json) = parse_json_response(resp).await?;
     response_handler(&json)
 }
 
