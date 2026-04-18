@@ -1,3 +1,4 @@
+pub mod ffmpeg;
 pub mod storage;
 pub mod thumb;
 
@@ -35,7 +36,11 @@ pub async fn post_process_session(
     }
 
     if session_files.len() == 1 {
-        return post_process_stream(stream_info, session_files.into_iter().next().unwrap()).await;
+        let file = session_files
+            .into_iter()
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("expected a single session file"))?;
+        return post_process_stream(stream_info, file).await;
     }
 
     println!(
@@ -142,24 +147,22 @@ async fn concat_video_files(files: &[String]) -> StreamResult<String> {
 
     let manifest_path = manifest_file.path().to_string_lossy().into_owned();
 
-    let output = tokio::process::Command::new("ffmpeg")
-        .args([
-            "-loglevel",
-            "error",
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            &manifest_path,
-            "-c",
-            "copy",
-            "-y",
-            &combined_path,
-        ])
-        .stderr(std::process::Stdio::piped())
-        .output()
-        .await?;
+    let args = vec![
+        "-loglevel".to_string(),
+        "error".to_string(),
+        "-f".to_string(),
+        "concat".to_string(),
+        "-safe".to_string(),
+        "0".to_string(),
+        "-i".to_string(),
+        manifest_path,
+        "-c".to_string(),
+        "copy".to_string(),
+        "-y".to_string(),
+        combined_path.clone(),
+    ];
+
+    let output = ffmpeg::run_ffmpeg_output(&args).await?;
 
     if !output.status.success() {
         let error = String::from_utf8_lossy(&output.stderr).trim().to_string();

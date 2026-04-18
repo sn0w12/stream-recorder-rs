@@ -31,6 +31,14 @@ pub struct PipelineDebugReport {
     pub offline_at_step: Option<usize>,
 }
 
+fn substitute_variables(template: &str, vars: &HashMap<String, String>) -> String {
+    let mut resolved = template.to_string();
+    for (var_key, var_val) in vars {
+        resolved = resolved.replace(&format!("{{{}}}", var_key), var_val);
+    }
+    resolved
+}
+
 /// Builds a `HeaderMap` from the platform's header configuration, performing
 /// placeholder substitution from the provided `vars` map (e.g. `token`).
 fn build_headers(
@@ -39,10 +47,7 @@ fn build_headers(
 ) -> reqwest::header::HeaderMap {
     let mut headers = reqwest::header::HeaderMap::new();
     for (key, value) in &platform.headers {
-        let mut value = value.clone();
-        for (var_key, var_val) in vars {
-            value = value.replace(&format!("{{{}}}", var_key), var_val);
-        }
+        let value = substitute_variables(value, vars);
         if let (Ok(header_name), Ok(header_value)) = (
             reqwest::header::HeaderName::from_bytes(key.as_bytes()),
             reqwest::header::HeaderValue::from_str(&value),
@@ -169,10 +174,7 @@ async fn run_pipeline_internal(
 
     for (index, step) in platform.steps.iter().enumerate() {
         // Substitute all known variables into the endpoint template.
-        let mut endpoint = step.endpoint.clone();
-        for (key, value) in &vars {
-            endpoint = endpoint.replace(&format!("{{{}}}", key), value);
-        }
+        let endpoint = substitute_variables(&step.endpoint, &vars);
 
         let data = fetch_with_platform(&endpoint, platform, token, 5, 1.0).await?;
         let live_check_debug = step

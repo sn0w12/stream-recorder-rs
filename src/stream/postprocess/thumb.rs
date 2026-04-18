@@ -1,6 +1,6 @@
+use super::ffmpeg::run_ffmpeg_status;
 use anyhow::Result;
 use std::path::Path;
-use std::process::Stdio;
 use tokio::process::Command;
 
 /// Creates a thumbnail grid from a video file using ffmpeg
@@ -108,25 +108,23 @@ async fn extract_frame_at_time(
     height: u32,
 ) -> Result<()> {
     let timestamp_str = format!("{:.3}", timestamp);
+    let input = input_path.to_string_lossy().to_string();
+    let output = output_path.to_string_lossy().to_string();
+    let args = vec![
+        "-ss".to_string(),
+        timestamp_str,
+        "-i".to_string(),
+        input,
+        "-vf".to_string(),
+        format!("scale={}:{}", width, height),
+        "-frames:v".to_string(),
+        "1".to_string(),
+        "-q:v".to_string(),
+        "2".to_string(),
+        output,
+    ];
 
-    let status = Command::new("ffmpeg")
-        .args([
-            "-ss",
-            &timestamp_str,
-            "-i",
-            input_path.to_str().unwrap(),
-            "-vf",
-            &format!("scale={}:{}", width, height),
-            "-frames:v",
-            "1",
-            "-q:v",
-            "2",
-            output_path.to_str().unwrap(),
-        ])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .await?;
+    let status = run_ffmpeg_status(&args).await?;
 
     if !status.success() {
         return Err(anyhow::anyhow!("Failed to extract frame at {}s", timestamp));
@@ -187,27 +185,23 @@ async fn create_grid_from_frames(
     ));
 
     let filter = filter_parts.join("");
-    let mut cmd = Command::new("ffmpeg");
-
+    let mut args = Vec::new();
     for frame_path in frame_paths {
-        cmd.arg("-i").arg(frame_path);
+        args.push("-i".to_string());
+        args.push(frame_path.to_string_lossy().to_string());
     }
 
-    cmd.args([
-        "-filter_complex",
-        &filter,
-        "-map",
-        "[v]",
-        "-q:v",
-        "2",
-        output_path.to_str().unwrap(),
+    args.extend([
+        "-filter_complex".to_string(),
+        filter,
+        "-map".to_string(),
+        "[v]".to_string(),
+        "-q:v".to_string(),
+        "2".to_string(),
+        output_path.to_string_lossy().to_string(),
     ]);
 
-    let status = cmd
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .await?;
+    let status = run_ffmpeg_status(&args).await?;
 
     if !status.success() {
         return Err(anyhow::anyhow!("Failed to create grid thumbnail"));

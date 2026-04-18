@@ -75,6 +75,26 @@ fn probe_input_options(codec: &str) -> Vec<String> {
     }
 }
 
+fn encoder_profile_with_rate_control(
+    codec: &str,
+    mut base_options: Vec<String>,
+    rate_control_options: &[String],
+) -> EncoderProfile {
+    base_options.extend_from_slice(rate_control_options);
+    EncoderProfile::new(codec, base_options)
+}
+
+async fn ffmpeg_encoder_list_lowercase() -> String {
+    match tokio::process::Command::new("ffmpeg")
+        .args(["-hide_banner", "-encoders"])
+        .output()
+        .await
+    {
+        Ok(output) => String::from_utf8_lossy(&output.stdout).to_lowercase(),
+        Err(_) => String::new(),
+    }
+}
+
 fn build_hw_encoder_profiles(encoding: &VideoEncoding) -> Vec<EncoderProfile> {
     // Per-encoder rate-control flags differ between VBR (quality) and CBR (bitrate).
     // All other options (codec name, preset, pixel-format filters) are shared.
@@ -147,100 +167,100 @@ fn build_hw_encoder_profiles(encoding: &VideoEncoding) -> Vec<EncoderProfile> {
     };
 
     vec![
-        EncoderProfile::new("h264_nvenc", {
-            let mut opts = vec![
+        encoder_profile_with_rate_control(
+            "h264_nvenc",
+            vec![
                 "-c:v".into(),
                 "h264_nvenc".into(),
                 "-preset".into(),
                 "p4".into(),
-            ];
-            opts.extend(nvenc_rc_opts.clone());
-            opts
-        }),
-        EncoderProfile::new("hevc_nvenc", {
-            let mut opts = vec![
+            ],
+            &nvenc_rc_opts,
+        ),
+        encoder_profile_with_rate_control(
+            "hevc_nvenc",
+            vec![
                 "-c:v".into(),
                 "hevc_nvenc".into(),
                 "-preset".into(),
                 "p4".into(),
-            ];
-            opts.extend(nvenc_rc_opts);
-            opts
-        }),
-        EncoderProfile::new("h264_qsv", {
-            let mut opts = vec![
+            ],
+            &nvenc_rc_opts,
+        ),
+        encoder_profile_with_rate_control(
+            "h264_qsv",
+            vec![
                 "-c:v".into(),
                 "h264_qsv".into(),
                 "-preset".into(),
                 "medium".into(),
-            ];
-            opts.extend(qsv_rate_opts.clone());
-            opts
-        }),
-        EncoderProfile::new("hevc_qsv", {
-            let mut opts = vec![
+            ],
+            &qsv_rate_opts,
+        ),
+        encoder_profile_with_rate_control(
+            "hevc_qsv",
+            vec![
                 "-c:v".into(),
                 "hevc_qsv".into(),
                 "-preset".into(),
                 "medium".into(),
-            ];
-            opts.extend(qsv_rate_opts);
-            opts
-        }),
-        EncoderProfile::new("h264_vaapi", {
-            let mut opts = vec![
+            ],
+            &qsv_rate_opts,
+        ),
+        encoder_profile_with_rate_control(
+            "h264_vaapi",
+            vec![
                 "-vf".into(),
                 "format=nv12,hwupload".into(),
                 "-c:v".into(),
                 "h264_vaapi".into(),
-            ];
-            opts.extend(vaapi_rc_opts.clone());
-            opts
-        }),
-        EncoderProfile::new("hevc_vaapi", {
-            let mut opts = vec![
+            ],
+            &vaapi_rc_opts,
+        ),
+        encoder_profile_with_rate_control(
+            "hevc_vaapi",
+            vec![
                 "-vf".into(),
                 "format=nv12,hwupload".into(),
                 "-c:v".into(),
                 "hevc_vaapi".into(),
-            ];
-            opts.extend(vaapi_rc_opts);
-            opts
-        }),
-        EncoderProfile::new("h264_amf", {
-            let mut opts = vec![
+            ],
+            &vaapi_rc_opts,
+        ),
+        encoder_profile_with_rate_control(
+            "h264_amf",
+            vec![
                 "-c:v".into(),
                 "h264_amf".into(),
                 "-usage".into(),
                 "transcoding".into(),
                 "-quality".into(),
                 "quality".into(),
-            ];
-            opts.extend(amf_rc_opts.clone());
-            opts
-        }),
-        EncoderProfile::new("hevc_amf", {
-            let mut opts = vec![
+            ],
+            &amf_rc_opts,
+        ),
+        encoder_profile_with_rate_control(
+            "hevc_amf",
+            vec![
                 "-c:v".into(),
                 "hevc_amf".into(),
                 "-usage".into(),
                 "transcoding".into(),
                 "-quality".into(),
                 "quality".into(),
-            ];
-            opts.extend(amf_rc_opts);
-            opts
-        }),
-        EncoderProfile::new("h264_videotoolbox", {
-            let mut opts = vec!["-c:v".into(), "h264_videotoolbox".into()];
-            opts.extend(vt_rate_opts);
-            opts
-        }),
-        EncoderProfile::new("h264_omx", {
-            let mut opts = vec!["-c:v".into(), "h264_omx".into()];
-            opts.extend(omx_rate_opts);
-            opts
-        }),
+            ],
+            &amf_rc_opts,
+        ),
+        encoder_profile_with_rate_control(
+            "h264_videotoolbox",
+            vec!["-c:v".into(), "h264_videotoolbox".into()],
+            &vt_rate_opts,
+        ),
+        encoder_profile_with_rate_control(
+            "h264_omx",
+            vec!["-c:v".into(), "h264_omx".into()],
+            &omx_rate_opts,
+        ),
     ]
 }
 
@@ -321,14 +341,7 @@ async fn verify_hw_encoder(profile: &EncoderProfile) -> Result<(), String> {
 pub async fn detect_best_hw_encoder(encoding: &VideoEncoding) -> Option<(String, Vec<String>)> {
     // First check the build-time availability to avoid unnecessarily probing
     // encoders that aren't compiled into ffmpeg.
-    let encoders_out = match tokio::process::Command::new("ffmpeg")
-        .args(["-hide_banner", "-encoders"])
-        .output()
-        .await
-    {
-        Ok(o) => String::from_utf8_lossy(&o.stdout).to_lowercase(),
-        Err(_) => String::new(),
-    };
+    let encoders_out = ffmpeg_encoder_list_lowercase().await;
 
     let profiles = build_hw_encoder_profiles(encoding);
 

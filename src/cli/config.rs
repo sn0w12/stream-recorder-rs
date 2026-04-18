@@ -2,6 +2,25 @@ use crate::config::{Config, ConfigKey};
 use anyhow::Result;
 use clap::Subcommand;
 
+fn parse_array_value(current: &str) -> Vec<String> {
+    if current == "none" {
+        Vec::new()
+    } else {
+        current
+            .split(", ")
+            .map(|value| value.trim().to_string())
+            .collect()
+    }
+}
+
+fn format_array_value(values: &[String]) -> String {
+    if values.is_empty() {
+        "none".to_string()
+    } else {
+        values.join(", ")
+    }
+}
+
 #[derive(Subcommand)]
 pub enum ConfigAction {
     /// Get configuration value(s)
@@ -53,14 +72,10 @@ pub fn handle_config_command(action: ConfigAction) -> Result<()> {
                 return Err(anyhow::anyhow!("Key '{}' is not an array setting", key));
             }
             let current = config.get_value(&key);
-            let mut vec: Vec<String> = if current == "none" {
-                vec![]
-            } else {
-                current.split(", ").map(|s| s.trim().to_string()).collect()
-            };
+            let mut vec = parse_array_value(&current);
             if !vec.contains(&value) {
                 vec.push(value.clone());
-                let new_value = vec.join(", ");
+                let new_value = format_array_value(&vec);
                 config.set_value(&key, &new_value)?;
                 config.save()?;
                 println!("Added '{}' to '{}'", value, key);
@@ -80,14 +95,10 @@ pub fn handle_config_command(action: ConfigAction) -> Result<()> {
                 println!("'{}' is empty", key);
                 return Ok(());
             }
-            let mut vec: Vec<String> = current.split(", ").map(|s| s.trim().to_string()).collect();
+            let mut vec = parse_array_value(&current);
             if let Some(pos) = vec.iter().position(|v| v == &value) {
                 vec.remove(pos);
-                let new_value = if vec.is_empty() {
-                    "none".to_string()
-                } else {
-                    vec.join(", ")
-                };
+                let new_value = format_array_value(&vec);
                 config.set_value(&key, &new_value)?;
                 config.save()?;
                 println!("Removed '{}' from '{}'", value, key);
