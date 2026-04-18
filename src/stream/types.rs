@@ -18,6 +18,20 @@ pub struct ExtractedStreamValues {
 }
 
 impl StreamInfo {
+    fn update_optional_field(
+        target: &mut Option<String>,
+        incoming: Option<String>,
+        field_name: &'static str,
+        updated_fields: &mut Vec<&'static str>,
+    ) {
+        if let Some(value) = incoming
+            && target.as_ref() != Some(&value)
+        {
+            *target = Some(value);
+            updated_fields.push(field_name);
+        }
+    }
+
     pub fn from_pipeline(
         username: &str,
         platform: &PlatformConfig,
@@ -46,21 +60,19 @@ impl StreamInfo {
     pub fn refresh_from_pipeline(&mut self, vars: &HashMap<String, String>) -> Vec<&'static str> {
         let mut updated_fields = Vec::new();
 
-        if let Some(stream_title) = vars
-            .get("stream_title")
-            .map(|title| self.platform.clean_title(title))
-            && self.extracted.stream_title.as_ref() != Some(&stream_title)
-        {
-            self.extracted.stream_title = Some(stream_title);
-            updated_fields.push("stream_title");
-        }
-
-        if let Some(avatar_url) = vars.get("avatar_url")
-            && self.extracted.avatar_url.as_ref() != Some(avatar_url)
-        {
-            self.extracted.avatar_url = Some(avatar_url.clone());
-            updated_fields.push("avatar_url");
-        }
+        Self::update_optional_field(
+            &mut self.extracted.stream_title,
+            vars.get("stream_title")
+                .map(|title| self.platform.clean_title(title)),
+            "stream_title",
+            &mut updated_fields,
+        );
+        Self::update_optional_field(
+            &mut self.extracted.avatar_url,
+            vars.get("avatar_url").cloned(),
+            "avatar_url",
+            &mut updated_fields,
+        );
 
         updated_fields
     }
