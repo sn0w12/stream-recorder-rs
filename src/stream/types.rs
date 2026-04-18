@@ -121,10 +121,7 @@ mod tests {
 
         let updated_fields = stream_info.refresh_from_pipeline(&refreshed);
 
-        assert_eq!(
-            updated_fields,
-            vec!["stream_title", "avatar_url"]
-        );
+        assert_eq!(updated_fields, vec!["stream_title", "avatar_url"]);
         assert_eq!(
             stream_info.extracted.playback_url,
             "https://example.com/live.m3u8"

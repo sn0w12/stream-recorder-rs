@@ -1963,6 +1963,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "tiny-table",
  "tokio",
  "tokio-util",
  "toml",
@@ -2026,6 +2027,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "terminal_size"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "230a1b821ccbd75b185820a1f1ff7b14d21da1e442e22c0863ea5f08771a8874"
+dependencies = [
+ "rustix",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "thiserror"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2063,6 +2074,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "tiny-table"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ed9c464544cd4d114233d558426617759c4956ffad072e396aa18425c978370"
+dependencies = [
+ "terminal_size",
 ]
 
 [[package]]

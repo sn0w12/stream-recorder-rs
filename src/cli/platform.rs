@@ -1,7 +1,6 @@
 use crate::config::Config;
 use crate::platform::PipelineOutcome;
 use crate::platform::PlatformConfig;
-use crate::print::table::{Cell, Table};
 use crate::stream::api::run_pipeline_debug;
 use crate::stream::api::{PipelineDebugReport, PipelineDebugStep};
 use crate::utils;
@@ -9,6 +8,7 @@ use anyhow::Result;
 use clap::Subcommand;
 use reqwest::Client;
 use serde::Deserialize;
+use tiny_table::{Cell, Column, ColumnWidth, Table};
 
 #[derive(Subcommand)]
 pub enum PlatformAction {
@@ -154,12 +154,11 @@ pub async fn handle_platform_command(action: PlatformAction) -> Result<()> {
             if body.items.is_empty() {
                 println!("No results found.");
             } else {
-                let mut table = Table::new();
-                table.set_headers(vec![
-                    Cell::new("No."),
-                    Cell::new("Name"),
-                    Cell::new("Description"),
-                    Cell::new("Stars"),
+                let mut table = Table::with_columns(vec![
+                    Column::new("No.").max_width(0.05),
+                    Column::new("Name").max_width(0.2),
+                    Column::new("Description").max_width(ColumnWidth::fill()),
+                    Column::new("Stars").max_width(0.1),
                 ]);
                 for (i, item) in body.items.iter().enumerate() {
                     table.add_row(vec![

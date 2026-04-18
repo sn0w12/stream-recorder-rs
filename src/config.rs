@@ -1,12 +1,11 @@
-use crate::print::table::{Cell, SectionAlign, Table, Trunc};
 use crate::stream::postprocess::thumb::parse_thumbnail_string;
 use crate::utils::app_config_dir;
 use anyhow::{Context, Result};
-use colored::Color::*;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::OnceLock;
+use tiny_table::{Align, Cell, Color, Column, ColumnWidth, Table, Trunc};
 
 static CONFIG: OnceLock<Config> = OnceLock::new();
 
@@ -721,16 +720,17 @@ impl Config {
         let filter_lc = filter.map(|value| value.to_lowercase());
         let is_filtered = filter_lc.as_deref().is_some_and(|f| !f.is_empty());
 
-        let mut table = Table::new();
         let mut has_rows = false;
 
-        let mut headers = vec![Cell::new("Key"), Cell::new("Value"), Cell::new("Default")];
+        let mut headers = vec![
+            Column::new("Key").max_width(0.1),
+            Column::new("Value").max_width(ColumnWidth::fill()),
+            Column::new("Default").max_width(0.2),
+        ];
         if show_desc {
-            headers.insert(1, Cell::new("Description"));
-        } else {
-            table.set_column_max_width(1, 70);
+            headers.insert(1, Column::new("Description").max_width(0.3));
         }
-        table.set_headers(headers);
+        let mut table = Table::with_columns(headers);
 
         for category in ConfigCategory::all() {
             let keys: Vec<ConfigKey> = ConfigKey::all()
@@ -751,16 +751,16 @@ impl Config {
             if !is_filtered {
                 table
                     .add_section(category.display_name())
-                    .align(SectionAlign::Center);
+                    .align(Align::Center);
             }
 
             for key in keys {
                 let current = self.get_value(key.as_str());
                 let default = self.get_default_string(key);
                 let current_color = if current != default {
-                    Green
+                    Color::Green
                 } else {
-                    BrightBlack
+                    Color::BrightBlack
                 };
                 let current_truncation = if key.is_array() {
                     Trunc::NewLine
@@ -773,7 +773,7 @@ impl Config {
                     Cell::new(current)
                         .color(current_color)
                         .truncate(current_truncation),
-                    Cell::new(default).color(BrightBlack),
+                    Cell::new(default),
                 ];
                 if show_desc {
                     row.insert(1, Cell::new(self.get_description(key.as_str())));

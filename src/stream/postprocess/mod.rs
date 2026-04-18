@@ -4,7 +4,6 @@ pub mod thumb;
 use super::{StreamResult, types::StreamInfo};
 use crate::cli::upload::try_upload;
 use crate::config::Config;
-use crate::print::table::{Cell, Table};
 use crate::stream::messages::{
     send_minimum_duration_webhook, send_recording_complete_webhook, send_template_webhook,
 };
@@ -17,6 +16,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use thumb::create_video_thumbnail_grid;
+use tiny_table::{Cell, Column, ColumnWidth, Table};
 
 #[derive(Clone)]
 struct RecordingFile {
@@ -240,8 +240,10 @@ async fn upload_recording(
 }
 
 fn print_upload_results(upload_results: &HashMap<String, Vec<String>>) {
-    let mut upload_table = Table::new();
-    upload_table.set_headers(vec![Cell::new("Uploader"), Cell::new("URLs")]);
+    let mut upload_table = Table::with_columns(vec![
+        Column::new("Uploader").max_width(0.2),
+        Column::new("URLs").max_width(ColumnWidth::fill()),
+    ]);
 
     for (uploader, urls) in upload_results {
         upload_table.add_row(vec![Cell::new(uploader), Cell::new(urls.join(", "))]);
