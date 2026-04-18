@@ -360,12 +360,12 @@ impl PlatformConfig {
 
         let mut result = title.to_string();
         for rule in patterns {
-            // Patterns are validated on load/install, so this unwrap is safe.
-            let re = Regex::new(rule.pattern()).unwrap();
-            result = re
-                .replace_all(&result, rule.replacement())
-                .trim()
-                .to_string();
+            if let Ok(re) = Regex::new(rule.pattern()) {
+                result = re
+                    .replace_all(&result, rule.replacement())
+                    .trim()
+                    .to_string();
+            }
         }
         result
     }
@@ -742,7 +742,8 @@ mod tests {
     #[test]
     fn test_pipeline_step_deserializes_with_defaults() {
         let json = r#"{"endpoint": "some/path"}"#;
-        let step: PipelineStep = serde_json::from_str(json).unwrap();
+        let step: PipelineStep =
+            serde_json::from_str(json).expect("pipeline step JSON should deserialize");
         assert_eq!(step.endpoint, "some/path");
         assert!(step.live_check.is_none());
         assert!(step.extract.is_empty());
@@ -779,8 +780,9 @@ mod tests {
         let mut p = make_minimal_platform("testplat");
         p.source_url = Some("https://raw.example.com/testplat.json".to_string());
 
-        let serialized = serde_json::to_string(&p).unwrap();
-        let deserialized: PlatformConfig = serde_json::from_str(&serialized).unwrap();
+        let serialized = serde_json::to_string(&p).expect("platform should serialize");
+        let deserialized: PlatformConfig =
+            serde_json::from_str(&serialized).expect("serialized platform should deserialize");
         assert_eq!(
             deserialized.source_url.as_deref(),
             Some("https://raw.example.com/testplat.json")
@@ -790,7 +792,7 @@ mod tests {
     #[test]
     fn test_source_url_absent_from_serialized_when_none() {
         let p = make_minimal_platform("testplat");
-        let serialized = serde_json::to_string(&p).unwrap();
+        let serialized = serde_json::to_string(&p).expect("platform should serialize");
         // When source_url is None it must be omitted entirely (skip_serializing_if).
         assert!(
             !serialized.contains("source_url"),
@@ -809,7 +811,8 @@ mod tests {
             "steps": [{"endpoint": "foo"}],
             "version": "1.0.0"
         }"#;
-        let p: PlatformConfig = serde_json::from_str(json).unwrap();
+        let p: PlatformConfig =
+            serde_json::from_str(json).expect("legacy platform JSON should deserialize");
         assert!(
             p.source_url.is_none(),
             "source_url must default to None for old configs"
@@ -838,7 +841,9 @@ mod tests {
             })
             .map(|_| ());
         assert!(result.is_err());
-        let msg = result.unwrap_err().to_string();
+        let msg = result
+            .expect_err("missing source URL should return an error")
+            .to_string();
         assert!(
             msg.contains("has no source URL saved"),
             "error message must mention 'has no source URL saved', got: {}",
@@ -849,8 +854,9 @@ mod tests {
     #[test]
     fn test_version_field_round_trips() {
         let p = make_minimal_platform("vtest");
-        let serialized = serde_json::to_string(&p).unwrap();
-        let back: PlatformConfig = serde_json::from_str(&serialized).unwrap();
+        let serialized = serde_json::to_string(&p).expect("platform should serialize");
+        let back: PlatformConfig =
+            serde_json::from_str(&serialized).expect("serialized platform should deserialize");
         assert_eq!(back.version, "1.0.0");
     }
 
@@ -858,7 +864,10 @@ mod tests {
     fn test_validate_rejects_empty_version() {
         let mut p = make_minimal_platform("badver");
         p.version = String::new();
-        let err = p.validate("test").unwrap_err().to_string();
+        let err = p
+            .validate("test")
+            .expect_err("empty version should fail validation")
+            .to_string();
         assert!(err.contains("`version` must not be empty"), "got: {}", err);
     }
 
@@ -866,7 +875,10 @@ mod tests {
     fn test_validate_rejects_bad_sr_version_req() {
         let mut p = make_minimal_platform("badreq");
         p.stream_recorder_version = Some("not a semver req!!!".to_string());
-        let err = p.validate("test").unwrap_err().to_string();
+        let err = p
+            .validate("test")
+            .expect_err("invalid semver requirement should fail validation")
+            .to_string();
         assert!(err.contains("`stream_recorder_version`"), "got: {}", err);
         assert!(
             err.contains("not a valid semver requirement"),
@@ -888,7 +900,10 @@ mod tests {
         let mut p = make_minimal_platform("badcompat");
         // Require a version far in the future — should fail against 0.1.0.
         p.stream_recorder_version = Some(">=99.0.0".to_string());
-        let err = p.validate("test").unwrap_err().to_string();
+        let err = p
+            .validate("test")
+            .expect_err("incompatible stream recorder version should fail validation")
+            .to_string();
         assert!(err.contains("requires stream recorder"), "got: {}", err);
         assert!(err.contains(">=99.0.0"), "got: {}", err);
     }
@@ -896,7 +911,7 @@ mod tests {
     #[test]
     fn test_stream_recorder_version_omitted_when_none() {
         let p = make_minimal_platform("omit");
-        let serialized = serde_json::to_string(&p).unwrap();
+        let serialized = serde_json::to_string(&p).expect("platform should serialize");
         assert!(
             !serialized.contains("stream_recorder_version"),
             "field should be absent when None: {}",
@@ -908,15 +923,16 @@ mod tests {
     fn test_stream_recorder_version_round_trips() {
         let mut p = make_minimal_platform("srv");
         p.stream_recorder_version = Some("^0.1".to_string());
-        let serialized = serde_json::to_string(&p).unwrap();
-        let back: PlatformConfig = serde_json::from_str(&serialized).unwrap();
+        let serialized = serde_json::to_string(&p).expect("platform should serialize");
+        let back: PlatformConfig =
+            serde_json::from_str(&serialized).expect("serialized platform should deserialize");
         assert_eq!(back.stream_recorder_version.as_deref(), Some("^0.1"));
     }
 
     #[test]
     fn test_title_clean_regex_omitted_when_none() {
         let p = make_minimal_platform("tcr_none");
-        let serialized = serde_json::to_string(&p).unwrap();
+        let serialized = serde_json::to_string(&p).expect("platform should serialize");
         assert!(
             !serialized.contains("title_clean_regex"),
             "field should be absent when None: {}",
@@ -931,9 +947,12 @@ mod tests {
             TitleCleanRule::Pattern(r":\w+:".to_string()),
             TitleCleanRule::Pattern(r"\[.*?\]".to_string()),
         ]);
-        let serialized = serde_json::to_string(&p).unwrap();
-        let back: PlatformConfig = serde_json::from_str(&serialized).unwrap();
-        let patterns = back.title_clean_regex.unwrap();
+        let serialized = serde_json::to_string(&p).expect("platform should serialize");
+        let back: PlatformConfig =
+            serde_json::from_str(&serialized).expect("serialized platform should deserialize");
+        let patterns = back
+            .title_clean_regex
+            .expect("title_clean_regex should be present after round-trip");
         assert_eq!(patterns[0], TitleCleanRule::Pattern(r":\w+:".to_string()));
         assert_eq!(patterns[1], TitleCleanRule::Pattern(r"\[.*?\]".to_string()));
     }
@@ -949,8 +968,9 @@ mod tests {
             },
         ]);
 
-        let serialized = serde_json::to_string(&p).unwrap();
-        let back: PlatformConfig = serde_json::from_str(&serialized).unwrap();
+        let serialized = serde_json::to_string(&p).expect("platform should serialize");
+        let back: PlatformConfig =
+            serde_json::from_str(&serialized).expect("serialized platform should deserialize");
 
         assert_eq!(back.title_clean_regex, p.title_clean_regex);
     }
@@ -1010,7 +1030,10 @@ mod tests {
     fn test_validate_rejects_invalid_title_clean_regex() {
         let mut p = make_minimal_platform("tcr_bad");
         p.title_clean_regex = Some(vec![TitleCleanRule::Pattern("[invalid(".to_string())]);
-        let err = p.validate("test").unwrap_err().to_string();
+        let err = p
+            .validate("test")
+            .expect_err("invalid regex pattern should fail validation")
+            .to_string();
         assert!(err.contains("`title_clean_regex`"), "got: {}", err);
         assert!(err.contains("not a valid regex"), "got: {}", err);
     }
@@ -1022,7 +1045,10 @@ mod tests {
             pattern: "[invalid(".to_string(),
             replacement: " ".to_string(),
         }]);
-        let err = p.validate("test").unwrap_err().to_string();
+        let err = p
+            .validate("test")
+            .expect_err("invalid replacement regex pattern should fail validation")
+            .to_string();
         assert!(err.contains("`title_clean_regex`"), "got: {}", err);
         assert!(err.contains("not a valid regex"), "got: {}", err);
     }
@@ -1043,7 +1069,8 @@ mod tests {
     #[test]
     fn test_live_check_string_round_trips() {
         let json = r#"{"endpoint":"stream/{username}","live_check":"data.is_live"}"#;
-        let step: PipelineStep = serde_json::from_str(json).unwrap();
+        let step: PipelineStep =
+            serde_json::from_str(json).expect("live_check string form should deserialize");
         assert_eq!(
             step.live_check,
             Some(LiveCheck::Path("data.is_live".to_string()))
@@ -1060,7 +1087,8 @@ mod tests {
                 "not_equals":"banned"
             }
         }"#;
-        let step: PipelineStep = serde_json::from_str(json).unwrap();
+        let step: PipelineStep =
+            serde_json::from_str(json).expect("live_check condition form should deserialize");
         let expected = LiveCheck::Condition(LiveCheckCondition {
             path: "data.status".to_string(),
             exists: None,
@@ -1122,7 +1150,10 @@ mod tests {
             equals: Some(Value::Bool(true)),
             not_equals: None,
         }));
-        let err = p.validate("test").unwrap_err().to_string();
+        let err = p
+            .validate("test")
+            .expect_err("empty live_check.path should fail validation")
+            .to_string();
         assert!(
             err.contains("`live_check.path` must not be empty"),
             "got: {}",
@@ -1139,7 +1170,10 @@ mod tests {
             equals: Some(Value::String("online".to_string())),
             not_equals: None,
         }));
-        let err = p.validate("test").unwrap_err().to_string();
+        let err = p
+            .validate("test")
+            .expect_err("live_check.exists=false with comparisons should fail validation")
+            .to_string();
         assert!(err.contains("`live_check.exists = false`"), "got: {}", err);
     }
 

@@ -83,17 +83,29 @@ pub fn render_template(template: &str, context: &HashMap<String, TemplateValue>)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
+    use tempfile::{TempDir, tempdir};
 
-    #[test]
-    fn resolve_template_string_prefers_config_value() {
+    fn setup_template_fixture(
+        config_template: Option<&str>,
+        file_template: Option<&str>,
+        file_name: &str,
+    ) -> (Config, TempDir, std::path::PathBuf) {
         let config = Config {
-            upload_complete_message_template: Some("from-config".to_string()),
+            upload_complete_message_template: config_template.map(|s| s.to_string()),
             ..Config::default()
         };
         let dir = tempdir().expect("tempdir");
-        let template_path = dir.path().join("template.hbr");
-        std::fs::write(&template_path, "from-file").expect("write template");
+        let template_path = dir.path().join(file_name);
+        if let Some(content) = file_template {
+            std::fs::write(&template_path, content).expect("write template");
+        }
+        (config, dir, template_path)
+    }
+
+    #[test]
+    fn resolve_template_string_prefers_config_value() {
+        let (config, _dir, template_path) =
+            setup_template_fixture(Some("from-config"), Some("from-file"), "template.hbr");
 
         let template = resolve_template_string(&config, &template_path).expect("resolve template");
 
@@ -102,10 +114,8 @@ mod tests {
 
     #[test]
     fn resolve_template_string_falls_back_to_file() {
-        let config = Config::default();
-        let dir = tempdir().expect("tempdir");
-        let template_path = dir.path().join("template.hbr");
-        std::fs::write(&template_path, "from-file").expect("write template");
+        let (config, _dir, template_path) =
+            setup_template_fixture(None, Some("from-file"), "template.hbr");
 
         let template = resolve_template_string(&config, &template_path).expect("resolve template");
 
@@ -114,9 +124,7 @@ mod tests {
 
     #[test]
     fn resolve_template_string_returns_none_when_missing() {
-        let config = Config::default();
-        let dir = tempdir().expect("tempdir");
-        let template_path = dir.path().join("missing.hbr");
+        let (config, _dir, template_path) = setup_template_fixture(None, None, "missing.hbr");
 
         let template = resolve_template_string(&config, &template_path).expect("resolve template");
 

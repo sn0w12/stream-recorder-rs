@@ -465,12 +465,14 @@ mod tests {
         // We call the internal directory-scan logic directly by reading the dir ourselves.
         let dir = tmp.path();
         let mut platforms = Vec::new();
-        for entry in std::fs::read_dir(dir).unwrap() {
-            let entry = entry.unwrap();
+        for entry in std::fs::read_dir(dir).expect("failed to read temp platform directory") {
+            let entry = entry.expect("failed to read a directory entry");
             let path = entry.path();
             if path.extension().and_then(|e| e.to_str()) == Some("json") {
-                let content = std::fs::read_to_string(&path).unwrap();
-                let config: PlatformConfig = serde_json::from_str(&content).unwrap();
+                let content =
+                    std::fs::read_to_string(&path).expect("failed to read platform JSON file");
+                let config: PlatformConfig = serde_json::from_str(&content)
+                    .expect("failed to deserialize platform JSON from test fixture");
                 platforms.push(config);
             }
         }
@@ -537,10 +539,10 @@ mod tests {
         let mut config = Config::default();
         config
             .set_value("stream_reconnect_delay_minutes", "10.0")
-            .unwrap();
+            .expect("set_value should accept a valid float");
         config
             .set_value("stream_reconnect_delay_minutes", "none")
-            .unwrap();
+            .expect("set_value should accept clearing reconnect delay with 'none'");
         assert!(config.get_stream_reconnect_delay_minutes().is_none());
     }
 
