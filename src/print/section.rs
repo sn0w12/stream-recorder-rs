@@ -1,12 +1,31 @@
-use colored::*;
+use tiny_table::{Color, StyleAction, apply_style_actions, impl_style_methods};
+
+struct ItemBody {
+    name: String,
+    note: String,
+    styles: Vec<StyleAction>,
+}
 
 /// Types of items that can appear in a section.
 enum Item {
-    Ok { name: String, note: String },
-    Err { name: String, note: String },
-    Warn { name: String, note: String },
-    Dot { name: String, note: String },
-    Plain { text: String, color: Option<Color> },
+    Ok(ItemBody),
+    Err(ItemBody),
+    Warn(ItemBody),
+    Dot(ItemBody),
+    Plain(ItemBody),
+}
+
+impl_style_methods!(ItemBody, |mut item: ItemBody, action| {
+    item.styles.push(action);
+    item
+});
+
+fn with_styles(content: &str, styles: &[StyleAction]) -> String {
+    apply_style_actions(content, styles)
+}
+
+fn with_default_color(content: &str, color: Color) -> String {
+    with_styles(content, &[StyleAction::Color(color)])
 }
 
 /// A section with a title and a list of items.
@@ -43,42 +62,47 @@ impl StartupInfo {
 
     /// Add a "✓" item (green).
     pub fn ok(&mut self, name: impl Into<String>, note: impl Into<String>) {
-        self.push_item(Item::Ok {
+        self.push_item(Item::Ok(ItemBody {
             name: name.into(),
             note: note.into(),
-        });
+            styles: Vec::new(),
+        }));
     }
 
     /// Add a "✗" item (red).
     pub fn err(&mut self, name: impl Into<String>, note: impl Into<String>) {
-        self.push_item(Item::Err {
+        self.push_item(Item::Err(ItemBody {
             name: name.into(),
             note: note.into(),
-        });
+            styles: Vec::new(),
+        }));
     }
 
     /// Add a "→" item (yellow).
     pub fn warn(&mut self, name: impl Into<String>, note: impl Into<String>) {
-        self.push_item(Item::Warn {
+        self.push_item(Item::Warn(ItemBody {
             name: name.into(),
             note: note.into(),
-        });
+            styles: Vec::new(),
+        }));
     }
 
     /// Add a "•" item (plain).
     pub fn dot(&mut self, name: impl Into<String>, note: impl Into<String>) {
-        self.push_item(Item::Dot {
+        self.push_item(Item::Dot(ItemBody {
             name: name.into(),
             note: note.into(),
-        });
+            styles: Vec::new(),
+        }));
     }
 
     /// Add a plain text line (e.g., "No platforms configured").
     pub fn plain(&mut self, text: impl Into<String>, color: Option<Color>) {
-        self.push_item(Item::Plain {
-            text: text.into(),
-            color,
-        });
+        self.push_item(Item::Plain(ItemBody {
+            name: text.into(),
+            note: String::new(),
+            styles: vec![StyleAction::Color(color.unwrap_or(Color::White))],
+        }));
     }
 
     /// Print all sections with globally consistent underlines and name alignment.
@@ -90,10 +114,10 @@ impl StartupInfo {
         let mut global_max_name_len = 0;
         for section in &self.sections {
             for item in &section.items {
-                if let Item::Ok { name, .. }
-                | Item::Err { name, .. }
-                | Item::Warn { name, .. }
-                | Item::Dot { name, .. } = item
+                if let Item::Ok(ItemBody { name, .. })
+                | Item::Err(ItemBody { name, .. })
+                | Item::Warn(ItemBody { name, .. })
+                | Item::Dot(ItemBody { name, .. }) = item
                 {
                     let len = name.chars().count();
                     if len > global_max_name_len {
@@ -108,16 +132,16 @@ impl StartupInfo {
             // Title line (printed before underline) – we don't include it in max width
             for item in &section.items {
                 let width = match item {
-                    Item::Ok { note, .. }
-                    | Item::Err { note, .. }
-                    | Item::Warn { note, .. }
-                    | Item::Dot { note, .. } => {
+                    Item::Ok(ItemBody { note, .. })
+                    | Item::Err(ItemBody { note, .. })
+                    | Item::Warn(ItemBody { note, .. })
+                    | Item::Dot(ItemBody { note, .. }) => {
                         // 4 = symbol(1) + space(1) + two spaces before note(2)
                         4 + global_max_name_len + note.chars().count()
                     }
-                    Item::Plain { text, .. } => {
+                    Item::Plain(ItemBody { name, .. }) => {
                         // plain lines are indented by 2 spaces
-                        2 + text.chars().count()
+                        2 + name.chars().count()
                     }
                 };
                 if width > global_max_line_width {
@@ -128,35 +152,42 @@ impl StartupInfo {
 
         for section in &self.sections {
             // Print section title (bold, no extra spaces)
-            println!("{}", section.title.bold());
+            println!("{}", with_styles(&section.title, &[StyleAction::Bold]));
             // Underline to global max width
             println!("{}", "─".repeat(global_max_line_width));
 
             // Print items
             for item in &section.items {
                 match item {
-                    Item::Ok { name, note } => {
+                    Item::Ok(ItemBody { name, note, styles }) => {
                         let name_padded = format!("{:width$}", name, width = global_max_name_len);
-                        println!("✓ {}  {}", name_padded.green(), note);
+                        let name_colored = with_default_color(&name_padded, Color::Green);
+                        let name_styled = with_styles(&name_colored, styles);
+                        let note_styled = with_styles(note, styles);
+                        println!("✓ {}  {}", name_styled, note_styled);
                     }
-                    Item::Err { name, note } => {
+                    Item::Err(ItemBody { name, note, styles }) => {
                         let name_padded = format!("{:width$}", name, width = global_max_name_len);
-                        println!("✗ {}  {}", name_padded.red(), note);
+                        let name_colored = with_default_color(&name_padded, Color::Red);
+                        let name_styled = with_styles(&name_colored, styles);
+                        let note_styled = with_styles(note, styles);
+                        println!("✗ {}  {}", name_styled, note_styled);
                     }
-                    Item::Warn { name, note } => {
+                    Item::Warn(ItemBody { name, note, styles }) => {
                         let name_padded = format!("{:width$}", name, width = global_max_name_len);
-                        println!("→ {}  {}", name_padded.yellow(), note);
+                        let name_colored = with_default_color(&name_padded, Color::Yellow);
+                        let name_styled = with_styles(&name_colored, styles);
+                        let note_styled = with_styles(note, styles);
+                        println!("→ {}  {}", name_styled, note_styled);
                     }
-                    Item::Dot { name, note } => {
+                    Item::Dot(ItemBody { name, note, styles }) => {
                         let name_padded = format!("{:width$}", name, width = global_max_name_len);
-                        println!("• {}  {}", name_padded, note);
+                        let name_styled = with_styles(&name_padded, styles);
+                        let note_styled = with_styles(note, styles);
+                        println!("• {}  {}", name_styled, note_styled);
                     }
-                    Item::Plain { text, color } => {
-                        let styled = if let Some(c) = color {
-                            text.color(*c).to_string()
-                        } else {
-                            text.clone()
-                        };
+                    Item::Plain(ItemBody { name, styles, .. }) => {
+                        let styled = with_styles(name, styles);
                         println!("  {}", styled); // two spaces to align with items
                     }
                 }

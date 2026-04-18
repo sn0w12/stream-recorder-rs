@@ -17,8 +17,8 @@ use crate::template::{TemplateValue, get_template_string, render_template};
 use crate::uploaders::UploaderType;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use colored::Color::*;
 use std::collections::HashMap;
+use tiny_table::Color::*;
 
 use crate::cli::config::{ConfigAction, handle_config_command};
 use crate::cli::platform::{PlatformAction, handle_platform_command};
