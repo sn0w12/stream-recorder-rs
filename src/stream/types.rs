@@ -37,4 +37,141 @@ impl StreamInfo {
             },
         })
     }
+
+    /// Refresh extracted values using the latest pipeline output.
+    ///
+    /// Missing optional values are ignored so we do not overwrite previously
+    /// captured metadata with absent fields from a partial pipeline response.
+    /// Does not refresh the playback_url.
+    pub fn refresh_from_pipeline(&mut self, vars: &HashMap<String, String>) -> Vec<&'static str> {
+        let mut updated_fields = Vec::new();
+
+        if let Some(stream_title) = vars
+            .get("stream_title")
+            .map(|title| self.platform.clean_title(title))
+            && self.extracted.stream_title.as_ref() != Some(&stream_title)
+        {
+            self.extracted.stream_title = Some(stream_title);
+            updated_fields.push("stream_title");
+        }
+
+        if let Some(avatar_url) = vars.get("avatar_url")
+            && self.extracted.avatar_url.as_ref() != Some(avatar_url)
+        {
+            self.extracted.avatar_url = Some(avatar_url.clone());
+            updated_fields.push("avatar_url");
+        }
+
+        updated_fields
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::platform::{LiveCheck, PipelineStep};
+
+    fn test_platform() -> PlatformConfig {
+        PlatformConfig {
+            id: "test-platform".to_string(),
+            name: "Test Platform".to_string(),
+            base_url: "https://example.com/".to_string(),
+            icon: None,
+            token_name: None,
+            headers: HashMap::new(),
+            steps: vec![PipelineStep {
+                endpoint: "/stream".to_string(),
+                live_check: Some(LiveCheck::Path("data.live".to_string())),
+                extract: HashMap::new(),
+            }],
+            source_url: None,
+            version: "1.0.0".to_string(),
+            stream_recorder_version: None,
+            title_clean_regex: None,
+        }
+    }
+
+    #[test]
+    fn refresh_from_pipeline_updates_changed_fields() {
+        let platform = test_platform();
+        let mut initial = HashMap::new();
+        initial.insert(
+            "playback_url".to_string(),
+            "https://example.com/live.m3u8".to_string(),
+        );
+        initial.insert("stream_title".to_string(), "Original Title".to_string());
+        initial.insert(
+            "avatar_url".to_string(),
+            "https://example.com/original.jpg".to_string(),
+        );
+
+        let mut stream_info =
+            StreamInfo::from_pipeline("example_user", &platform, &initial).expect("stream info");
+
+        let mut refreshed = HashMap::new();
+        refreshed.insert(
+            "playback_url".to_string(),
+            "https://example.com/live-updated.m3u8".to_string(),
+        );
+        refreshed.insert("stream_title".to_string(), "Updated Title".to_string());
+        refreshed.insert(
+            "avatar_url".to_string(),
+            "https://example.com/updated.jpg".to_string(),
+        );
+
+        let updated_fields = stream_info.refresh_from_pipeline(&refreshed);
+
+        assert_eq!(
+            updated_fields,
+            vec!["stream_title", "avatar_url"]
+        );
+        assert_eq!(
+            stream_info.extracted.playback_url,
+            "https://example.com/live.m3u8"
+        );
+        assert_eq!(
+            stream_info.extracted.stream_title.as_deref(),
+            Some("Updated Title")
+        );
+        assert_eq!(
+            stream_info.extracted.avatar_url.as_deref(),
+            Some("https://example.com/updated.jpg")
+        );
+    }
+
+    #[test]
+    fn refresh_from_pipeline_preserves_existing_optional_fields_when_missing() {
+        let platform = test_platform();
+        let mut initial = HashMap::new();
+        initial.insert(
+            "playback_url".to_string(),
+            "https://example.com/live.m3u8".to_string(),
+        );
+        initial.insert("stream_title".to_string(), "Original Title".to_string());
+        initial.insert(
+            "avatar_url".to_string(),
+            "https://example.com/original.jpg".to_string(),
+        );
+
+        let mut stream_info =
+            StreamInfo::from_pipeline("example_user", &platform, &initial).expect("stream info");
+
+        let mut refreshed = HashMap::new();
+        refreshed.insert(
+            "playback_url".to_string(),
+            "https://example.com/live.m3u8".to_string(),
+        );
+
+        let updated_fields = stream_info.refresh_from_pipeline(&refreshed);
+
+        assert!(updated_fields.is_empty());
+        assert_eq!(
+            stream_info.extracted.stream_title.as_deref(),
+            Some("Original Title")
+        );
+        assert_eq!(
+            stream_info.extracted.avatar_url.as_deref(),
+            Some("https://example.com/original.jpg")
+        );
+    }
 }

@@ -515,6 +515,15 @@ mod tests {
     }
 
     #[test]
+    fn test_stream_metadata_refresh_interval_key_recognised_by_config() {
+        use crate::config::ConfigKey;
+        assert!(
+            ConfigKey::from_key("stream_metadata_refresh_interval_seconds").is_some(),
+            "stream_metadata_refresh_interval_seconds should be a recognised config key"
+        );
+    }
+
+    #[test]
     fn test_stream_reconnect_delay_set_and_get_via_config_methods() {
         let mut config = Config::default();
         config
@@ -533,5 +542,31 @@ mod tests {
             .set_value("stream_reconnect_delay_minutes", "none")
             .unwrap();
         assert!(config.get_stream_reconnect_delay_minutes().is_none());
+    }
+
+    #[test]
+    fn test_stream_metadata_refresh_interval_set_and_get_via_config_methods() {
+        let mut config = Config::default();
+        config
+            .set_value("stream_metadata_refresh_interval_seconds", "15")
+            .expect("set_value should accept a positive float");
+        assert_eq!(
+            config.get_stream_metadata_refresh_interval_seconds(),
+            Some(15.0)
+        );
+    }
+
+    #[test]
+    fn test_stream_metadata_refresh_interval_rejects_zero() {
+        let mut config = Config::default();
+        let err = config
+            .set_value("stream_metadata_refresh_interval_seconds", "0")
+            .expect_err("set_value should reject non-positive intervals");
+
+        assert!(
+            err.to_string()
+                .contains("stream_metadata_refresh_interval_seconds"),
+            "unexpected error: {err:#}"
+        );
     }
 }

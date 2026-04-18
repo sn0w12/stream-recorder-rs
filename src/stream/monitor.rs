@@ -42,12 +42,16 @@ async fn record_session(stream_info: StreamInfo, token: &str, fetch_interval: Du
     let platform = stream_info.platform.clone();
     let delay_minutes = Config::get().get_stream_reconnect_delay_minutes();
     let mut session_files = Vec::new();
-    let mut current_info = stream_info.clone();
+    let mut session_info = stream_info.clone();
+    let mut current_info = stream_info;
     let mut is_continuation = false;
 
     loop {
-        match record_segment(&current_info, is_continuation).await {
-            Ok(path) => session_files.push(path),
+        match record_segment(&mut current_info, token, is_continuation).await {
+            Ok(path) => {
+                session_files.push(path);
+                session_info = current_info.clone();
+            }
             Err(error) => {
                 let label = if is_continuation {
                     "continuation"
@@ -85,7 +89,7 @@ async fn record_session(stream_info: StreamInfo, token: &str, fetch_interval: Du
     }
 
     tokio::spawn(async move {
-        if let Err(error) = post_process_session(stream_info, session_files).await {
+        if let Err(error) = post_process_session(session_info, session_files).await {
             eprintln!("Error post-processing session: {}", error);
         }
     });

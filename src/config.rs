@@ -606,6 +606,18 @@ fn validate_positive_u32(value: &Option<u32>) -> Result<()> {
     }
 }
 
+fn validate_positive_f64(value: &Option<f64>) -> Result<()> {
+    let Some(value) = value else {
+        return Ok(());
+    };
+
+    if *value > 0.0 {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!("value must be greater than zero"))
+    }
+}
+
 fn validate_url(value: &Option<String>) -> Result<()> {
     let Some(value) = value.as_deref() else {
         return Ok(());
@@ -671,6 +683,7 @@ define_config! {
         monitors: Option<Vec<String>> = None => Vec::<String>::new(), vec, "List of usernames to monitor",
         min_stream_duration: Option<f64> = None => None, f64_opt, "Minimum stream duration before recording",
         stream_reconnect_delay_minutes: Option<f64> = None => None, f64_opt, "Delay in minutes to wait for stream continuation before post-processing. Streams resumed are merged.",
+        stream_metadata_refresh_interval_seconds: Option<f64> = None => None, f64_opt, "Refresh extracted stream metadata during active recordings every N seconds. Updates titles and avatars used by notifications and templates.", [validate_positive_f64],
         step_delay_seconds: Option<f64> = None => Some(0.5), f64, "Delay in seconds between each step in a platform",
         fetch_interval_seconds: Option<f64> = None => Some(120.0), f64, "The interval in seconds monitors are fetched at",
     }

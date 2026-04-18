@@ -1,11 +1,14 @@
 use super::{StreamResult, types::StreamInfo};
 use crate::config::Config;
+use crate::platform::PipelineOutcome;
+use crate::stream::api::run_pipeline;
 use crate::stream::encoding::{VideoEncoding, build_ffmpeg_args, detect_best_hw_encoder};
 use crate::stream::messages::send_recording_start_webhook;
 use crate::utils::slugify;
 use chrono::{DateTime, Utc};
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::time::{Duration, sleep};
 
 /// Manages the ffmpeg process, ensuring it is terminated when dropped.
 struct StreamRecorder {
@@ -42,6 +45,28 @@ impl StreamRecorder {
         self.child.wait().await?;
         Ok(())
     }
+
+    async fn wait_with_metadata_refresh(
+        mut self,
+        stream_info: &mut StreamInfo,
+        token: &str,
+        refresh_interval: Duration,
+    ) -> StreamResult<()> {
+        let wait = self.child.wait();
+        tokio::pin!(wait);
+
+        loop {
+            tokio::select! {
+                result = &mut wait => {
+                    result?;
+                    return Ok(());
+                }
+                _ = sleep(refresh_interval) => {
+                    refresh_stream_info(stream_info, token).await;
+                }
+            }
+        }
+    }
 }
 
 impl Drop for StreamRecorder {
@@ -54,7 +79,8 @@ impl Drop for StreamRecorder {
 /// Returns the output file path.
 /// When `is_continuation` is true, the recording-start webhook is suppressed.
 pub async fn record_segment(
-    stream_info: &StreamInfo,
+    stream_info: &mut StreamInfo,
+    token: &str,
     is_continuation: bool,
 ) -> StreamResult<String> {
     println!(
@@ -81,7 +107,17 @@ pub async fn record_segment(
     command.args(&ffmpeg_args);
 
     let recorder = StreamRecorder::new(&mut command).await?;
-    recorder.wait().await?;
+    if let Some(interval_seconds) = Config::get().get_stream_metadata_refresh_interval_seconds() {
+        recorder
+            .wait_with_metadata_refresh(
+                stream_info,
+                token,
+                Duration::from_secs_f64(interval_seconds),
+            )
+            .await?;
+    } else {
+        recorder.wait().await?;
+    }
 
     Ok(output_path)
 }
@@ -123,4 +159,24 @@ async fn build_recording_args(stream_info: &StreamInfo, output_path: &str) -> Ve
         max_bitrate,
         max_fps,
     )
+}
+
+async fn refresh_stream_info(stream_info: &mut StreamInfo, token: &str) {
+    match run_pipeline(&stream_info.username, &stream_info.platform, token).await {
+        Ok(PipelineOutcome::Live(vars)) => {
+            let updated_fields = stream_info.refresh_from_pipeline(&vars);
+            if !updated_fields.is_empty() {
+                println!(
+                    "Refreshed stream metadata for {}: {}",
+                    stream_info.username,
+                    updated_fields.join(", ")
+                );
+            }
+        }
+        Ok(PipelineOutcome::Offline) => {}
+        Err(error) => eprintln!(
+            "Error refreshing stream metadata for {}: {}",
+            stream_info.username, error
+        ),
+    }
 }

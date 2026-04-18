@@ -123,13 +123,14 @@ Configuration is stored in `~/.config/stream-recorder/config.toml` (Linux/macOS)
 
 #### Monitoring
 
-| Setting                          | Description                                                                                          | Default |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------- | ------- |
-| `monitors`                       | List of usernames to monitor                                                                         | `none`  |
-| `min_stream_duration`            | Minimum stream duration before recording                                                             | `none`  |
-| `stream_reconnect_delay_minutes` | Delay in minutes to wait for stream continuation before post-processing. Streams resumed are merged. | `none`  |
-| `step_delay_seconds`             | Delay in seconds between each step in a platform                                                     | `0.5`   |
-| `fetch_interval_seconds`         | The interval in seconds monitors are fetched at                                                      | `120`   |
+| Setting                                    | Description                                                                                                                                 | Default |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `monitors`                                 | List of usernames to monitor                                                                                                                | `none`  |
+| `min_stream_duration`                      | Minimum stream duration before recording                                                                                                    | `none`  |
+| `stream_reconnect_delay_minutes`           | Delay in minutes to wait for stream continuation before post-processing. Streams resumed are merged.                                        | `none`  |
+| `stream_metadata_refresh_interval_seconds` | Refresh extracted stream metadata during active recordings every N seconds. Updates titles and avatars used by notifications and templates. | `none`  |
+| `step_delay_seconds`                       | Delay in seconds between each step in a platform                                                                                            | `0.5`   |
+| `fetch_interval_seconds`                   | The interval in seconds monitors are fetched at                                                                                             | `120`   |
 
 #### Video
 
