@@ -4,6 +4,7 @@ use crate::config::types::{
 use anyhow::Result;
 use std::marker::PhantomData;
 
+/// Comma-separated string list stored as an optional vector of strings.
 pub struct StringList<V = NoValidation>(PhantomData<V>);
 
 impl<V> ConfigType for StringList<V>

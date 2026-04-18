@@ -5,6 +5,7 @@ use crate::config::types::{
 use anyhow::Result;
 use std::marker::PhantomData;
 
+/// Unsigned integer setting stored as an optional value with a non-optional default.
 pub struct U32<V = NoValidation>(PhantomData<V>);
 
 impl<V> ConfigType for U32<V>
@@ -39,6 +40,7 @@ where
     }
 }
 
+/// Unsigned integer setting stored as an optional value with an optional default.
 pub struct OptionalU32<V = NoValidation>(PhantomData<V>);
 
 impl<V> ConfigType for OptionalU32<V>
@@ -82,6 +84,7 @@ where
     }
 }
 
+/// Floating-point setting stored as an optional value with a non-optional default.
 pub struct Float<V = NoValidation>(PhantomData<V>);
 
 impl<V> ConfigType for Float<V>
@@ -116,6 +119,7 @@ where
     }
 }
 
+/// Floating-point setting stored as an optional value with an optional default.
 pub struct OptionalFloat<V = NoValidation>(PhantomData<V>);
 
 impl<V> ConfigType for OptionalFloat<V>

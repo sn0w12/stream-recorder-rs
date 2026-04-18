@@ -5,6 +5,7 @@ use crate::config::types::{
 use anyhow::Result;
 use std::marker::PhantomData;
 
+/// Text setting stored as an optional string with a non-optional default.
 pub struct Text<V = NoValidation>(PhantomData<V>);
 
 impl<V> ConfigType for Text<V>
@@ -36,6 +37,7 @@ where
     }
 }
 
+/// Text setting stored as an optional string with an optional default.
 pub struct OptionalText<V = NoValidation>(PhantomData<V>);
 
 impl<V> ConfigType for OptionalText<V>

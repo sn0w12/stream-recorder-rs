@@ -10,10 +10,10 @@ fn parse_file_size_value(input: &str) -> Result<FileSizeValue> {
         .map_err(|error| anyhow::anyhow!("Invalid file size '{}': {}", input, error))
 }
 
-/// Config type for human-readable file-size strings such as `10MB` or `5GiB`.
+/// File-size setting stored as bytes but configured through human-readable strings.
 ///
-/// The stored representation is the parsed [`FileSizeValue`], so typed getters
-/// return the real size object and config defaults stay strongly typed.
+/// The stored representation is an optional [`FileSizeValue`], while CLI input
+/// accepts strings such as `10MB`, `5GiB`, or `none` to clear the setting.
 #[allow(dead_code)]
 pub struct FileSize<V = NoValidation>(PhantomData<V>);
 
