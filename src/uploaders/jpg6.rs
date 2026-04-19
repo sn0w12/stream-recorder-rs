@@ -144,23 +144,21 @@ fn parse_upload_response(
             status_code: Some(status_code),
         })?;
 
-    if let Some(success) = parsed.success {
-        if success.code >= 400 {
+    if let Some(success) = parsed.success
+        && success.code >= 400 {
             return Err(UploadError {
                 message: success.message,
                 status_code: Some(status_code),
             });
         }
-    }
 
-    if let Some(status_txt) = parsed.status_txt.as_deref() {
-        if !status_txt.eq_ignore_ascii_case("ok") {
+    if let Some(status_txt) = parsed.status_txt.as_deref()
+        && !status_txt.eq_ignore_ascii_case("ok") {
             return Err(UploadError {
                 message: format!("jpg6 returned status {}", status_txt),
                 status_code: Some(status_code),
             });
         }
-    }
 
     if !(200..300).contains(&status_code) {
         return Err(UploadError {
