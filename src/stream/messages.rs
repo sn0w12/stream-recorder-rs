@@ -4,7 +4,7 @@ use crate::{
         ImageComponent, Media, MediaComponent, MediaGalleryItem, TextComponent, WebhookClient,
     },
     stream::monitor::StreamInfo,
-    types::FileSize,
+    types::{DurationValue, FileSize},
 };
 use anyhow::Result;
 
@@ -104,7 +104,7 @@ pub async fn send_recording_start_webhook(
 pub async fn send_recording_complete_webhook(
     webhook_url: Option<&str>,
     stream_info: &StreamInfo,
-    duration_str: &str,
+    duration: &DurationValue,
     file_size: &FileSize,
 ) -> Result<()> {
     let component = Component::Container(ContainerComponent {
@@ -131,7 +131,7 @@ pub async fn send_recording_complete_webhook(
                 ),
             }));
             components.push(Component::Text(TextComponent {
-                content: format!("**Duration**\n{}", duration_str),
+                content: format!("**Duration**\n{}", duration),
             }));
             components.push(Component::Text(TextComponent {
                 content: format!("**Size**\n{}", file_size),

@@ -105,11 +105,10 @@ async fn post_process_stream(stream_info: StreamInfo, output_path: String) -> St
         return Ok(());
     }
 
-    let duration_str = format_duration(duration);
     let config = Config::get();
     let webhook_url = config.get_discord_webhook_url();
     if let Err(error) =
-        send_recording_complete_webhook(webhook_url, &stream_info, &duration_str, &file_size).await
+        send_recording_complete_webhook(webhook_url, &stream_info, &duration, &file_size).await
     {
         eprintln!("Error sending recorded webhook: {}", error);
     }
@@ -127,7 +126,7 @@ async fn post_process_stream(stream_info: StreamInfo, output_path: String) -> St
         thumbnail_path: thumbnail_path.clone(),
         upload_urls: upload_results,
         thumbnail_upload_urls: thumbnail_uploads,
-        duration: duration_str,
+        duration,
         file_size,
     };
     send_template_notification(&stream_info, &template_info).await;
@@ -275,7 +274,7 @@ struct TemplateInfo {
     thumbnail_path: String,
     upload_urls: HashMap<String, Vec<String>>,
     thumbnail_upload_urls: HashMap<String, Vec<String>>,
-    duration: String,
+    duration: DurationValue,
     file_size: FileSize,
 }
 
@@ -313,7 +312,7 @@ async fn send_template_notification(stream_info: &StreamInfo, template_info: &Te
     );
     context.insert(
         "duration".to_string(),
-        TemplateValue::String(template_info.duration.clone()),
+        TemplateValue::String(template_info.duration.to_string()),
     );
     context.insert(
         "file_size".to_string(),
@@ -382,10 +381,6 @@ async fn get_video_metadata(output_path: &str) -> StreamResult<(FileSize, Durati
     };
 
     Ok((file_size, duration))
-}
-
-fn format_duration(duration: DurationValue) -> String {
-    duration.to_string()
 }
 
 async fn handle_minimum_duration(
