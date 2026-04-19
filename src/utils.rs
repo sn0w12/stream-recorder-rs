@@ -82,6 +82,10 @@ pub fn get_filester_token() -> Option<String> {
     get_token_from_sources("filester_token", "FILESTER_TOKEN")
 }
 
+pub fn get_jpg6_token() -> Option<String> {
+    get_token_from_sources("jpg6_token", "JPG6_TOKEN")
+}
+
 #[derive(Debug)]
 pub enum SplitMonitorReferenceError {
     InvalidFormat,

@@ -148,6 +148,10 @@ async fn main() -> Result<()> {
                         "filester_urls".to_string(),
                         TemplateValue::Array(vec!["https://filester.example.com/file".to_string()]),
                     );
+                    context.insert(
+                        "jpg6_urls".to_string(),
+                        TemplateValue::Array(vec!["https://jpg6.example.com/file".to_string()]),
+                    );
                     let rendered = render_template(&template, &context);
                     println!("{}", rendered);
                 }
@@ -267,6 +271,13 @@ async fn print_startup_info(platforms: &[PlatformConfig]) {
                     UploaderStatus::Enabled("token configured".to_string())
                 } else {
                     UploaderStatus::Enabled("no token, public limits".to_string())
+                }
+            }
+            UploaderType::Jpg6 => {
+                if crate::utils::get_jpg6_token().is_some() {
+                    UploaderStatus::Enabled("token configured".to_string())
+                } else {
+                    UploaderStatus::ConfigError("token required".to_string())
                 }
             }
         }

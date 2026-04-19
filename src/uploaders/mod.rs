@@ -12,6 +12,7 @@ pub mod fileditch;
 pub mod filester;
 pub mod gofile;
 mod http;
+pub mod jpg6;
 
 use async_trait::async_trait;
 use error::UploadError;
@@ -31,6 +32,32 @@ pub struct UploaderConfig {
     pub folder_id: Option<String>,
     /// Server to upload to (used by gofile)
     pub server: Option<String>,
+}
+
+/// Broad uploader category used for filtering uploaders.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum UploaderKind {
+    Video,
+    Image,
+}
+
+/// Filter for selecting which uploader kinds should be included.
+#[allow(dead_code)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum UploaderKindFilter {
+    All,
+    Video,
+    Image,
+}
+
+impl UploaderKindFilter {
+    fn matches(self, kind: UploaderKind) -> bool {
+        match self {
+            UploaderKindFilter::All => true,
+            UploaderKindFilter::Video => kind == UploaderKind::Video,
+            UploaderKindFilter::Image => kind == UploaderKind::Image,
+        }
+    }
 }
 
 /// Result of an upload operation.
@@ -98,6 +125,9 @@ pub trait Uploader: Send + Sync {
         FileSize::MAX
     }
 
+    /// Get the broad category of this uploader.
+    fn kind(&self) -> UploaderKind;
+
     /// Check if this uploader is configured and ready to use.
     ///
     /// Returns `true` if the uploader has all necessary credentials and configuration
@@ -161,10 +191,13 @@ uploader_list! {
     sync GoFileUploader => gofile => GoFile,
     sync FileditchUploader => fileditch => Fileditch,
     sync FilesterUploader => filester => Filester,
+    sync Jpg6Uploader => jpg6 => Jpg6,
 }
 
 /// Build a list of uploaders based on user configuration and readiness.
-pub async fn build_uploaders() -> Vec<(Box<dyn Uploader>, UploaderConfig)> {
+pub async fn build_uploaders(
+    filter: UploaderKindFilter,
+) -> Vec<(Box<dyn Uploader>, UploaderConfig)> {
     let disabled_uploaders: Vec<String> = Config::get()
         .get_disabled_uploaders()
         .into_iter()
@@ -178,10 +211,25 @@ pub async fn build_uploaders() -> Vec<(Box<dyn Uploader>, UploaderConfig)> {
             continue;
         }
 
-        if uploader.is_ready().await {
+        if uploader.is_ready().await && filter.matches(uploader.kind()) {
             uploaders.push((uploader, UploaderConfig::default()));
         }
     }
 
     uploaders
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{UploaderKind, UploaderKindFilter};
+
+    #[test]
+    fn uploader_kind_filter_matches_expected_kinds() {
+        assert!(UploaderKindFilter::All.matches(UploaderKind::Video));
+        assert!(UploaderKindFilter::All.matches(UploaderKind::Image));
+        assert!(UploaderKindFilter::Video.matches(UploaderKind::Video));
+        assert!(!UploaderKindFilter::Video.matches(UploaderKind::Image));
+        assert!(UploaderKindFilter::Image.matches(UploaderKind::Image));
+        assert!(!UploaderKindFilter::Image.matches(UploaderKind::Video));
+    }
 }

@@ -1,6 +1,6 @@
 use crate::{
     config::Config,
-    uploaders::{Uploader, UploaderConfig, build_uploaders},
+    uploaders::{Uploader, UploaderConfig, UploaderKindFilter, build_uploaders},
 };
 use anyhow::Result;
 use bunkr_client::config::config::Config as BunkrConfig;
@@ -15,7 +15,7 @@ pub enum UploadAction {
     File {
         /// Path to the file to upload
         file: String,
-        /// Only upload to this specific service (e.g. bunkr, gofile, fileditch, filester)
+        /// Only upload to this specific service, see `list` command for available uploaders
         #[arg(short, long)]
         uploader: Option<String>,
     },
@@ -33,7 +33,7 @@ pub async fn handle_upload_command(file: String, uploader: Option<String>) -> Re
     }
 
     let max_retries = Config::get().get_max_upload_retries();
-    let uploaders = build_uploaders().await;
+    let uploaders = build_uploaders(UploaderKindFilter::All).await;
 
     let mut matched = false;
     let mut upload_results: HashMap<String, Vec<String>> = HashMap::new();
@@ -186,7 +186,7 @@ async fn try_upload_single(
 
 /// Handle the list uploaders command
 pub async fn handle_list_command() -> Result<()> {
-    let uploaders = build_uploaders().await;
+    let uploaders = build_uploaders(UploaderKindFilter::All).await;
     for (uploader, _) in uploaders {
         println!("{}", uploader.name());
     }

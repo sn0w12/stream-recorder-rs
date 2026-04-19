@@ -12,6 +12,8 @@ pub enum TokenAction {
     SaveGofile { token: String },
     /// Save the Filester token securely
     SaveFilester { token: String },
+    /// Save the JPG6 token securely as USERNAME;PASSWORD
+    SaveJpg6 { token: String },
     /// Save a token for a specific platform (uses the platform's configured token_name)
     SavePlatform {
         /// Platform ID as defined in its JSON config
@@ -25,6 +27,8 @@ pub enum TokenAction {
     RemoveGofile,
     /// Remove the Filester token from keyring
     RemoveFilester,
+    /// Remove the JPG6 token from keyring
+    RemoveJpg6,
     /// Remove the token for a specific platform
     RemovePlatform {
         /// Platform ID as defined in its JSON config
@@ -39,6 +43,7 @@ pub fn handle_token_command(action: TokenAction) -> Result<()> {
         TokenAction::SaveFilester { token } => {
             save_token("filester_token", &token, "Filester token")
         }
+        TokenAction::SaveJpg6 { token } => save_token("jpg6_token", &token, "JPG6 token"),
         TokenAction::SavePlatform { platform_id, token } => {
             let (token_name, platform_name) = get_token_info_for_platform(&platform_id)?;
             save_token(&token_name, &token, &format!("{} token", platform_name))
@@ -46,6 +51,7 @@ pub fn handle_token_command(action: TokenAction) -> Result<()> {
         TokenAction::RemoveBunkr => remove_token("bunkr_token", "Bunkr token"),
         TokenAction::RemoveGofile => remove_token("gofile_token", "GoFile token"),
         TokenAction::RemoveFilester => remove_token("filester_token", "Filester token"),
+        TokenAction::RemoveJpg6 => remove_token("jpg6_token", "JPG6 token"),
         TokenAction::RemovePlatform { platform_id } => {
             let (token_name, platform_name) = get_token_info_for_platform(&platform_id)?;
             remove_token(&token_name, &format!("{} token", platform_name))

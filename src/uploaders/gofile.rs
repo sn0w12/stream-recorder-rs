@@ -1,6 +1,6 @@
 use super::error::UploadError;
 use super::http::{make_file_part, map_reqwest_error, parse_json_response};
-use super::{UploadResult, Uploader, UploaderConfig};
+use super::{UploadResult, Uploader, UploaderConfig, UploaderKind};
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::Client;
@@ -148,6 +148,10 @@ impl Uploader for GoFileUploader {
 
     fn name(&self) -> &str {
         "gofile"
+    }
+
+    fn kind(&self) -> UploaderKind {
+        UploaderKind::Video
     }
 
     async fn is_ready(&self) -> bool {

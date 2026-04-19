@@ -10,7 +10,7 @@ use crate::stream::messages::{
 };
 use crate::template::{TemplateValue, get_template_string, render_template};
 use crate::types::{DurationValue, FileSize};
-use crate::uploaders::build_uploaders;
+use crate::uploaders::{UploaderKindFilter, build_uploaders};
 use chrono::Utc;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -115,13 +115,18 @@ async fn post_process_stream(stream_info: StreamInfo, output_path: String) -> St
     }
 
     let thumbnail_path = generate_thumbnail(&output_path).await;
-    let upload_results = upload_recording(&stream_info, &output_path).await;
+
+    let thumbnail_uploads =
+        upload_with_stream(&stream_info, &thumbnail_path, UploaderKindFilter::Image).await;
+    let upload_results =
+        upload_with_stream(&stream_info, &output_path, UploaderKindFilter::Video).await;
     print_upload_results(&upload_results);
 
     let template_info = TemplateInfo {
         output_path: output_path.clone(),
         thumbnail_path: thumbnail_path.clone(),
         upload_urls: upload_results,
+        thumbnail_upload_urls: thumbnail_uploads,
         duration: duration_str,
         file_size,
     };
@@ -221,15 +226,16 @@ async fn generate_thumbnail(output_path: &str) -> String {
     thumbnail_path
 }
 
-async fn upload_recording(
+async fn upload_with_stream(
     stream_info: &StreamInfo,
     output_path: &str,
+    filter: UploaderKindFilter,
 ) -> HashMap<String, Vec<String>> {
     let config = Config::get();
     let max_retries = config.get_max_upload_retries();
     let mut upload_results = HashMap::new();
 
-    let uploaders = build_uploaders().await;
+    let uploaders = build_uploaders(filter).await;
     for (uploader, uploader_config) in &uploaders {
         let mut uploader_settings = uploader_config.clone();
         match uploader.get_folder_id_by_name(&stream_info.username).await {
@@ -268,6 +274,7 @@ struct TemplateInfo {
     output_path: String,
     thumbnail_path: String,
     upload_urls: HashMap<String, Vec<String>>,
+    thumbnail_upload_urls: HashMap<String, Vec<String>>,
     duration: String,
     file_size: FileSize,
 }
@@ -312,6 +319,13 @@ async fn send_template_notification(stream_info: &StreamInfo, template_info: &Te
         "file_size".to_string(),
         TemplateValue::String(format!("{}", template_info.file_size)),
     );
+
+    for (uploader, urls) in &template_info.thumbnail_upload_urls {
+        context.insert(
+            format!("{}_urls", uploader),
+            TemplateValue::Array(urls.clone()),
+        );
+    }
 
     for (uploader, urls) in &template_info.upload_urls {
         context.insert(

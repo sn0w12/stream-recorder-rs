@@ -1,5 +1,5 @@
 use super::error::UploadError;
-use super::{UploadResult, Uploader, UploaderConfig};
+use super::{UploadResult, Uploader, UploaderConfig, UploaderKind};
 use async_trait::async_trait;
 use bunkr_client::{BunkrUploader as BunkrClient, Config as BunkrConfig};
 
@@ -92,6 +92,10 @@ impl Uploader for BunkrUploader {
 
     fn name(&self) -> &str {
         "bunkr"
+    }
+
+    fn kind(&self) -> UploaderKind {
+        UploaderKind::Video
     }
 
     async fn is_ready(&self) -> bool {

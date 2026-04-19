@@ -6,7 +6,7 @@ use crate::types::FileSize;
 
 use super::error::UploadError;
 use super::http::{make_file_part, map_reqwest_error, parse_json_response};
-use super::{UploadResult, Uploader, UploaderConfig};
+use super::{UploadResult, Uploader, UploaderConfig, UploaderKind};
 
 #[derive(Deserialize)]
 #[allow(dead_code)]
@@ -39,7 +39,6 @@ struct FilesterFolderResponse {
 /// Filester uploader implementation
 pub struct FilesterUploader {
     client: Client,
-    #[allow(dead_code)]
     token: Option<String>,
 }
 
@@ -156,6 +155,10 @@ impl Uploader for FilesterUploader {
 
     fn name(&self) -> &str {
         "filester"
+    }
+
+    fn kind(&self) -> UploaderKind {
+        UploaderKind::Video
     }
 
     fn max_file_size(&self) -> FileSize {

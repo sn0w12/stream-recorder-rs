@@ -9,7 +9,7 @@ use crate::types::FileSize;
 
 use super::error::UploadError;
 use super::http::{file_name_from_path, map_io_error, map_reqwest_error, parse_json_response};
-use super::{UploadResult, Uploader, UploaderConfig};
+use super::{UploadResult, Uploader, UploaderConfig, UploaderKind};
 
 #[derive(Deserialize)]
 struct FileditchResponse {
@@ -121,6 +121,10 @@ impl Uploader for FileditchUploader {
 
     fn name(&self) -> &str {
         "fileditch"
+    }
+
+    fn kind(&self) -> UploaderKind {
+        UploaderKind::Video
     }
 
     fn max_file_size(&self) -> FileSize {
