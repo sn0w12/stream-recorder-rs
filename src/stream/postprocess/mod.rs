@@ -317,7 +317,7 @@ async fn send_template_notification(stream_info: &StreamInfo, template_info: &Te
     );
     context.insert(
         "file_size".to_string(),
-        TemplateValue::String(format!("{}", template_info.file_size)),
+        TemplateValue::String(template_info.file_size.to_string()),
     );
 
     for (uploader, urls) in &template_info.thumbnail_upload_urls {
