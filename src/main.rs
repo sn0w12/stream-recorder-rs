@@ -1,6 +1,7 @@
 mod cli;
 mod config;
 mod discord;
+mod monitoring;
 mod platform;
 mod print;
 mod stream;
@@ -26,6 +27,7 @@ use crate::cli::platform::{PlatformAction, handle_platform_command};
 use crate::cli::thumbnail::{ThumbnailAction, handle_thumbnail_action};
 use crate::cli::token::{TokenAction, handle_token_command};
 use crate::cli::upload::{UploadAction, handle_list_command, handle_upload_command};
+use crate::monitoring::MonitorSupervisor;
 
 #[derive(Parser)]
 #[command(name = "stream-recorder", about = "CLI tool for recording streams")]
@@ -361,96 +363,9 @@ async fn print_startup_info(platforms: &[PlatformConfig]) {
 async fn run_recording(platforms: &[PlatformConfig], cli_token: Option<String>) -> Result<()> {
     print_startup_info(platforms).await;
 
-    let monitors = Config::get().get_monitors();
-    if monitors.is_empty() {
-        println!(
-            "No monitors configured. Use 'stream-recorder config monitors add <platform_id>:<username>' to add users to monitor."
-        );
-        return Ok(());
-    }
-
-    for monitor_str in monitors {
-        let (platform_id, username) = match utils::split_monitor_reference(&monitor_str) {
-            Ok(pair) => pair,
-            Err(_) => continue,
-        };
-
-        let platform = match PlatformConfig::find_by_id(platforms, &platform_id) {
-            Some(p) => p.clone(),
-            None => {
-                eprintln!(
-                    "Unknown platform '{}' for monitor '{}', skipping.",
-                    platform_id, monitor_str
-                );
-                continue;
-            }
-        };
-
-        // Resolve the token for this platform.
-        // The CLI --token flag acts as a universal override for any platform.
-        let token = match get_platform_token(&platform, cli_token.clone()) {
-            Ok(t) => t,
-            Err(e) => {
-                eprintln!("Error getting token for platform '{}': {}", platform_id, e);
-                continue;
-            }
-        };
-
-        if let Err(e) = spawn_monitor_task(&username, &token, platform).await {
-            eprintln!("Error starting monitor for {}: {}", username, e);
-        }
-        // Small delay to prevent rapid spawning
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-    }
-
-    // Wait for Ctrl+C to keep the program running
-    tokio::signal::ctrl_c().await?;
-    println!("Shutting down...");
-
-    Ok(())
-}
-
-/// Resolves the authentication token for a platform.
-///
-/// If a CLI token is supplied it acts as a universal override across all
-/// platforms, allowing quick one-off runs without modifying stored credentials.
-fn get_platform_token(platform: &PlatformConfig, cli_token: Option<String>) -> Result<String> {
-    // Accept an explicit CLI token first.
-    if let Some(t) = cli_token {
-        return Ok(t);
-    }
-
-    if let Some(token_name) = &platform.token_name {
-        crate::utils::get_token_by_name(token_name).ok_or_else(|| {
-            anyhow::anyhow!(
-                "No token found for platform '{}' (key: '{}'). \
-                 Save it with 'token save-platform {} <token>'.",
-                platform.id,
-                token_name,
-                platform.id
-            )
-        })
-    } else {
-        // Platform does not require authentication.
-        Ok(String::new())
-    }
-}
-
-async fn spawn_monitor_task(username: &str, token: &str, platform: PlatformConfig) -> Result<()> {
-    let username_owned = username.to_string();
-    let token_owned = token.to_string();
-
-    tokio::spawn(async move {
-        crate::stream::monitor::monitor_stream(
-            &username_owned,
-            &platform,
-            &token_owned,
-            Config::get().get_fetch_interval(),
-        )
-        .await;
-    });
-
-    Ok(())
+    MonitorSupervisor::new(platforms.to_vec(), cli_token)
+        .run()
+        .await
 }
 
 #[cfg(test)]

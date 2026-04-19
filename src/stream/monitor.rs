@@ -13,17 +13,13 @@ pub use crate::stream::types::StreamInfo;
 /// Runs a polling loop: records the stream when live; waits when offline.
 /// If `stream_reconnect_delay` is configured, waits after each
 /// recording to detect a continuation and merges all segments into one session.
-pub async fn monitor_stream(
-    username: &str,
-    platform: &PlatformConfig,
-    token: &str,
-    fetch_interval: Duration,
-) {
+pub async fn monitor_stream(username: &str, platform: &PlatformConfig, token: &str) {
     loop {
+        let fetch_interval = Config::get().get_fetch_interval();
         match run_pipeline(username, platform, token).await {
             Ok(PipelineOutcome::Live(vars)) => {
                 match StreamInfo::from_pipeline(username, platform, &vars) {
-                    Some(stream_info) => record_session(stream_info, token, fetch_interval).await,
+                    Some(stream_info) => record_session(stream_info, token).await,
                     None => {
                         eprintln!("Pipeline returned Live but 'playback_url' was not extracted")
                     }
@@ -38,10 +34,9 @@ pub async fn monitor_stream(
 }
 
 /// Records one or more stream segments then spawns post-processing on the full session.
-async fn record_session(stream_info: StreamInfo, token: &str, fetch_interval: Duration) {
+async fn record_session(stream_info: StreamInfo, token: &str) {
     let username = stream_info.username.clone();
     let platform = stream_info.platform.clone();
-    let reconnect_delay = Config::get().get_stream_reconnect_delay();
     let mut session_files = Vec::new();
     let mut session_info = stream_info.clone();
     let mut current_info = stream_info;
@@ -64,7 +59,9 @@ async fn record_session(stream_info: StreamInfo, token: &str, fetch_interval: Du
             }
         }
 
-        let Some(delay) = reconnect_delay else { break };
+        let Some(delay) = Config::get().get_stream_reconnect_delay() else {
+            break;
+        };
 
         let segment_label = if is_continuation {
             "Continuation stream"
@@ -78,6 +75,7 @@ async fn record_session(stream_info: StreamInfo, token: &str, fetch_interval: Du
             DurationValue::from(delay)
         );
 
+        let fetch_interval = Config::get().get_fetch_interval();
         match next_live_stream(&username, &platform, token, fetch_interval, delay).await {
             Some(next_info) => {
                 println!(

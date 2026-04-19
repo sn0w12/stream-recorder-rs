@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock, RwLock};
 use tiny_table::{Align, Cell, Color, Column, ColumnWidth, Table, Trunc};
 
 use crate::{
@@ -14,7 +14,15 @@ use crate::{
 };
 use types::ConfigType;
 
-static CONFIG: OnceLock<Config> = OnceLock::new();
+static CONFIG: OnceLock<RwLock<Arc<Config>>> = OnceLock::new();
+
+fn config_store() -> &'static RwLock<Arc<Config>> {
+    CONFIG.get_or_init(|| {
+        let config =
+            Config::load().unwrap_or_else(|error| panic!("Failed to load configuration: {error}"));
+        RwLock::new(Arc::new(config))
+    })
+}
 
 macro_rules! define_config {
 	(
@@ -474,29 +482,27 @@ impl Config {
 
     /// Load the configuration from disk and store it in the global singleton.
     ///
-    /// Must be called once at program startup before any call to [`Config::get`].
-    /// Subsequent calls are no-ops: once the singleton is set the stored value
-    /// is never replaced.
+    /// Call this at program startup to seed the shared snapshot before any
+    /// long-running task begins reading from [`Config::get`].
     pub fn init() -> Result<()> {
-        let config = Self::load()?;
-        CONFIG.set(config).ok();
+        Self::reload()?;
         Ok(())
     }
 
-    /// Return a reference to the global configuration singleton.
+    /// Return a cloned snapshot of the global configuration singleton.
     ///
     /// If [`Config::init`] has not been called yet, the config is loaded lazily.
     /// Panics with a descriptive message if loading fails, since this represents
     /// a critical initialization failure that should never be silently swallowed.
-    pub fn get() -> &'static Config {
-        CONFIG.get_or_init(|| {
-            Self::load().unwrap_or_else(|error| {
-                panic!(
-                    "Failed to load configuration: {error}\n\
-					 Call Config::init() at startup to handle this error gracefully."
-                )
-            })
-        })
+    pub fn get() -> Arc<Config> {
+        config_store().read().expect("config lock poisoned").clone()
+    }
+
+    /// Reload the configuration from disk and update the shared snapshot.
+    pub fn reload() -> Result<Arc<Config>> {
+        let config = Arc::new(Self::load()?);
+        *config_store().write().expect("config lock poisoned") = Arc::clone(&config);
+        Ok(config)
     }
 
     pub fn load() -> Result<Self> {

@@ -96,7 +96,8 @@ pub async fn record_segment(
     let output_path = build_output_path(&stream_info.username)?;
 
     if !is_continuation {
-        let webhook_url = Config::get().get_discord_webhook_url();
+        let config = Config::get();
+        let webhook_url = config.get_discord_webhook_url();
         if let Err(error) = send_recording_start_webhook(webhook_url, stream_info).await {
             eprintln!("Error sending start webhook: {}", error);
         }

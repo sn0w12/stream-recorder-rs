@@ -106,7 +106,8 @@ async fn post_process_stream(stream_info: StreamInfo, output_path: String) -> St
     }
 
     let duration_str = format_duration(duration);
-    let webhook_url = Config::get().get_discord_webhook_url();
+    let config = Config::get();
+    let webhook_url = config.get_discord_webhook_url();
     if let Err(error) =
         send_recording_complete_webhook(webhook_url, &stream_info, &duration_str, &file_size).await
     {
@@ -320,7 +321,8 @@ async fn send_template_notification(stream_info: &StreamInfo, template_info: &Te
     }
 
     let content = format!("```\n{}\n```", render_template(&template, &context));
-    let webhook_url = Config::get().get_discord_webhook_url();
+    let config = Config::get();
+    let webhook_url = config.get_discord_webhook_url();
     if let Err(error) = send_template_webhook(
         webhook_url,
         stream_info,

@@ -36,7 +36,7 @@ fn resolve_template_string(config: &Config, config_path: &Path) -> Result<Option
 pub fn get_template_string() -> Result<Option<String>> {
     let config = Config::get();
     let config_path = crate::utils::app_config_dir().join("template.hbr");
-    resolve_template_string(config, &config_path)
+    resolve_template_string(&config, &config_path)
 }
 
 /// Render the provided template using Handlebars.

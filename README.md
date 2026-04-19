@@ -119,6 +119,8 @@ flowchart TD
 
 Configuration is stored in `~/.config/stream-recorder/config.toml` (Linux/macOS) or `%APPDATA%\stream-recorder\config.toml` (Windows).
 
+The running recorder watches this file for changes. Most settings take effect the next time they are read, and changes to `monitors` automatically start or stop the affected monitor tasks.
+
 ### Setting Types
 
 1. Duration
