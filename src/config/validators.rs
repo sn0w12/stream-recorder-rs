@@ -1,6 +1,5 @@
 use crate::config::types::ConfigValidator;
 use crate::stream::postprocess::thumb::parse_thumbnail_string;
-use crate::types::DurationValue;
 use anyhow::Result;
 
 pub struct VideoQuality;
@@ -10,7 +9,6 @@ pub struct FfmpegBitrate;
 pub struct PositiveU32;
 #[allow(dead_code)]
 pub struct PositiveF64;
-pub struct PositiveDuration;
 pub struct Url;
 pub struct RegexList;
 
@@ -138,20 +136,6 @@ impl ConfigValidator<Option<f64>> for PositiveF64 {
     }
 }
 
-impl ConfigValidator<Option<DurationValue>> for PositiveDuration {
-    fn validate(value: &Option<DurationValue>) -> Result<()> {
-        let Some(value) = value else {
-            return Ok(());
-        };
-
-        if value.as_duration().is_zero() {
-            Err(anyhow::anyhow!("value must be greater than zero"))
-        } else {
-            Ok(())
-        }
-    }
-}
-
 impl ConfigValidator<Option<String>> for Url {
     fn validate(value: &Option<String>) -> Result<()> {
         let Some(value) = value.as_deref() else {
@@ -185,11 +169,9 @@ impl ConfigValidator<Option<Vec<String>>> for RegexList {
 #[cfg(test)]
 mod tests {
     use super::{
-        FfmpegBitrate, PositiveDuration, PositiveU32, RegexList, ThumbnailGrid, ThumbnailSize, Url,
-        VideoQuality,
+        FfmpegBitrate, PositiveU32, RegexList, ThumbnailGrid, ThumbnailSize, Url, VideoQuality,
     };
     use crate::config::types::ConfigValidator;
-    use crate::types::DurationValue;
 
     #[test]
     fn video_quality_validator_enforces_range() {
@@ -240,15 +222,6 @@ mod tests {
         assert!(PositiveU32::validate(&Some(1)).is_ok());
 
         let err = PositiveU32::validate(&Some(0)).expect_err("0 should be rejected");
-        assert!(err.to_string().contains("greater than zero"));
-    }
-
-    #[test]
-    fn positive_duration_validator_rejects_zero() {
-        assert!(PositiveDuration::validate(&Some(DurationValue::from_secs(1))).is_ok());
-
-        let err = PositiveDuration::validate(&Some(DurationValue::from_secs(0)))
-            .expect_err("zero duration should be rejected");
         assert!(err.to_string().contains("greater than zero"));
     }
 
