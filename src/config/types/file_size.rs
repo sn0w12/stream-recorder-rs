@@ -6,7 +6,8 @@ use anyhow::Result;
 use std::marker::PhantomData;
 
 fn parse_file_size_value(input: &str) -> Result<FileSizeValue> {
-    FileSizeValue::from_str(input)
+    input
+        .parse::<FileSizeValue>()
         .map_err(|error| anyhow::anyhow!("Invalid file size '{}': {}", input, error))
 }
 

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FileSize(u64); // stored as bytes
@@ -51,29 +52,6 @@ impl FileSize {
         Self(gib.saturating_mul(Self::BYTES_PER_GIB))
     }
 
-    /// From a human-readable string like "10MB", "5GiB", etc.
-    pub fn from_str(size_str: &str) -> Result<Self, String> {
-        let size_str = size_str.trim();
-        let (num_part, unit_part) = size_str
-            .chars()
-            .partition::<String, _>(|c| c.is_digit(10) || *c == '.');
-        let num: f64 = num_part
-            .parse()
-            .map_err(|e| format!("invalid number: {}", e))?;
-        let file_size = match unit_part.to_uppercase().as_str() {
-            "B" => Self::from_bytes(num as u64),
-            "KB" => Self::from_kb(num as u64),
-            "KIB" => Self::from_kib(num as u64),
-            "MB" => Self::from_mb(num as u64),
-            "MIB" => Self::from_mib(num as u64),
-            "GB" => Self::from_gb(num as u64),
-            "GIB" => Self::from_gib(num as u64),
-            "" => Self::from_bytes(num as u64), // default to bytes if no unit
-            _ => return Err(format!("invalid unit: {}", unit_part)),
-        };
-        Ok(file_size)
-    }
-
     /// Get the file size in bytes.
     pub const fn as_bytes(self) -> u64 {
         self.0
@@ -107,6 +85,33 @@ impl FileSize {
     /// Get the file size in gibibytes (binary, 1 GiB = 1,073,741,824 bytes).
     pub const fn as_gib(self) -> u64 {
         self.0 / Self::BYTES_PER_GIB
+    }
+}
+
+impl FromStr for FileSize {
+    type Err = String;
+
+    /// Parse a human-readable string like "10MB" or "5GiB".
+    fn from_str(size_str: &str) -> Result<Self, Self::Err> {
+        let size_str = size_str.trim();
+        let (num_part, unit_part) = size_str
+            .chars()
+            .partition::<String, _>(|c| c.is_ascii_digit() || *c == '.');
+        let num: f64 = num_part
+            .parse()
+            .map_err(|e| format!("invalid number: {}", e))?;
+        let file_size = match unit_part.to_uppercase().as_str() {
+            "B" => Self::from_bytes(num as u64),
+            "KB" => Self::from_kb(num as u64),
+            "KIB" => Self::from_kib(num as u64),
+            "MB" => Self::from_mb(num as u64),
+            "MIB" => Self::from_mib(num as u64),
+            "GB" => Self::from_gb(num as u64),
+            "GIB" => Self::from_gib(num as u64),
+            "" => Self::from_bytes(num as u64),
+            _ => return Err(format!("invalid unit: {}", unit_part)),
+        };
+        Ok(file_size)
     }
 }
 
@@ -169,7 +174,7 @@ impl<'de> Deserialize<'de> for FileSize {
             where
                 E: serde::de::Error,
             {
-                FileSize::from_str(value).map_err(E::custom)
+                value.parse::<FileSize>().map_err(E::custom)
             }
 
             fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
@@ -198,7 +203,7 @@ impl fmt::Display for FileSize {
         ];
 
         for (unit_bytes, suffix) in candidates {
-            if bytes % unit_bytes == 0 {
+            if bytes.is_multiple_of(unit_bytes) {
                 return write!(f, "{}{}", bytes / unit_bytes, suffix);
             }
         }
