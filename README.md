@@ -281,7 +281,7 @@ The tool supports uploading to multiple services. Tokens are stored securely and
 | GoFile    |      Yes       | API token supported; configurable server and folder ID.                       |
 | Fileditch |       No       | Public file hosting uploader.                                                 |
 | Filester  |       No       | Public file hosting uploader; supports album/folder lookups if token provided |
-| JPG6      |      Yes       | Login token must be stored as `USERNAME;PASSWORD`.                            |
+| JPG6      |      Yes       | Login token must be stored as `USERNAME:PASSWORD`.                            |
 
 ### File Organization
 

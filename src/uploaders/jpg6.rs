@@ -10,7 +10,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::types::FileSize;
-use crate::utils::get_jpg6_token;
+use crate::utils::{SplitMonitorReferenceError, get_jpg6_token, split_monitor_reference};
 
 use super::error::UploadError;
 use super::http::{make_file_part, map_reqwest_error};
@@ -90,22 +90,24 @@ struct Jpg6UploadResponse {
 }
 
 fn parse_credentials(token: &str) -> Result<Jpg6Credentials, UploadError> {
-    let Some((username, password)) = token.split_once(';') else {
-        return Err(UploadError {
-            message: "jpg6 token must use the format USERNAME;PASSWORD".to_string(),
-            status_code: None,
-        });
-    };
+    let (username, password) = split_monitor_reference(token).map_err(|error| {
+        let message = match error {
+            SplitMonitorReferenceError::InvalidFormat => {
+                "jpg6 token must use the format USERNAME:PASSWORD"
+            }
+            SplitMonitorReferenceError::EmptyPlatform => {
+                "jpg6 token must include a username before the ':'"
+            }
+            SplitMonitorReferenceError::EmptyUsername => {
+                "jpg6 token must include a password after the ':'"
+            }
+        };
 
-    let username = username.trim();
-    let password = password.trim();
-
-    if username.is_empty() || password.is_empty() {
-        return Err(UploadError {
-            message: "jpg6 token must include both a username and password".to_string(),
+        UploadError {
+            message: message.to_string(),
             status_code: None,
-        });
-    }
+        }
+    })?;
 
     Ok(Jpg6Credentials {
         username: username.to_string(),
