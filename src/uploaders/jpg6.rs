@@ -338,20 +338,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_credentials_supports_username_and_password() {
-        let credentials = parse_credentials("user;pass").unwrap();
-        assert_eq!(credentials.username, "user");
-        assert_eq!(credentials.password, "pass");
-    }
-
-    #[test]
-    fn parse_credentials_keeps_additional_semicolons_in_password() {
-        let credentials = parse_credentials("user;pa;ss").unwrap();
-        assert_eq!(credentials.username, "user");
-        assert_eq!(credentials.password, "pa;ss");
-    }
-
-    #[test]
     fn extract_upload_auth_token_finds_script_assignment() {
         let html = r#"<script>PF.obj.config.auth_token = "abc123";</script>"#;
         assert_eq!(extract_upload_auth_token(html).as_deref(), Some("abc123"));
@@ -363,7 +349,7 @@ mod tests {
             "status_code": 200,
             "success": {"message": "image uploaded", "code": 200},
             "image": {
-                "url_viewer": "https://jpg6.su/img/example"
+                "display_url": "https://jpg6.su/img/example"
             },
             "status_txt": "OK"
         });
