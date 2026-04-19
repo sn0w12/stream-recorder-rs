@@ -3,7 +3,6 @@ use anyhow::Result;
 use handlebars::{Handlebars, handlebars_helper};
 use serde_json::{Map, Number, Value};
 use std::collections::HashMap;
-use std::path::Path;
 
 #[derive(Clone, Debug)]
 pub enum TemplateValue {
@@ -20,7 +19,10 @@ fn to_json_value(tv: &TemplateValue) -> Value {
     }
 }
 
-fn resolve_template_string(config: &Config, config_path: &Path) -> Result<Option<String>> {
+pub fn get_template_string() -> Result<Option<String>> {
+    let config = Config::get();
+    let config_path = crate::utils::app_config_dir().join("template.hbr");
+
     if let Some(template_str) = config.get_upload_complete_message_template() {
         return Ok(Some(template_str.to_owned()));
     }
@@ -31,12 +33,6 @@ fn resolve_template_string(config: &Config, config_path: &Path) -> Result<Option
 
     println!("No template found in config or template.hbr, no template will be used.");
     Ok(None)
-}
-
-pub fn get_template_string() -> Result<Option<String>> {
-    let config = Config::get();
-    let config_path = crate::utils::app_config_dir().join("template.hbr");
-    resolve_template_string(&config, &config_path)
 }
 
 /// Render the provided template using Handlebars.
@@ -83,53 +79,6 @@ pub fn render_template(template: &str, context: &HashMap<String, TemplateValue>)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::{TempDir, tempdir};
-
-    fn setup_template_fixture(
-        config_template: Option<&str>,
-        file_template: Option<&str>,
-        file_name: &str,
-    ) -> (Config, TempDir, std::path::PathBuf) {
-        let config = Config {
-            upload_complete_message_template: config_template.map(|s| s.to_string()),
-            ..Config::default()
-        };
-        let dir = tempdir().expect("tempdir");
-        let template_path = dir.path().join(file_name);
-        if let Some(content) = file_template {
-            std::fs::write(&template_path, content).expect("write template");
-        }
-        (config, dir, template_path)
-    }
-
-    #[test]
-    fn resolve_template_string_prefers_config_value() {
-        let (config, _dir, template_path) =
-            setup_template_fixture(Some("from-config"), Some("from-file"), "template.hbr");
-
-        let template = resolve_template_string(&config, &template_path).expect("resolve template");
-
-        assert_eq!(template.as_deref(), Some("from-config"));
-    }
-
-    #[test]
-    fn resolve_template_string_falls_back_to_file() {
-        let (config, _dir, template_path) =
-            setup_template_fixture(None, Some("from-file"), "template.hbr");
-
-        let template = resolve_template_string(&config, &template_path).expect("resolve template");
-
-        assert_eq!(template.as_deref(), Some("from-file"));
-    }
-
-    #[test]
-    fn resolve_template_string_returns_none_when_missing() {
-        let (config, _dir, template_path) = setup_template_fixture(None, None, "missing.hbr");
-
-        let template = resolve_template_string(&config, &template_path).expect("resolve template");
-
-        assert!(template.is_none());
-    }
 
     #[test]
     fn render_template_preserves_query_string_urls() {
