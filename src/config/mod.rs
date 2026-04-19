@@ -427,7 +427,8 @@ impl Config {
                 Column::new("Setting"),
                 Column::new("Description"),
                 Column::new("Default"),
-            ]).with_style(style);
+            ])
+            .with_style(style);
 
             let keys = category.keys();
             if keys.is_empty() {
@@ -458,9 +459,10 @@ impl Config {
                 .take(rendered.lines().count() - 2)
                 .collect::<Vec<_>>()
                 .join("\n");
-            markdown.push_str(&strip_ansi_sequences(&stripped)
-                .replace("|-", "| ")
-                .replace("-|", " |")
+            markdown.push_str(
+                &strip_ansi_sequences(&stripped)
+                    .replace("|-", "| ")
+                    .replace("-|", " |"),
             );
             if index < tables.len() - 1 {
                 markdown.push_str("\n\n");
@@ -590,7 +592,10 @@ mod readme_sync_tests {
 
     #[test]
     fn readme_settings_section_matches_generated_markdown() {
-        assert_eq!(extract_readme_settings_section(), Config::default().markdown_table());
+        assert_eq!(
+            extract_readme_settings_section(),
+            Config::default().markdown_table()
+        );
     }
 
     #[test]
