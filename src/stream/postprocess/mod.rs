@@ -9,6 +9,7 @@ use crate::stream::messages::{
     send_minimum_duration_webhook, send_recording_complete_webhook, send_template_webhook,
 };
 use crate::template::{TemplateValue, get_template_string, render_template};
+use crate::types::FileSize;
 use crate::uploaders::build_uploaders;
 use chrono::Utc;
 use serde_json::Value;
@@ -88,7 +89,7 @@ async fn post_process_stream(stream_info: StreamInfo, output_path: String) -> St
 
     storage::manage_disk_space().await?;
 
-    let (file_size_mb, duration_minutes) = get_video_metadata(&output_path).await?;
+    let (file_size, duration_minutes) = get_video_metadata(&output_path).await?;
     let config = Config::get();
 
     if let Some(min_duration) = config.get_min_stream_duration()
@@ -105,10 +106,9 @@ async fn post_process_stream(stream_info: StreamInfo, output_path: String) -> St
     }
 
     let duration_str = format_duration(duration_minutes);
-    let size_str = format_file_size(file_size_mb);
     let webhook_url = Config::get().get_discord_webhook_url();
     if let Err(error) =
-        send_recording_complete_webhook(webhook_url, &stream_info, &duration_str, &size_str).await
+        send_recording_complete_webhook(webhook_url, &stream_info, &duration_str, &file_size).await
     {
         eprintln!("Error sending recorded webhook: {}", error);
     }
@@ -116,7 +116,15 @@ async fn post_process_stream(stream_info: StreamInfo, output_path: String) -> St
     let thumbnail_path = generate_thumbnail(&output_path).await;
     let upload_results = upload_recording(&stream_info, &output_path).await;
     print_upload_results(&upload_results);
-    send_template_notification(&stream_info, &output_path, &thumbnail_path, &upload_results).await;
+
+    let template_info = TemplateInfo {
+        output_path: output_path.clone(),
+        thumbnail_path: thumbnail_path.clone(),
+        upload_urls: upload_results,
+        duration: duration_str,
+        file_size,
+    };
+    send_template_notification(&stream_info, &template_info).await;
 
     Ok(())
 }
@@ -255,12 +263,15 @@ fn print_upload_results(upload_results: &HashMap<String, Vec<String>>) {
     upload_table.print();
 }
 
-async fn send_template_notification(
-    stream_info: &StreamInfo,
-    output_path: &str,
-    thumbnail_path: &str,
-    upload_results: &HashMap<String, Vec<String>>,
-) {
+struct TemplateInfo {
+    output_path: String,
+    thumbnail_path: String,
+    upload_urls: HashMap<String, Vec<String>>,
+    duration: String,
+    file_size: FileSize,
+}
+
+async fn send_template_notification(stream_info: &StreamInfo, template_info: &TemplateInfo) {
     let Ok(Some(template)) = get_template_string() else {
         return;
     };
@@ -276,11 +287,11 @@ async fn send_template_notification(
     );
     context.insert(
         "output_path".to_string(),
-        TemplateValue::String(output_path.to_string()),
+        TemplateValue::String(template_info.output_path.clone()),
     );
     context.insert(
         "thumbnail_path".to_string(),
-        TemplateValue::String(thumbnail_path.to_string()),
+        TemplateValue::String(template_info.thumbnail_path.clone()),
     );
     context.insert(
         "stream_title".to_string(),
@@ -292,7 +303,16 @@ async fn send_template_notification(
                 .unwrap_or_default(),
         ),
     );
-    for (uploader, urls) in upload_results {
+    context.insert(
+        "duration".to_string(),
+        TemplateValue::String(template_info.duration.clone()),
+    );
+    context.insert(
+        "file_size".to_string(),
+        TemplateValue::String(format!("{}", template_info.file_size)),
+    );
+
+    for (uploader, urls) in &template_info.upload_urls {
         context.insert(
             format!("{}_urls", uploader),
             TemplateValue::Array(urls.clone()),
@@ -305,7 +325,7 @@ async fn send_template_notification(
         webhook_url,
         stream_info,
         &content,
-        thumbnail_path.to_string(),
+        &template_info.thumbnail_path,
     )
     .await
     {
@@ -313,10 +333,10 @@ async fn send_template_notification(
     }
 }
 
-async fn get_video_metadata(output_path: &str) -> StreamResult<(f64, f64)> {
+async fn get_video_metadata(output_path: &str) -> StreamResult<(FileSize, f64)> {
     let metadata = std::fs::metadata(output_path)?;
     let file_size_bytes = metadata.len();
-    let file_size_mb = file_size_bytes as f64 / (1024.0 * 1024.0);
+    let file_size = FileSize::from_bytes(file_size_bytes);
 
     let duration_minutes = match tokio::process::Command::new("ffprobe")
         .args([
@@ -345,16 +365,7 @@ async fn get_video_metadata(output_path: &str) -> StreamResult<(f64, f64)> {
         Err(_) => 0.0,
     };
 
-    Ok((file_size_mb, duration_minutes))
-}
-
-fn format_file_size(file_size_mb: f64) -> String {
-    let file_size_gb = file_size_mb / 1024.0;
-    if file_size_gb >= 1.0 {
-        format!("{:.2} GB", file_size_gb)
-    } else {
-        format!("{:.2} MB", file_size_mb)
-    }
+    Ok((file_size, duration_minutes))
 }
 
 fn format_duration(duration_minutes: f64) -> String {

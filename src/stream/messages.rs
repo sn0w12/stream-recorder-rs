@@ -4,6 +4,7 @@ use crate::{
         ImageComponent, Media, MediaComponent, MediaGalleryItem, TextComponent, WebhookClient,
     },
     stream::monitor::StreamInfo,
+    types::FileSize,
 };
 use anyhow::Result;
 
@@ -104,7 +105,7 @@ pub async fn send_recording_complete_webhook(
     webhook_url: Option<&str>,
     stream_info: &StreamInfo,
     duration_str: &str,
-    size_str: &str,
+    file_size: &FileSize,
 ) -> Result<()> {
     let component = Component::Container(ContainerComponent {
         accent_color: DiscordColor::rgb(0, 255, 0),
@@ -133,7 +134,7 @@ pub async fn send_recording_complete_webhook(
                 content: format!("**Duration**\n{}", duration_str),
             }));
             components.push(Component::Text(TextComponent {
-                content: format!("**Size**\n{}", size_str),
+                content: format!("**Size**\n{}", file_size),
             }));
             components
         },
@@ -154,7 +155,7 @@ pub async fn send_template_webhook(
     webhook_url: Option<&str>,
     stream_info: &StreamInfo,
     message: &str,
-    attachment: String,
+    attachment: &String,
 ) -> Result<()> {
     let header_component = Component::Container(ContainerComponent {
         accent_color: DiscordColor::rgb(0, 0, 255),
