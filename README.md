@@ -240,11 +240,16 @@ Templates are rendered using [Handlebars](https://handlebarsjs.com/), a powerful
 
 The following helpers are registered and available in all templates:
 
-| Helper | Description                                                                                  |
-| ------ | -------------------------------------------------------------------------------------------- |
-| `add`  | Adds two numbers. <br>Usage: `{{add a b}}`                                                   |
-| `gt`   | Returns true if first number is greater than second. <br>Usage: `{{#if (gt a b)}}...{{/if}}` |
-| `ne`   | Returns true if two values are not equal. <br>Usage: `{{#if (ne a b)}}...{{/if}}`            |
+| Helper  | Description                                                                                  |
+| ------- | -------------------------------------------------------------------------------------------- |
+| `add`   | Adds two numbers. <br>Usage: `{{add a b}}`                                                   |
+| `sub`   | Subtract two numbers. <br>Usage: `{{sub a b}}`                                               |
+| `gt`    | Returns true if first number is greater than second. <br>Usage: `{{#if (gt a b)}}...{{/if}}` |
+| `lt`    | Returns true if first number is lesser than second. <br>Usage: `{{#if (lt a b)}}...{{/if}}`  |
+| `ne`    | Returns true if two values are not equal. <br>Usage: `{{#if (ne a b)}}...{{/if}}`            |
+| `eq`    | Returns true if two values are equal. <br>Usage: `{{#if (eq a b)}}...{{/if}}`                |
+| `lower` | Converts a string to lowercase. <br>Usage: `{{lower username}}`                              |
+| `upper` | Converts a string to uppercase. <br>Usage: `{{upper stream_title}}`                          |
 
 For real-world usage, see the example template: [templates/example.hbr](templates/example.hbr)
 
