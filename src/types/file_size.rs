@@ -211,3 +211,50 @@ impl fmt::Display for FileSize {
         write!(f, "{}B", bytes)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_human_readable_sizes() {
+        assert_eq!("42".parse::<FileSize>().unwrap(), FileSize::from_bytes(42));
+        assert_eq!("10KB".parse::<FileSize>().unwrap(), FileSize::from_kb(10));
+        assert_eq!("5MiB".parse::<FileSize>().unwrap(), FileSize::from_mib(5));
+        assert_eq!(
+            "  1.5gb  ".parse::<FileSize>().unwrap(),
+            FileSize::from_gb(1)
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_sizes() {
+        assert!("10XB".parse::<FileSize>().is_err());
+        assert!("not-a-size".parse::<FileSize>().is_err());
+    }
+
+    #[test]
+    fn formats_largest_exact_unit() {
+        assert_eq!(FileSize::from_bytes(1_024).to_string(), "1KiB");
+        assert_eq!(FileSize::from_bytes(1_000_000).to_string(), "1MB");
+        assert_eq!(FileSize::from_bytes(1536).to_string(), "1536B");
+    }
+
+    #[test]
+    fn serializes_and_deserializes_byte_counts() {
+        let size = FileSize::from_mib(2);
+
+        let serialized = serde_json::to_string(&size).unwrap();
+        assert_eq!(serialized, "2097152");
+
+        let deserialized: FileSize = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized, size);
+    }
+
+    #[test]
+    fn deserializes_legacy_gigabyte_floats() {
+        let size: FileSize = serde_json::from_str("1.5").unwrap();
+
+        assert_eq!(size.as_bytes(), 1_500_000_000);
+    }
+}
