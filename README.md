@@ -261,10 +261,11 @@ The following variables are available in the template context:
 | --------------------- | ------ | ---------------------------------------------------- |
 | `date`                | String | Current date (YYYY-MM-DD)                            |
 | `username`            | String | Streamer's username                                  |
-| `user_id`             | String | Streamer's user ID                                   |
 | `output_path`         | String | Path to recorded video file                          |
 | `thumbnail_path`      | String | Path to generated thumbnail                          |
 | `stream_title`        | String | Title of the stream                                  |
+| `duration`            | String | Duration of the stream                               |
+| `file_size`           | String | File size of the stream                              |
 | `<uploader>_urls`     | Array  | Array of an uploaders uploaded URLs                  |
 | `<uploader>_urls_len` | Number | Length of any array variable (e.g. `bunkr_urls_len`) |
 
