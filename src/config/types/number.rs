@@ -160,3 +160,86 @@ where
         V::validate(stored)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{Float, OptionalFloat, OptionalU32, U32};
+    use crate::config::types::{ConfigType, NoValidation};
+
+    type U32Type = U32<NoValidation>;
+    type OptionalU32Type = OptionalU32<NoValidation>;
+    type FloatType = Float<NoValidation>;
+    type OptionalFloatType = OptionalFloat<NoValidation>;
+
+    #[test]
+    fn u32_type_parses_and_formats_cli_values() {
+        let default = 26;
+
+        assert_eq!(
+            U32Type::parse_cli("30", &default).expect("valid u32 should parse"),
+            Some(30)
+        );
+        assert_eq!(
+            U32Type::parse_cli("26", &default).expect("default u32 should normalize"),
+            None
+        );
+        assert_eq!(U32Type::format_cli(&Some(30), &default), "30");
+        assert_eq!(U32Type::format_default(&default), "26");
+        assert_eq!(U32Type::get(&Some(30), &default), 30);
+        assert_eq!(U32Type::get(&None, &default), 26);
+    }
+
+    #[test]
+    fn optional_u32_type_handles_none_and_defaults() {
+        let default = Some(12);
+
+        assert_eq!(
+            OptionalU32Type::parse_cli("none", &default).expect("none should clear optional u32"),
+            None
+        );
+        assert_eq!(
+            OptionalU32Type::parse_cli("14", &default).expect("valid optional u32 should parse"),
+            Some(14)
+        );
+        assert_eq!(OptionalU32Type::format_cli(&None, &default), "12");
+        assert_eq!(OptionalU32Type::format_default(&default), "12");
+        assert_eq!(OptionalU32Type::get(&None, &default), Some(12));
+    }
+
+    #[test]
+    fn float_type_parses_and_formats_cli_values() {
+        let default = 1.5;
+
+        assert_eq!(
+            FloatType::parse_cli("2.25", &default).expect("valid float should parse"),
+            Some(2.25)
+        );
+        assert_eq!(
+            FloatType::parse_cli("1.5", &default).expect("default float should normalize"),
+            None
+        );
+        assert_eq!(FloatType::format_cli(&Some(2.25), &default), "2.25");
+        assert_eq!(FloatType::format_default(&default), "1.5");
+        assert_eq!(FloatType::get(&Some(2.25), &default), 2.25);
+        assert_eq!(FloatType::get(&None, &default), 1.5);
+    }
+
+    #[test]
+    fn optional_float_type_handles_none_and_defaults() {
+        let default = Some(3.5);
+
+        assert_eq!(
+            OptionalFloatType::parse_cli("none", &default)
+                .expect("none should clear optional float"),
+            None
+        );
+        assert_eq!(
+            OptionalFloatType::parse_cli("4.5", &default)
+                .expect("valid optional float should parse"),
+            Some(4.5)
+        );
+        assert_eq!(OptionalFloatType::format_cli(&None, &default), "3.5");
+        assert_eq!(OptionalFloatType::format_default(&default), "3.5");
+        assert_eq!(OptionalFloatType::get(&None, &default), Some(3.5));
+    }
+}

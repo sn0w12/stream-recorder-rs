@@ -181,3 +181,94 @@ impl ConfigValidator<Option<Vec<String>>> for RegexList {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        FfmpegBitrate, PositiveDuration, PositiveU32, RegexList, ThumbnailGrid, ThumbnailSize, Url,
+        VideoQuality,
+    };
+    use crate::config::types::ConfigValidator;
+    use crate::types::DurationValue;
+
+    #[test]
+    fn video_quality_validator_enforces_range() {
+        assert!(VideoQuality::validate(&Some(1)).is_ok());
+        assert!(VideoQuality::validate(&Some(51)).is_ok());
+
+        let err = VideoQuality::validate(&Some(0)).expect_err("0 should be rejected");
+        assert!(err.to_string().contains("between 1 and 51"));
+    }
+
+    #[test]
+    fn thumbnail_size_validator_checks_format_and_zero_values() {
+        assert!(ThumbnailSize::validate(&Some("320x180".to_string())).is_ok());
+
+        let format_err = ThumbnailSize::validate(&Some("320".to_string()))
+            .expect_err("missing separator should be rejected");
+        assert!(format_err.to_string().contains("WIDTHxHEIGHT"));
+
+        let zero_err = ThumbnailSize::validate(&Some("0x180".to_string()))
+            .expect_err("zero values should be rejected");
+        assert!(zero_err.to_string().contains("greater than zero"));
+    }
+
+    #[test]
+    fn thumbnail_grid_validator_checks_format_and_zero_values() {
+        assert!(ThumbnailGrid::validate(&Some("3x3".to_string())).is_ok());
+
+        let format_err = ThumbnailGrid::validate(&Some("3".to_string()))
+            .expect_err("missing separator should be rejected");
+        assert!(format_err.to_string().contains("COLSxROWS"));
+
+        let zero_err = ThumbnailGrid::validate(&Some("3x0".to_string()))
+            .expect_err("zero values should be rejected");
+        assert!(zero_err.to_string().contains("greater than zero"));
+    }
+
+    #[test]
+    fn ffmpeg_bitrate_validator_checks_common_inputs() {
+        assert!(FfmpegBitrate::validate(&Some("2.5M".to_string())).is_ok());
+
+        let err = FfmpegBitrate::validate(&Some("fast".to_string()))
+            .expect_err("nonsense bitrate should be rejected");
+        assert!(err.to_string().contains("start with a number"));
+    }
+
+    #[test]
+    fn positive_u32_validator_rejects_zero() {
+        assert!(PositiveU32::validate(&Some(1)).is_ok());
+
+        let err = PositiveU32::validate(&Some(0)).expect_err("0 should be rejected");
+        assert!(err.to_string().contains("greater than zero"));
+    }
+
+    #[test]
+    fn positive_duration_validator_rejects_zero() {
+        assert!(PositiveDuration::validate(&Some(DurationValue::from_secs(1))).is_ok());
+
+        let err = PositiveDuration::validate(&Some(DurationValue::from_secs(0)))
+            .expect_err("zero duration should be rejected");
+        assert!(err.to_string().contains("greater than zero"));
+    }
+
+    #[test]
+    fn url_validator_accepts_http_and_https_only() {
+        assert!(Url::validate(&Some("https://example.com".to_string())).is_ok());
+
+        let err = Url::validate(&Some("ftp://example.com".to_string()))
+            .expect_err("non-http URL should be rejected");
+        assert!(err.to_string().contains("http:// or https://"));
+    }
+
+    #[test]
+    fn regex_list_validator_rejects_invalid_expressions() {
+        assert!(
+            RegexList::validate(&Some(vec![r"foo.*".to_string(), r"^bar$".to_string()])).is_ok()
+        );
+
+        let err = RegexList::validate(&Some(vec!["[".to_string()]))
+            .expect_err("invalid regex should be rejected");
+        assert!(err.to_string().contains("Invalid regular expression"));
+    }
+}

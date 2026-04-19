@@ -52,3 +52,36 @@ where
         V::validate(stored)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::FileSize;
+    use crate::config::types::{ConfigType, NoValidation};
+    use crate::types::FileSize as FileSizeValue;
+
+    type FileSizeType = FileSize<NoValidation>;
+
+    #[test]
+    fn file_size_type_parses_and_formats_cli_values() {
+        let default = FileSizeValue::from_mib(2);
+
+        assert_eq!(
+            FileSizeType::parse_cli("5MiB", &default).expect("valid file size should parse"),
+            Some(FileSizeValue::from_mib(5))
+        );
+        assert_eq!(
+            FileSizeType::parse_cli("2MiB", &default).expect("default file size should normalize"),
+            None
+        );
+        assert_eq!(
+            FileSizeType::format_cli(&Some(FileSizeValue::from_mib(5)), &default),
+            "5MiB"
+        );
+        assert_eq!(FileSizeType::format_default(&default), "2MiB");
+        assert_eq!(
+            FileSizeType::get(&Some(FileSizeValue::from_mib(5)), &default),
+            FileSizeValue::from_mib(5)
+        );
+        assert_eq!(FileSizeType::get(&None, &default), default);
+    }
+}

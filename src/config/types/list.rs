@@ -48,3 +48,32 @@ where
         true
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::StringList;
+    use crate::config::types::{ConfigType, NoValidation};
+
+    type StringListType = StringList<NoValidation>;
+
+    #[test]
+    fn string_list_type_parses_csv_lists_and_marks_arrays() {
+        let default = vec!["alpha".to_string(), "beta".to_string()];
+
+        assert_eq!(
+            StringListType::parse_cli("one, two", &default).expect("valid CSV list should parse"),
+            Some(vec!["one".to_string(), "two".to_string()])
+        );
+        assert_eq!(
+            StringListType::parse_cli("alpha, beta", &default)
+                .expect("default CSV list should normalize"),
+            None
+        );
+        assert_eq!(
+            StringListType::format_cli(&Some(vec!["one".to_string(), "two".to_string()]), &default),
+            "one, two"
+        );
+        assert_eq!(StringListType::format_default(&default), "alpha, beta");
+        assert!(StringListType::is_array());
+    }
+}

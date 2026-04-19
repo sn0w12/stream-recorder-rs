@@ -74,3 +74,51 @@ where
         V::validate(stored)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{OptionalText, Text};
+    use crate::config::types::{ConfigType, NoValidation};
+
+    type TextType = Text<NoValidation>;
+    type OptionalTextType = OptionalText<NoValidation>;
+
+    #[test]
+    fn text_type_normalizes_default_values() {
+        let default = "alpha".to_string();
+
+        assert_eq!(
+            TextType::parse_cli("beta", &default).expect("valid text should parse"),
+            Some("beta".to_string())
+        );
+        assert_eq!(
+            TextType::parse_cli("alpha", &default).expect("default text should normalize"),
+            None
+        );
+        assert_eq!(
+            TextType::format_cli(&Some("beta".to_string()), &default),
+            "beta"
+        );
+        assert_eq!(TextType::format_default(&default), "alpha");
+        assert_eq!(TextType::get(&Some("beta".to_string()), &default), "beta");
+        assert_eq!(TextType::get(&None, &default), "alpha");
+    }
+
+    #[test]
+    fn optional_text_type_handles_none_and_defaults() {
+        let default = Some("alpha".to_string());
+
+        assert_eq!(
+            OptionalTextType::parse_cli("none", &default).expect("none should clear optional text"),
+            None
+        );
+        assert_eq!(
+            OptionalTextType::parse_cli("beta", &default)
+                .expect("valid optional text should parse"),
+            Some("beta".to_string())
+        );
+        assert_eq!(OptionalTextType::format_cli(&None, &default), "alpha");
+        assert_eq!(OptionalTextType::format_default(&default), "alpha");
+        assert_eq!(OptionalTextType::get(&None, &default), Some("alpha"));
+    }
+}
