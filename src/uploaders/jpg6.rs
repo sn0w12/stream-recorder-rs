@@ -145,20 +145,22 @@ fn parse_upload_response(
         })?;
 
     if let Some(success) = parsed.success
-        && success.code >= 400 {
-            return Err(UploadError {
-                message: success.message,
-                status_code: Some(status_code),
-            });
-        }
+        && success.code >= 400
+    {
+        return Err(UploadError {
+            message: success.message,
+            status_code: Some(status_code),
+        });
+    }
 
     if let Some(status_txt) = parsed.status_txt.as_deref()
-        && !status_txt.eq_ignore_ascii_case("ok") {
-            return Err(UploadError {
-                message: format!("jpg6 returned status {}", status_txt),
-                status_code: Some(status_code),
-            });
-        }
+        && !status_txt.eq_ignore_ascii_case("ok")
+    {
+        return Err(UploadError {
+            message: format!("jpg6 returned status {}", status_txt),
+            status_code: Some(status_code),
+        });
+    }
 
     if !(200..300).contains(&status_code) {
         return Err(UploadError {
@@ -210,17 +212,19 @@ async fn get_page_with_cookies(
 /// Jpg6 uploader implementation
 pub struct Jpg6Uploader {
     client: Client,
-    token: Option<String>,
+    credentials: Option<Jpg6Credentials>,
 }
 
 impl Jpg6Uploader {
     pub fn new() -> Self {
+        let token = get_jpg6_token();
+
         Self {
             client: Client::builder()
                 .redirect(Policy::none())
                 .build()
                 .unwrap_or_else(|_| Client::new()),
-            token: get_jpg6_token(),
+            credentials: parse_credentials(token.as_deref().unwrap_or_default()).ok(),
         }
     }
 }
@@ -238,10 +242,10 @@ impl Uploader for Jpg6Uploader {
         file_path: &str,
         _config: &UploaderConfig,
     ) -> Result<UploadResult, UploadError> {
-        let credentials = parse_credentials(self.token.as_deref().ok_or_else(|| UploadError {
-            message: "jpg6 token not configured".to_string(),
+        let credentials = self.credentials.as_ref().ok_or_else(|| UploadError {
+            message: "jpg6 credentials not configured".to_string(),
             status_code: None,
-        })?)?;
+        })?;
 
         let mut cookies = CookieJar::default();
 
@@ -325,7 +329,7 @@ impl Uploader for Jpg6Uploader {
     }
 
     async fn is_ready(&self) -> bool {
-        self.token.is_some()
+        self.credentials.is_some()
     }
 }
 
