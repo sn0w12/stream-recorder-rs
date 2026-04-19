@@ -1,5 +1,6 @@
 mod cli;
 mod config;
+mod consts;
 mod discord;
 mod monitoring;
 mod platform;

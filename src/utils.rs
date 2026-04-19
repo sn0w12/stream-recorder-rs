@@ -1,3 +1,4 @@
+use crate::consts::*;
 use keyring::Entry;
 use std::fs;
 use std::path::PathBuf;
@@ -50,14 +51,14 @@ fn load_env_var(key: &str) -> Option<String> {
     None
 }
 
-fn get_token_from_sources(key_name: &str, env_key: &str) -> Option<String> {
+fn get_token_from_sources(key_name: &str) -> Option<String> {
     if let Ok(entry) = Entry::new(SERVICE_NAME, key_name)
         && let Ok(password) = entry.get_password()
     {
         return Some(password);
     }
 
-    load_env_var(env_key)
+    load_env_var(key_name.to_uppercase().as_str())
 }
 
 /// Retrieves a token by its keyring key name.
@@ -65,25 +66,23 @@ fn get_token_from_sources(key_name: &str, env_key: &str) -> Option<String> {
 /// Checks the system keyring first, then falls back to a matching
 /// `KEY_NAME` (uppercased) environment variable in the `.env` file.
 pub fn get_token_by_name(key_name: &str) -> Option<String> {
-    // Fall back to an uppercase env var derived from the key name.
-    let env_key = key_name.to_uppercase();
-    get_token_from_sources(key_name, &env_key)
+    get_token_from_sources(key_name)
 }
 
 pub fn get_bunkr_token() -> Option<String> {
-    get_token_from_sources("bunkr_token", "BUNKR_TOKEN")
+    get_token_from_sources(BUNKR_TOKEN_KEY)
 }
 
 pub fn get_gofile_token() -> Option<String> {
-    get_token_from_sources("gofile_token", "GOFILE_TOKEN")
+    get_token_from_sources(GOFILE_TOKEN_KEY)
 }
 
 pub fn get_filester_token() -> Option<String> {
-    get_token_from_sources("filester_token", "FILESTER_TOKEN")
+    get_token_from_sources(FILESTER_TOKEN_KEY)
 }
 
 pub fn get_jpg6_token() -> Option<String> {
-    get_token_from_sources("jpg6_token", "JPG6_TOKEN")
+    get_token_from_sources(JPG6_TOKEN_KEY)
 }
 
 #[derive(Debug)]

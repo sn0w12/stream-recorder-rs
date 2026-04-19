@@ -1,3 +1,4 @@
+use crate::consts::*;
 use crate::platform::PlatformConfig;
 use crate::utils;
 use anyhow::Result;
@@ -38,20 +39,20 @@ pub enum TokenAction {
 
 pub fn handle_token_command(action: TokenAction) -> Result<()> {
     match action {
-        TokenAction::SaveBunkr { token } => save_token("bunkr_token", &token, "Bunkr token"),
-        TokenAction::SaveGofile { token } => save_token("gofile_token", &token, "GoFile token"),
+        TokenAction::SaveBunkr { token } => save_token(BUNKR_TOKEN_KEY, &token, "Bunkr token"),
+        TokenAction::SaveGofile { token } => save_token(GOFILE_TOKEN_KEY, &token, "GoFile token"),
         TokenAction::SaveFilester { token } => {
-            save_token("filester_token", &token, "Filester token")
+            save_token(FILESTER_TOKEN_KEY, &token, "Filester token")
         }
-        TokenAction::SaveJpg6 { token } => save_token("jpg6_token", &token, "JPG6 token"),
+        TokenAction::SaveJpg6 { token } => save_token(JPG6_TOKEN_KEY, &token, "JPG6 token"),
         TokenAction::SavePlatform { platform_id, token } => {
             let (token_name, platform_name) = get_token_info_for_platform(&platform_id)?;
             save_token(&token_name, &token, &format!("{} token", platform_name))
         }
-        TokenAction::RemoveBunkr => remove_token("bunkr_token", "Bunkr token"),
-        TokenAction::RemoveGofile => remove_token("gofile_token", "GoFile token"),
-        TokenAction::RemoveFilester => remove_token("filester_token", "Filester token"),
-        TokenAction::RemoveJpg6 => remove_token("jpg6_token", "JPG6 token"),
+        TokenAction::RemoveBunkr => remove_token(BUNKR_TOKEN_KEY, "Bunkr token"),
+        TokenAction::RemoveGofile => remove_token(GOFILE_TOKEN_KEY, "GoFile token"),
+        TokenAction::RemoveFilester => remove_token(FILESTER_TOKEN_KEY, "Filester token"),
+        TokenAction::RemoveJpg6 => remove_token(JPG6_TOKEN_KEY, "JPG6 token"),
         TokenAction::RemovePlatform { platform_id } => {
             let (token_name, platform_name) = get_token_info_for_platform(&platform_id)?;
             remove_token(&token_name, &format!("{} token", platform_name))
