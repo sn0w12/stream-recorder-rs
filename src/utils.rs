@@ -96,11 +96,14 @@ pub enum SplitMonitorReferenceError {
 /// Split a monitor reference string in the format "platform:username" into its components.
 ///
 /// ```
-/// use stream_recorder::utils::split_monitor_reference;
+/// use stream_recorder::utils::{split_monitor_reference, SplitMonitorReferenceError};
 ///
 /// let (platform, username) = split_monitor_reference("twitch:some_user").unwrap();
 /// assert_eq!(platform, "twitch");
 /// assert_eq!(username, "some_user");
+///
+/// let err = split_monitor_reference("invalidformat").unwrap_err();
+/// assert!(matches!(err, SplitMonitorReferenceError::InvalidFormat));
 /// ```
 pub fn split_monitor_reference(
     reference: &str,

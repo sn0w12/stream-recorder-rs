@@ -234,6 +234,14 @@ fn build_xstack_layout(
 ///
 /// This is shared by thumbnail generation and config validation so invalid
 /// values fail early when the config is loaded or edited.
+///
+/// ```
+/// use stream_recorder::stream::postprocess::thumb::parse_thumbnail_string;
+///
+/// assert_eq!(parse_thumbnail_string("3x3"), Some((3, 3)));
+/// assert_eq!(parse_thumbnail_string("320x180"), Some((320, 180)));
+/// assert_eq!(parse_thumbnail_string("invalid"), None);
+/// ```
 pub fn parse_thumbnail_string(s: &str) -> Option<(u32, u32)> {
     let parts: Vec<&str> = s.split('x').collect();
     if parts.len() != 2 {
