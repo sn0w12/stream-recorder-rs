@@ -20,19 +20,11 @@ where
         stored.unwrap_or(*default)
     }
 
-    fn parse_cli(input: &str, default: &Self::Default) -> Result<Self::Stored> {
+    fn parse(input: &str, default: &Self::Default) -> Result<Self::Stored> {
         Ok(normalize_optional_value(
             parse_optional_value(input, parse_number::<u32>)?,
             Some(*default),
         ))
-    }
-
-    fn format_cli(stored: &Self::Stored, default: &Self::Default) -> String {
-        stored.unwrap_or(*default).to_string()
-    }
-
-    fn format_default(default: &Self::Default) -> String {
-        default.to_string()
     }
 
     fn validate(stored: &Self::Stored) -> Result<()> {
@@ -55,7 +47,7 @@ where
         (*stored).or(*default)
     }
 
-    fn parse_cli(input: &str, default: &Self::Default) -> Result<Self::Stored> {
+    fn parse(input: &str, default: &Self::Default) -> Result<Self::Stored> {
         Ok(normalize_optional_value(
             parse_optional_value(input, |value| {
                 value
@@ -64,19 +56,6 @@ where
             })?,
             *default,
         ))
-    }
-
-    fn format_cli(stored: &Self::Stored, default: &Self::Default) -> String {
-        stored
-            .or(*default)
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "none".to_string())
-    }
-
-    fn format_default(default: &Self::Default) -> String {
-        default
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "none".to_string())
     }
 
     fn validate(stored: &Self::Stored) -> Result<()> {
@@ -100,19 +79,11 @@ where
         stored.unwrap_or(*default)
     }
 
-    fn parse_cli(input: &str, default: &Self::Default) -> Result<Self::Stored> {
+    fn parse(input: &str, default: &Self::Default) -> Result<Self::Stored> {
         Ok(normalize_optional_value(
             parse_optional_value(input, parse_number::<f64>)?,
             Some(*default),
         ))
-    }
-
-    fn format_cli(stored: &Self::Stored, default: &Self::Default) -> String {
-        stored.unwrap_or(*default).to_string()
-    }
-
-    fn format_default(default: &Self::Default) -> String {
-        default.to_string()
     }
 
     fn validate(stored: &Self::Stored) -> Result<()> {
@@ -136,24 +107,11 @@ where
         (*stored).or(*default)
     }
 
-    fn parse_cli(input: &str, default: &Self::Default) -> Result<Self::Stored> {
+    fn parse(input: &str, default: &Self::Default) -> Result<Self::Stored> {
         Ok(normalize_optional_value(
             parse_optional_value(input, parse_number::<f64>)?,
             *default,
         ))
-    }
-
-    fn format_cli(stored: &Self::Stored, default: &Self::Default) -> String {
-        stored
-            .or(*default)
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "none".to_string())
-    }
-
-    fn format_default(default: &Self::Default) -> String {
-        default
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "none".to_string())
     }
 
     fn validate(stored: &Self::Stored) -> Result<()> {
@@ -176,14 +134,14 @@ mod tests {
         let default = 26;
 
         assert_eq!(
-            U32Type::parse_cli("30", &default).expect("valid u32 should parse"),
+            U32Type::parse("30", &default).expect("valid u32 should parse"),
             Some(30)
         );
         assert_eq!(
-            U32Type::parse_cli("26", &default).expect("default u32 should normalize"),
+            U32Type::parse("26", &default).expect("default u32 should normalize"),
             None
         );
-        assert_eq!(U32Type::format_cli(&Some(30), &default), "30");
+        assert_eq!(U32Type::format(&Some(30), &default), "30");
         assert_eq!(U32Type::format_default(&default), "26");
         assert_eq!(U32Type::get(&Some(30), &default), 30);
         assert_eq!(U32Type::get(&None, &default), 26);
@@ -194,14 +152,14 @@ mod tests {
         let default = Some(12);
 
         assert_eq!(
-            OptionalU32Type::parse_cli("none", &default).expect("none should clear optional u32"),
+            OptionalU32Type::parse("none", &default).expect("none should clear optional u32"),
             None
         );
         assert_eq!(
-            OptionalU32Type::parse_cli("14", &default).expect("valid optional u32 should parse"),
+            OptionalU32Type::parse("14", &default).expect("valid optional u32 should parse"),
             Some(14)
         );
-        assert_eq!(OptionalU32Type::format_cli(&None, &default), "12");
+        assert_eq!(OptionalU32Type::format(&None, &default), "12");
         assert_eq!(OptionalU32Type::format_default(&default), "12");
         assert_eq!(OptionalU32Type::get(&None, &default), Some(12));
     }
@@ -211,14 +169,14 @@ mod tests {
         let default = 1.5;
 
         assert_eq!(
-            FloatType::parse_cli("2.25", &default).expect("valid float should parse"),
+            FloatType::parse("2.25", &default).expect("valid float should parse"),
             Some(2.25)
         );
         assert_eq!(
-            FloatType::parse_cli("1.5", &default).expect("default float should normalize"),
+            FloatType::parse("1.5", &default).expect("default float should normalize"),
             None
         );
-        assert_eq!(FloatType::format_cli(&Some(2.25), &default), "2.25");
+        assert_eq!(FloatType::format(&Some(2.25), &default), "2.25");
         assert_eq!(FloatType::format_default(&default), "1.5");
         assert_eq!(FloatType::get(&Some(2.25), &default), 2.25);
         assert_eq!(FloatType::get(&None, &default), 1.5);
@@ -229,16 +187,14 @@ mod tests {
         let default = Some(3.5);
 
         assert_eq!(
-            OptionalFloatType::parse_cli("none", &default)
-                .expect("none should clear optional float"),
+            OptionalFloatType::parse("none", &default).expect("none should clear optional float"),
             None
         );
         assert_eq!(
-            OptionalFloatType::parse_cli("4.5", &default)
-                .expect("valid optional float should parse"),
+            OptionalFloatType::parse("4.5", &default).expect("valid optional float should parse"),
             Some(4.5)
         );
-        assert_eq!(OptionalFloatType::format_cli(&None, &default), "3.5");
+        assert_eq!(OptionalFloatType::format(&None, &default), "3.5");
         assert_eq!(OptionalFloatType::format_default(&default), "3.5");
         assert_eq!(OptionalFloatType::get(&None, &default), Some(3.5));
     }

@@ -20,16 +20,8 @@ where
         stored.clone().unwrap_or_else(|| default.clone())
     }
 
-    fn parse_cli(input: &str, default: &Self::Default) -> Result<Self::Stored> {
+    fn parse(input: &str, default: &Self::Default) -> Result<Self::Stored> {
         Ok(normalize_text_value(parse_optional_text(input), default))
-    }
-
-    fn format_cli(stored: &Self::Stored, default: &Self::Default) -> String {
-        stored.clone().unwrap_or_else(|| default.clone())
-    }
-
-    fn format_default(default: &Self::Default) -> String {
-        default.clone()
     }
 
     fn validate(stored: &Self::Stored) -> Result<()> {
@@ -52,22 +44,11 @@ where
         stored.as_deref().or(default.as_deref())
     }
 
-    fn parse_cli(input: &str, default: &Self::Default) -> Result<Self::Stored> {
+    fn parse(input: &str, default: &Self::Default) -> Result<Self::Stored> {
         Ok(normalize_optional_value(
             parse_optional_text(input),
             default.clone(),
         ))
-    }
-
-    fn format_cli(stored: &Self::Stored, default: &Self::Default) -> String {
-        stored
-            .clone()
-            .or_else(|| default.clone())
-            .unwrap_or_else(|| "none".to_string())
-    }
-
-    fn format_default(default: &Self::Default) -> String {
-        default.clone().unwrap_or_else(|| "none".to_string())
     }
 
     fn validate(stored: &Self::Stored) -> Result<()> {
@@ -88,15 +69,15 @@ mod tests {
         let default = "alpha".to_string();
 
         assert_eq!(
-            TextType::parse_cli("beta", &default).expect("valid text should parse"),
+            TextType::parse("beta", &default).expect("valid text should parse"),
             Some("beta".to_string())
         );
         assert_eq!(
-            TextType::parse_cli("alpha", &default).expect("default text should normalize"),
+            TextType::parse("alpha", &default).expect("default text should normalize"),
             None
         );
         assert_eq!(
-            TextType::format_cli(&Some("beta".to_string()), &default),
+            TextType::format(&Some("beta".to_string()), &default),
             "beta"
         );
         assert_eq!(TextType::format_default(&default), "alpha");
@@ -109,15 +90,14 @@ mod tests {
         let default = Some("alpha".to_string());
 
         assert_eq!(
-            OptionalTextType::parse_cli("none", &default).expect("none should clear optional text"),
+            OptionalTextType::parse("none", &default).expect("none should clear optional text"),
             None
         );
         assert_eq!(
-            OptionalTextType::parse_cli("beta", &default)
-                .expect("valid optional text should parse"),
+            OptionalTextType::parse("beta", &default).expect("valid optional text should parse"),
             Some("beta".to_string())
         );
-        assert_eq!(OptionalTextType::format_cli(&None, &default), "alpha");
+        assert_eq!(OptionalTextType::format(&None, &default), "alpha");
         assert_eq!(OptionalTextType::format_default(&default), "alpha");
         assert_eq!(OptionalTextType::get(&None, &default), Some("alpha"));
     }

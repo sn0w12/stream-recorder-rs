@@ -1,8 +1,30 @@
 use crate::config::types::{
-    ConfigType, ConfigValidator, NoValidation, normalize_list_value, parse_csv_list,
+    ConfigFormat, ConfigType, ConfigValidator, NoValidation, normalize_list_value, parse_csv_list,
 };
 use anyhow::Result;
 use std::marker::PhantomData;
+
+impl ConfigFormat<Vec<String>> for Option<Vec<String>> {
+    fn format(stored: &Self, default: &Vec<String>) -> String {
+        let values = stored.as_ref().map(Vec::as_slice).unwrap_or(default);
+        if values.is_empty() {
+            "none".to_string()
+        } else {
+            values.join(", ")
+        }
+    }
+}
+
+impl ConfigFormat<Option<Vec<String>>> for Option<Vec<String>> {
+    fn format(stored: &Self, default: &Option<Vec<String>>) -> String {
+        let values = stored.as_ref().or(default.as_ref());
+        match values {
+            Some(values) if values.is_empty() => "none".to_string(),
+            Some(values) => values.join(", "),
+            None => "none".to_string(),
+        }
+    }
+}
 
 /// Comma-separated string list stored as an optional vector of strings.
 pub struct StringList<V = NoValidation>(PhantomData<V>);
@@ -19,24 +41,16 @@ where
         stored.clone().unwrap_or_else(|| default.clone())
     }
 
-    fn parse_cli(input: &str, default: &Self::Default) -> Result<Self::Stored> {
+    fn parse(input: &str, default: &Self::Default) -> Result<Self::Stored> {
         Ok(normalize_list_value(parse_csv_list(input), default))
     }
 
-    fn format_cli(stored: &Self::Stored, default: &Self::Default) -> String {
+    fn format(stored: &Self::Stored, default: &Self::Default) -> String {
         let values = stored.as_ref().unwrap_or(default);
         if values.is_empty() {
             "none".to_string()
         } else {
             values.join(", ")
-        }
-    }
-
-    fn format_default(default: &Self::Default) -> String {
-        if default.is_empty() {
-            "none".to_string()
-        } else {
-            default.join(", ")
         }
     }
 
@@ -61,16 +75,16 @@ mod tests {
         let default = vec!["alpha".to_string(), "beta".to_string()];
 
         assert_eq!(
-            StringListType::parse_cli("one, two", &default).expect("valid CSV list should parse"),
+            StringListType::parse("one, two", &default).expect("valid CSV list should parse"),
             Some(vec!["one".to_string(), "two".to_string()])
         );
         assert_eq!(
-            StringListType::parse_cli("alpha, beta", &default)
+            StringListType::parse("alpha, beta", &default)
                 .expect("default CSV list should normalize"),
             None
         );
         assert_eq!(
-            StringListType::format_cli(&Some(vec!["one".to_string(), "two".to_string()]), &default),
+            StringListType::format(&Some(vec!["one".to_string(), "two".to_string()]), &default),
             "one, two"
         );
         assert_eq!(StringListType::format_default(&default), "alpha, beta");

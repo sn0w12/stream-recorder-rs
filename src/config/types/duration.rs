@@ -27,19 +27,11 @@ where
             .unwrap_or_else(|| default.as_duration())
     }
 
-    fn parse_cli(input: &str, default: &Self::Default) -> Result<Self::Stored> {
+    fn parse(input: &str, default: &Self::Default) -> Result<Self::Stored> {
         Ok(normalize_optional_value(
             parse_optional_value(input, parse_duration_cli)?,
             Some(*default),
         ))
-    }
-
-    fn format_cli(stored: &Self::Stored, default: &Self::Default) -> String {
-        stored.unwrap_or(*default).to_string()
-    }
-
-    fn format_default(default: &Self::Default) -> String {
-        default.to_string()
     }
 
     fn validate(stored: &Self::Stored) -> Result<()> {
@@ -63,24 +55,11 @@ where
             .or_else(|| default.map(DurationValue::into_duration))
     }
 
-    fn parse_cli(input: &str, default: &Self::Default) -> Result<Self::Stored> {
+    fn parse(input: &str, default: &Self::Default) -> Result<Self::Stored> {
         Ok(normalize_optional_value(
             parse_optional_value(input, parse_duration_cli)?,
             *default,
         ))
-    }
-
-    fn format_cli(stored: &Self::Stored, default: &Self::Default) -> String {
-        stored
-            .or(*default)
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "none".to_string())
-    }
-
-    fn format_default(default: &Self::Default) -> String {
-        default
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "none".to_string())
     }
 
     fn validate(stored: &Self::Stored) -> Result<()> {
@@ -103,15 +82,15 @@ mod tests {
         let default = DurationValue::from_millis(500);
 
         assert_eq!(
-            DurationType::parse_cli("2s", &default).expect("valid duration should parse"),
+            DurationType::parse("2s", &default).expect("valid duration should parse"),
             Some(DurationValue::from_secs(2))
         );
         assert_eq!(
-            DurationType::parse_cli("500ms", &default).expect("default duration should normalize"),
+            DurationType::parse("500ms", &default).expect("default duration should normalize"),
             None
         );
         assert_eq!(
-            DurationType::format_cli(&Some(DurationValue::from_secs(2)), &default),
+            DurationType::format(&Some(DurationValue::from_secs(2)), &default),
             "2s"
         );
         assert_eq!(DurationType::format_default(&default), "500ms");
@@ -130,16 +109,16 @@ mod tests {
         let default = Some(DurationValue::from_secs(90));
 
         assert_eq!(
-            OptionalDurationType::parse_cli("none", &default)
+            OptionalDurationType::parse("none", &default)
                 .expect("none should clear optional durations"),
             None
         );
         assert_eq!(
-            OptionalDurationType::parse_cli("2m", &default)
+            OptionalDurationType::parse("2m", &default)
                 .expect("valid optional duration should parse"),
             Some(DurationValue::from_secs(120))
         );
-        assert_eq!(OptionalDurationType::format_cli(&None, &default), "1m30s");
+        assert_eq!(OptionalDurationType::format(&None, &default), "1m30s");
         assert_eq!(OptionalDurationType::format_default(&default), "1m30s");
         assert_eq!(
             OptionalDurationType::get(&None, &default),

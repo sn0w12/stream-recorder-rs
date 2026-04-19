@@ -30,22 +30,11 @@ where
         stored.unwrap_or(*default)
     }
 
-    fn parse_cli(input: &str, default: &Self::Default) -> Result<Self::Stored> {
+    fn parse(input: &str, default: &Self::Default) -> Result<Self::Stored> {
         Ok(normalize_optional_value(
             parse_optional_value(input, parse_file_size_value)?,
             Some(*default),
         ))
-    }
-
-    fn format_cli(stored: &Self::Stored, default: &Self::Default) -> String {
-        stored
-            .or(Some(*default))
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "none".to_string())
-    }
-
-    fn format_default(default: &Self::Default) -> String {
-        default.to_string()
     }
 
     fn validate(stored: &Self::Stored) -> Result<()> {
@@ -66,15 +55,15 @@ mod tests {
         let default = FileSizeValue::from_mib(2);
 
         assert_eq!(
-            FileSizeType::parse_cli("5MiB", &default).expect("valid file size should parse"),
+            FileSizeType::parse("5MiB", &default).expect("valid file size should parse"),
             Some(FileSizeValue::from_mib(5))
         );
         assert_eq!(
-            FileSizeType::parse_cli("2MiB", &default).expect("default file size should normalize"),
+            FileSizeType::parse("2MiB", &default).expect("default file size should normalize"),
             None
         );
         assert_eq!(
-            FileSizeType::format_cli(&Some(FileSizeValue::from_mib(5)), &default),
+            FileSizeType::format(&Some(FileSizeValue::from_mib(5)), &default),
             "5MiB"
         );
         assert_eq!(FileSizeType::format_default(&default), "2MiB");

@@ -178,7 +178,7 @@ macro_rules! define_config {
 				match ConfigKey::from_key(key) {
 					$(
 						$(
-							Some(ConfigKey::$field) => <$config_type as ConfigType>::format_cli(&self.$field, &($default)),
+							Some(ConfigKey::$field) => <$config_type as ConfigType>::format(&self.$field, &($default)),
 						)*
 					)*
 					None => "unknown key".to_string(),
@@ -253,7 +253,7 @@ fn set_field_from_cli<T: ConfigType>(
     default: &T::Default,
 ) -> Result<()> {
     let parsed =
-        T::parse_cli(raw_value, default).with_context(|| format!("Invalid value for '{}'", key))?;
+        T::parse(raw_value, default).with_context(|| format!("Invalid value for '{}'", key))?;
     validate_field::<T>(key, &parsed)?;
     *field = parsed;
     Ok(())
