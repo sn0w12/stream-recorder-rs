@@ -126,7 +126,7 @@ impl DurationValue {
         Ok(Self(Duration::new(seconds, nanos)))
     }
 
-    fn format_parts(&self) -> Vec<String> {
+    fn format_parts(&self, max_parts: usize) -> Vec<String> {
         let total_nanos = self.0.as_secs() as u128 * 1_000_000_000 + self.0.subsec_nanos() as u128;
         if total_nanos == 0 {
             return vec!["0s".to_string()];
@@ -153,6 +153,7 @@ impl DurationValue {
             }
         }
 
+        parts.truncate(max_parts);
         parts
     }
 }
@@ -209,7 +210,7 @@ impl FromStr for DurationValue {
 
 impl fmt::Display for DurationValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.format_parts().join(""))
+        write!(f, "{}", self.format_parts(3).join(" "))
     }
 }
 
@@ -273,7 +274,7 @@ mod tests {
     #[test]
     fn parses_explicit_duration_strings() {
         assert_eq!(
-            "1h30m".parse::<DurationValue>().unwrap(),
+            "1h 30m".parse::<DurationValue>().unwrap(),
             Duration::from_secs(5400)
         );
         assert_eq!(
@@ -288,8 +289,9 @@ mod tests {
 
     #[test]
     fn formats_compact_duration_strings() {
+        assert_eq!(DurationValue::from_secs(95_465).to_string(), "1d 2h 31m");
         assert_eq!(DurationValue::from_millis(500).to_string(), "500ms");
-        assert_eq!(DurationValue::from_secs(90).to_string(), "1m30s");
+        assert_eq!(DurationValue::from_secs(90).to_string(), "1m 30s");
         assert_eq!(DurationValue::from_secs(0).to_string(), "0s");
     }
 

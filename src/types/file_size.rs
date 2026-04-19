@@ -167,10 +167,32 @@ impl fmt::Display for FileSize {
             (Self::BYTES_PER_KB, "KB"),
         ];
 
+        let mut fallback = None;
+
         for (unit_bytes, suffix) in candidates {
             if bytes.is_multiple_of(unit_bytes) {
                 return write!(f, "{}{}", bytes / unit_bytes, suffix);
             }
+
+            if bytes >= unit_bytes {
+                fallback.get_or_insert_with(|| {
+                    let value = bytes as f64 / unit_bytes as f64;
+                    let mut formatted = format!("{value:.2}");
+
+                    while formatted.contains('.') && formatted.ends_with('0') {
+                        formatted.pop();
+                    }
+                    if formatted.ends_with('.') {
+                        formatted.pop();
+                    }
+
+                    (formatted, suffix)
+                });
+            }
+        }
+
+        if let Some((formatted, suffix)) = fallback {
+            return write!(f, "{}{}", formatted, suffix);
         }
 
         write!(f, "{}B", bytes)
@@ -199,10 +221,12 @@ mod tests {
     }
 
     #[test]
-    fn formats_largest_exact_unit() {
+    fn formats_human_readable_sizes() {
         assert_eq!(FileSize::from_bytes(1_024).to_string(), "1KiB");
         assert_eq!(FileSize::from_bytes(1_000_000).to_string(), "1MB");
-        assert_eq!(FileSize::from_bytes(1536).to_string(), "1536B");
+        assert_eq!(FileSize::from_bytes(20_000_000_000).to_string(), "20GB");
+        assert_eq!(FileSize::from_bytes(1536).to_string(), "1.5KiB");
+        assert_eq!(FileSize::from_bytes(4_673_595_901).to_string(), "4.35GiB");
     }
 
     #[test]

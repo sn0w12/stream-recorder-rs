@@ -118,8 +118,8 @@ mod tests {
                 .expect("valid optional duration should parse"),
             Some(DurationValue::from_secs(120))
         );
-        assert_eq!(OptionalDurationType::format(&None, &default), "1m30s");
-        assert_eq!(OptionalDurationType::format_default(&default), "1m30s");
+        assert_eq!(OptionalDurationType::format(&None, &default), "1m 30s");
+        assert_eq!(OptionalDurationType::format_default(&default), "1m 30s");
         assert_eq!(
             OptionalDurationType::get(&None, &default),
             Some(StdDuration::from_secs(90))
