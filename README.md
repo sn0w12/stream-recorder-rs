@@ -119,6 +119,16 @@ flowchart TD
 
 Configuration is stored in `~/.config/stream-recorder/config.toml` (Linux/macOS) or `%APPDATA%\stream-recorder\config.toml` (Windows).
 
+### Setting Types
+
+1. Duration
+    - A time span used by settings like `step_delay`, `fetch_interval`, and retention windows.
+    - Examples: `500ms`, `30s`, `5m`, `1h30m`, `1.5d 2h`
+
+2. FileSize
+    - A byte size used by settings like `min_free_space`.
+    - Examples: `42`, `10KB`, `5MiB`, `1.5GB`
+
 ### Available Settings
 
 #### Monitoring
