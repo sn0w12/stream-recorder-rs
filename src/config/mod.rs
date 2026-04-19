@@ -266,63 +266,24 @@ fn title_case_identifier(identifier: &str) -> String {
         .join(" ")
 }
 
-fn markdown_widths(rows: &[[String; 3]]) -> [usize; 3] {
-    let mut widths = [
-        "Setting".chars().count(),
-        "Description".chars().count(),
-        "Default".chars().count(),
-    ];
+fn strip_ansi_sequences(input: &str) -> String {
+    let mut plain = String::new();
+    let mut chars = input.chars();
 
-    for row in rows {
-        for (index, cell) in row.iter().enumerate() {
-            widths[index] = widths[index].max(cell.chars().count());
+    while let Some(ch) = chars.next() {
+        if ch == '\u{1b}' {
+            for next in chars.by_ref() {
+                if next == 'm' {
+                    break;
+                }
+            }
+            continue;
         }
+
+        plain.push(ch);
     }
 
-    widths
-}
-
-fn write_markdown_table(output: &mut String, rows: &[[String; 3]]) {
-    use std::fmt::Write;
-
-    let widths = markdown_widths(rows);
-
-    writeln!(
-        output,
-        "| {:<setting_width$} | {:<description_width$} | {:<default_width$} |",
-        "Setting",
-        "Description",
-        "Default",
-        setting_width = widths[0],
-        description_width = widths[1],
-        default_width = widths[2],
-    )
-    .unwrap();
-    writeln!(
-        output,
-        "| {:<setting_width$} | {:<description_width$} | {:<default_width$} |",
-        "-".repeat(widths[0]),
-        "-".repeat(widths[1]),
-        "-".repeat(widths[2]),
-        setting_width = widths[0],
-        description_width = widths[1],
-        default_width = widths[2],
-    )
-    .unwrap();
-
-    for row in rows {
-        writeln!(
-            output,
-            "| {:<setting_width$} | {:<description_width$} | {:<default_width$} |",
-            row[0],
-            row[1],
-            row[2],
-            setting_width = widths[0],
-            description_width = widths[1],
-            default_width = widths[2],
-        )
-        .unwrap();
-    }
+    plain
 }
 
 define_config! {
@@ -445,36 +406,68 @@ impl Config {
         }
     }
 
-    pub fn markdown_table() -> String {
-        use std::fmt::Write;
+    pub fn markdown_table(&self) -> String {
+        let style = tiny_table::TableStyle {
+            top_left: "|",
+            top_right: "|",
+            bottom_left: "|",
+            bottom_right: "|",
+            horiz: "-",
+            vert: "|",
+            top_joint: "|",
+            mid_left: "|",
+            mid_right: "|",
+            mid_joint: "|",
+            bottom_joint: "|",
+        };
 
-        let config = Self::default();
-        let mut output = String::new();
+        let mut tables = vec![];
+        for category in ConfigCategory::all() {
+            let mut table = Table::with_columns(vec![
+                Column::new("Setting"),
+                Column::new("Description"),
+                Column::new("Default"),
+            ]).with_style(style);
 
-        for (index, category) in ConfigCategory::all().iter().enumerate() {
-            if index > 0 {
-                writeln!(output).unwrap();
+            let keys = category.keys();
+            if keys.is_empty() {
+                continue;
             }
 
-            writeln!(output, "#### {}", category.display_name()).unwrap();
-            writeln!(output).unwrap();
+            for key in keys {
+                let description = self.get_description(key.as_str());
+                let default = self.get_default_string(*key);
+                table.add_row(vec![
+                    Cell::new(format!("`{}`", key.as_str())),
+                    Cell::new(description),
+                    Cell::new(format!("`{}`", default)),
+                ]);
+            }
 
-            let rows: Vec<[String; 3]> = category
-                .keys()
-                .iter()
-                .map(|key| {
-                    [
-                        format!("`{}`", key.as_str()),
-                        config.get_description(key.as_str()),
-                        format!("`{}`", config.get_default_string(*key)),
-                    ]
-                })
-                .collect();
-
-            write_markdown_table(&mut output, &rows);
+            tables.push((category.display_name(), table));
         }
 
-        output.trim_end().to_string()
+        let mut markdown = String::new();
+        for (index, (category_name, table)) in tables.iter().enumerate() {
+            markdown.push_str(&format!("#### {}\n\n", category_name));
+            // Strip first and last lines to remove outer borders
+            let rendered = table.render();
+            let stripped = rendered
+                .lines()
+                .skip(1)
+                .take(rendered.lines().count() - 2)
+                .collect::<Vec<_>>()
+                .join("\n");
+            markdown.push_str(&strip_ansi_sequences(&stripped)
+                .replace("|-", "| ")
+                .replace("-|", " |")
+            );
+            if index < tables.len() - 1 {
+                markdown.push_str("\n\n");
+            }
+        }
+
+        markdown
     }
 
     /// Load the configuration from disk and store it in the global singleton.
@@ -597,12 +590,12 @@ mod readme_sync_tests {
 
     #[test]
     fn readme_settings_section_matches_generated_markdown() {
-        assert_eq!(extract_readme_settings_section(), Config::markdown_table());
+        assert_eq!(extract_readme_settings_section(), Config::default().markdown_table());
     }
 
     #[test]
     fn markdown_table_contains_all_config_categories() {
-        let markdown = Config::markdown_table();
+        let markdown = Config::default().markdown_table();
 
         for category in ConfigCategory::all() {
             assert!(
@@ -615,7 +608,7 @@ mod readme_sync_tests {
 
     #[test]
     fn markdown_table_contains_all_config_keys() {
-        let markdown = Config::markdown_table();
+        let markdown = Config::default().markdown_table();
 
         for key in ConfigKey::all() {
             assert!(

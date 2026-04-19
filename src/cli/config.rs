@@ -117,7 +117,7 @@ pub fn handle_config_command(action: ConfigAction) -> Result<()> {
             println!("{}", path.display());
         }
         ConfigAction::MarkDown => {
-            print!("{}", Config::markdown_table());
+            print!("{}", Config::default().markdown_table());
         }
     }
     Ok(())
