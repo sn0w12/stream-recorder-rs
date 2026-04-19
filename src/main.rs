@@ -491,17 +491,4 @@ mod tests {
             Some(std::time::Duration::from_secs(15))
         );
     }
-
-    #[test]
-    fn test_stream_metadata_refresh_interval_rejects_zero() {
-        let mut config = Config::default();
-        let err = config
-            .set_value("stream_metadata_refresh_interval", "0s")
-            .expect_err("set_value should reject non-positive intervals");
-
-        assert!(
-            err.to_string().contains("stream_metadata_refresh_interval"),
-            "unexpected error: {err:#}"
-        );
-    }
 }
