@@ -235,9 +235,9 @@ async fn run_pipeline_internal(
         }
 
         // Delay between steps if configured
-        let delay = Config::get().get_step_delay_seconds();
-        if delay > 0.0 {
-            sleep(Duration::from_secs_f64(delay)).await;
+        let delay = Config::get().get_step_delay();
+        if !delay.is_zero() {
+            sleep(delay).await;
         }
     }
 

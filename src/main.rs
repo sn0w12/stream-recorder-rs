@@ -445,7 +445,7 @@ async fn spawn_monitor_task(username: &str, token: &str, platform: PlatformConfi
             &username_owned,
             &platform,
             &token_owned,
-            std::time::Duration::from_secs_f64(Config::get().get_fetch_interval_seconds()),
+            Config::get().get_fetch_interval(),
         )
         .await;
     });
@@ -483,37 +483,40 @@ mod tests {
         );
     }
 
-    // ── stream_reconnect_delay_minutes config tests ───────────────────────────
+    // ── stream_reconnect_delay config tests ──────────────────────────────────
 
     #[test]
     fn test_stream_reconnect_delay_defaults_to_none() {
         let config = Config::default();
         assert!(
-            config.get_stream_reconnect_delay_minutes().is_none(),
-            "stream_reconnect_delay_minutes should default to None (disabled)"
+            config.get_stream_reconnect_delay().is_none(),
+            "stream_reconnect_delay should default to None (disabled)"
         );
     }
 
     #[test]
     fn test_stream_reconnect_delay_round_trips_through_toml() {
-        let toml_input = "stream_reconnect_delay_minutes = 5.0\n";
-        let config: Config = toml::from_str(toml_input)
-            .expect("failed to parse TOML with stream_reconnect_delay_minutes");
-        assert_eq!(config.get_stream_reconnect_delay_minutes(), Some(5.0));
+        let toml_input = "stream_reconnect_delay = \"5m\"\n";
+        let config: Config =
+            toml::from_str(toml_input).expect("failed to parse TOML with stream_reconnect_delay");
+        assert_eq!(
+            config.get_stream_reconnect_delay(),
+            Some(std::time::Duration::from_secs(300))
+        );
     }
 
     #[test]
     fn test_stream_reconnect_delay_none_when_absent_from_toml() {
         let config: Config = toml::from_str("").expect("failed to parse empty TOML");
-        assert!(config.get_stream_reconnect_delay_minutes().is_none());
+        assert!(config.get_stream_reconnect_delay().is_none());
     }
 
     #[test]
     fn test_stream_reconnect_delay_key_recognised_by_config() {
         use crate::config::ConfigKey;
         assert!(
-            ConfigKey::from_key("stream_reconnect_delay_minutes").is_some(),
-            "stream_reconnect_delay_minutes should be a recognised config key"
+            ConfigKey::from_key("stream_reconnect_delay").is_some(),
+            "stream_reconnect_delay should be a recognised config key"
         );
     }
 
@@ -521,8 +524,8 @@ mod tests {
     fn test_stream_metadata_refresh_interval_key_recognised_by_config() {
         use crate::config::ConfigKey;
         assert!(
-            ConfigKey::from_key("stream_metadata_refresh_interval_seconds").is_some(),
-            "stream_metadata_refresh_interval_seconds should be a recognised config key"
+            ConfigKey::from_key("stream_metadata_refresh_interval").is_some(),
+            "stream_metadata_refresh_interval should be a recognised config key"
         );
     }
 
@@ -530,32 +533,35 @@ mod tests {
     fn test_stream_reconnect_delay_set_and_get_via_config_methods() {
         let mut config = Config::default();
         config
-            .set_value("stream_reconnect_delay_minutes", "3.5")
-            .expect("set_value should accept a valid float");
-        assert_eq!(config.get_stream_reconnect_delay_minutes(), Some(3.5));
+            .set_value("stream_reconnect_delay", "3m30s")
+            .expect("set_value should accept a valid duration");
+        assert_eq!(
+            config.get_stream_reconnect_delay(),
+            Some(std::time::Duration::from_secs(210))
+        );
     }
 
     #[test]
     fn test_stream_reconnect_delay_cleared_with_none_string() {
         let mut config = Config::default();
         config
-            .set_value("stream_reconnect_delay_minutes", "10.0")
-            .expect("set_value should accept a valid float");
+            .set_value("stream_reconnect_delay", "10m")
+            .expect("set_value should accept a valid duration");
         config
-            .set_value("stream_reconnect_delay_minutes", "none")
+            .set_value("stream_reconnect_delay", "none")
             .expect("set_value should accept clearing reconnect delay with 'none'");
-        assert!(config.get_stream_reconnect_delay_minutes().is_none());
+        assert!(config.get_stream_reconnect_delay().is_none());
     }
 
     #[test]
     fn test_stream_metadata_refresh_interval_set_and_get_via_config_methods() {
         let mut config = Config::default();
         config
-            .set_value("stream_metadata_refresh_interval_seconds", "15")
-            .expect("set_value should accept a positive float");
+            .set_value("stream_metadata_refresh_interval", "15s")
+            .expect("set_value should accept a positive duration");
         assert_eq!(
-            config.get_stream_metadata_refresh_interval_seconds(),
-            Some(15.0)
+            config.get_stream_metadata_refresh_interval(),
+            Some(std::time::Duration::from_secs(15))
         );
     }
 
@@ -563,12 +569,11 @@ mod tests {
     fn test_stream_metadata_refresh_interval_rejects_zero() {
         let mut config = Config::default();
         let err = config
-            .set_value("stream_metadata_refresh_interval_seconds", "0")
+            .set_value("stream_metadata_refresh_interval", "0s")
             .expect_err("set_value should reject non-positive intervals");
 
         assert!(
-            err.to_string()
-                .contains("stream_metadata_refresh_interval_seconds"),
+            err.to_string().contains("stream_metadata_refresh_interval"),
             "unexpected error: {err:#}"
         );
     }

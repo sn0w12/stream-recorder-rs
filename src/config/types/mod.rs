@@ -1,3 +1,4 @@
+pub mod duration;
 pub mod file_size;
 pub mod list;
 pub mod number;
@@ -8,8 +9,10 @@ use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 use std::str::FromStr;
 
+pub use duration::{Duration, OptionalDuration};
 pub use file_size::FileSize;
 pub use list::StringList;
+#[allow(unused_imports)]
 pub use number::{Float, OptionalFloat, OptionalU32, U32};
 pub use text::{OptionalText, Text};
 

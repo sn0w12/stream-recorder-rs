@@ -123,14 +123,14 @@ Configuration is stored in `~/.config/stream-recorder/config.toml` (Linux/macOS)
 
 #### Monitoring
 
-| Setting                                    | Description                                                                                                                                 | Default |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `monitors`                                 | List of usernames to monitor                                                                                                                | `none`  |
-| `min_stream_duration`                      | Minimum stream duration before recording                                                                                                    | `none`  |
-| `stream_reconnect_delay_minutes`           | Delay in minutes to wait for stream continuation before post-processing. Streams resumed are merged.                                        | `none`  |
-| `stream_metadata_refresh_interval_seconds` | Refresh extracted stream metadata during active recordings every N seconds. Updates titles and avatars used by notifications and templates. | `none`  |
-| `step_delay_seconds`                       | Delay in seconds between each step in a platform                                                                                            | `0.5`   |
-| `fetch_interval_seconds`                   | The interval in seconds monitors are fetched at                                                                                             | `120`   |
+| Setting                            | Description                                                                                            | Default |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------ | ------- |
+| `monitors`                         | List of usernames to monitor                                                                           | `none`  |
+| `min_stream_duration`              | Minimum recorded duration required before post-processing. Accepts values like 5m, 90s, or 1h.         | `none`  |
+| `stream_reconnect_delay`           | How long to wait for a stream continuation before post-processing. Accepts values like 5m, 30s, or 1h. | `none`  |
+| `stream_metadata_refresh_interval` | Refresh extracted stream metadata during active recordings. Accepts values like 30s, 5m, or 1h.        | `none`  |
+| `step_delay`                       | Delay between each step in a platform. Accepts values like 500ms, 2s, or 1m.                           | `500ms` |
+| `fetch_interval`                   | How often monitors are fetched. Accepts values like 30s, 2m, or 1h.                                    | `2m`    |
 
 #### Video
 
@@ -170,12 +170,12 @@ Configuration is stored in `~/.config/stream-recorder/config.toml` (Linux/macOS)
 
 #### Storage
 
-| Setting                          | Description                                               | Default        |
-| -------------------------------- | --------------------------------------------------------- | -------------- |
-| `output_directory`               | Directory to save recordings                              | `./recordings` |
-| `min_free_space`                 | Minimum free disk space before cleanup (e.g. 20GB, 500MB) | `20GB`         |
-| `retention_max_age_days`         | Delete recordings older than this many days               | `none`         |
-| `retention_keep_latest_per_user` | Keep only this many of the newest recordings per user     | `none`         |
+| Setting                          | Description                                                                 | Default        |
+| -------------------------------- | --------------------------------------------------------------------------- | -------------- |
+| `output_directory`               | Directory to save recordings                                                | `./recordings` |
+| `min_free_space`                 | Minimum free disk space before cleanup (e.g. 20GB, 500MB)                   | `20GB`         |
+| `retention_max_age`              | Delete recordings older than this age. Accepts values like 7d, 48h, or 14d. | `none`         |
+| `retention_keep_latest_per_user` | Keep only this many of the newest recordings per user                       | `none`         |
 
 ### Configuration Commands
 
@@ -288,7 +288,7 @@ output_directory/
 
 The tool automatically manages disk space by:
 
-- Removing recordings older than `retention_max_age_days`
+- Removing recordings older than `retention_max_age`
 - Keeping only the newest `retention_keep_latest_per_user` recordings per user
 - Monitoring free space in the output directory
 - Deleting oldest recordings when space falls below `min_free_space_gb`

@@ -1,7 +1,7 @@
 use super::StreamResult;
 use crate::config::Config;
 use crate::stream::postprocess::RecordingFile;
-use crate::types::FileSize as FileSizeValue;
+use crate::types::{DurationValue, FileSize as FileSizeValue};
 use fs2::available_space;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -25,13 +25,13 @@ pub async fn manage_disk_space() -> StreamResult<()> {
 
     // Apply retention policies to determine which files to delete
     let mut planned_deletions = HashSet::new();
-    if let Some(max_age_days) = config.get_retention_max_age_days() {
-        let age_candidates = retention_age_candidates(&files, max_age_days, SystemTime::now());
+    if let Some(max_age) = config.get_retention_max_age() {
+        let age_candidates = retention_age_candidates(&files, max_age, SystemTime::now());
         if !age_candidates.is_empty() {
             println!(
-                "Applying age-based retention: deleting {} recording(s) older than {} day(s)...",
+                "Applying age-based retention: deleting {} recording(s) older than {}...",
                 age_candidates.len(),
-                max_age_days
+                DurationValue::from(max_age)
             );
         }
         planned_deletions.extend(age_candidates);
@@ -154,11 +154,10 @@ fn collect_recording_files(output_dir: &Path) -> Vec<RecordingFile> {
 
 fn retention_age_candidates(
     files: &[RecordingFile],
-    max_age_days: u32,
+    max_age: Duration,
     now: SystemTime,
 ) -> HashSet<PathBuf> {
-    let age_limit = Duration::from_secs((max_age_days as u64).saturating_mul(24 * 60 * 60));
-    let cutoff = now.checked_sub(age_limit).unwrap_or(SystemTime::UNIX_EPOCH);
+    let cutoff = now.checked_sub(max_age).unwrap_or(SystemTime::UNIX_EPOCH);
 
     files
         .iter()
@@ -241,7 +240,8 @@ mod tests {
             },
         ];
 
-        let candidates = retention_age_candidates(&files, 7, now);
+        let candidates =
+            retention_age_candidates(&files, Duration::from_secs(7 * 24 * 60 * 60), now);
 
         let expected = HashSet::from([PathBuf::from("recordings/old.mp4")]);
         assert_eq!(candidates, expected);

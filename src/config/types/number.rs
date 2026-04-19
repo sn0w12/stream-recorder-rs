@@ -85,6 +85,7 @@ where
 }
 
 /// Floating-point setting stored as an optional value with a non-optional default.
+#[allow(dead_code)]
 pub struct Float<V = NoValidation>(PhantomData<V>);
 
 impl<V> ConfigType for Float<V>
@@ -120,6 +121,7 @@ where
 }
 
 /// Floating-point setting stored as an optional value with an optional default.
+#[allow(dead_code)]
 pub struct OptionalFloat<V = NoValidation>(PhantomData<V>);
 
 impl<V> ConfigType for OptionalFloat<V>

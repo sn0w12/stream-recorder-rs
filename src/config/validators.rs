@@ -1,5 +1,6 @@
 use crate::config::types::ConfigValidator;
 use crate::stream::postprocess::thumb::parse_thumbnail_string;
+use crate::types::DurationValue;
 use anyhow::Result;
 
 pub struct VideoQuality;
@@ -7,7 +8,9 @@ pub struct ThumbnailSize;
 pub struct ThumbnailGrid;
 pub struct FfmpegBitrate;
 pub struct PositiveU32;
+#[allow(dead_code)]
 pub struct PositiveF64;
+pub struct PositiveDuration;
 pub struct Url;
 pub struct RegexList;
 
@@ -131,6 +134,20 @@ impl ConfigValidator<Option<f64>> for PositiveF64 {
             Ok(())
         } else {
             Err(anyhow::anyhow!("value must be greater than zero"))
+        }
+    }
+}
+
+impl ConfigValidator<Option<DurationValue>> for PositiveDuration {
+    fn validate(value: &Option<DurationValue>) -> Result<()> {
+        let Some(value) = value else {
+            return Ok(());
+        };
+
+        if value.as_duration().is_zero() {
+            Err(anyhow::anyhow!("value must be greater than zero"))
+        } else {
+            Ok(())
         }
     }
 }

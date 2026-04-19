@@ -9,7 +9,7 @@ use crate::stream::messages::{
     send_minimum_duration_webhook, send_recording_complete_webhook, send_template_webhook,
 };
 use crate::template::{TemplateValue, get_template_string, render_template};
-use crate::types::FileSize;
+use crate::types::{DurationValue, FileSize};
 use crate::uploaders::build_uploaders;
 use chrono::Utc;
 use serde_json::Value;
@@ -89,13 +89,13 @@ async fn post_process_stream(stream_info: StreamInfo, output_path: String) -> St
 
     storage::manage_disk_space().await?;
 
-    let (file_size, duration_minutes) = get_video_metadata(&output_path).await?;
+    let (file_size, duration) = get_video_metadata(&output_path).await?;
     let config = Config::get();
 
     if let Some(min_duration) = config.get_min_stream_duration()
         && handle_minimum_duration(
             &output_path,
-            duration_minutes,
+            duration,
             min_duration,
             config.get_discord_webhook_url(),
             stream_info.clone(),
@@ -105,7 +105,7 @@ async fn post_process_stream(stream_info: StreamInfo, output_path: String) -> St
         return Ok(());
     }
 
-    let duration_str = format_duration(duration_minutes);
+    let duration_str = format_duration(duration);
     let webhook_url = Config::get().get_discord_webhook_url();
     if let Err(error) =
         send_recording_complete_webhook(webhook_url, &stream_info, &duration_str, &file_size).await
@@ -333,12 +333,12 @@ async fn send_template_notification(stream_info: &StreamInfo, template_info: &Te
     }
 }
 
-async fn get_video_metadata(output_path: &str) -> StreamResult<(FileSize, f64)> {
+async fn get_video_metadata(output_path: &str) -> StreamResult<(FileSize, DurationValue)> {
     let metadata = std::fs::metadata(output_path)?;
     let file_size_bytes = metadata.len();
     let file_size = FileSize::from_bytes(file_size_bytes);
 
-    let duration_minutes = match tokio::process::Command::new("ffprobe")
+    let duration = match tokio::process::Command::new("ffprobe")
         .args([
             "-v",
             "quiet",
@@ -352,43 +352,38 @@ async fn get_video_metadata(output_path: &str) -> StreamResult<(FileSize, f64)> 
     {
         Ok(output) => {
             if let Ok(json) = serde_json::from_slice::<Value>(&output.stdout) {
-                json["format"]["duration"]
+                let seconds = json["format"]["duration"]
                     .as_str()
                     .unwrap_or("0")
                     .parse::<f64>()
-                    .unwrap_or(0.0)
-                    / 60.0
+                    .unwrap_or(0.0);
+                DurationValue::from_secs_f64(seconds).unwrap_or(DurationValue::ZERO)
             } else {
-                0.0
+                DurationValue::ZERO
             }
         }
-        Err(_) => 0.0,
+        Err(_) => DurationValue::ZERO,
     };
 
-    Ok((file_size, duration_minutes))
+    Ok((file_size, duration))
 }
 
-fn format_duration(duration_minutes: f64) -> String {
-    let hours = (duration_minutes / 60.0).floor() as u32;
-    let mins = (duration_minutes % 60.0).round() as u32;
-    if hours > 0 {
-        format!("{}h {}m", hours, mins)
-    } else {
-        format!("{}m", mins)
-    }
+fn format_duration(duration: DurationValue) -> String {
+    duration.to_string()
 }
 
 async fn handle_minimum_duration(
     output_path: &str,
-    duration_minutes: f64,
-    min_duration: f64,
+    duration: DurationValue,
+    min_duration: std::time::Duration,
     webhook_url: Option<&str>,
     stream_info: StreamInfo,
 ) -> StreamResult<bool> {
-    if duration_minutes < min_duration {
+    if duration < min_duration {
         println!(
-            "Stream duration ({:.1} minutes) is below minimum threshold ({:.1} minutes), removing files without processing",
-            duration_minutes, min_duration
+            "Stream duration ({}) is below minimum threshold ({}), removing files without processing",
+            duration,
+            DurationValue::from(min_duration)
         );
         let output_path_buf = Path::new(output_path);
 

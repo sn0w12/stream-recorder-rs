@@ -1,4 +1,5 @@
 use super::ffmpeg::run_ffmpeg_status;
+use crate::types::DurationValue;
 use anyhow::Result;
 use std::path::Path;
 use tokio::process::Command;
@@ -32,14 +33,15 @@ pub async fn create_video_thumbnail_grid(
     }
 
     let duration = get_video_duration(input_path).await?;
+    let duration_seconds = duration.as_secs_f64();
 
     let timestamps: Vec<f64> = if total_frames == 1 {
-        vec![duration * 0.5]
+        vec![duration_seconds * 0.5]
     } else {
         // Calculate timestamps evenly distributed throughout the video.
         // Skip the first and last 5% to avoid black frames at start/end.
-        let start_offset = duration * 0.05;
-        let effective_duration = duration * 0.9;
+        let start_offset = duration_seconds * 0.05;
+        let effective_duration = duration_seconds * 0.9;
         let step = effective_duration / (total_frames as f64 - 1.0);
 
         (0..total_frames)
@@ -71,8 +73,8 @@ pub async fn create_video_thumbnail_grid(
     Ok(())
 }
 
-/// Gets the duration of a video file in seconds using ffprobe
-async fn get_video_duration(input_path: &Path) -> Result<f64> {
+/// Gets the duration of a video file using ffprobe.
+async fn get_video_duration(input_path: &Path) -> Result<DurationValue> {
     let output = Command::new("ffprobe")
         .args([
             "-v",
@@ -97,6 +99,7 @@ async fn get_video_duration(input_path: &Path) -> Result<f64> {
     duration_str
         .parse::<f64>()
         .map_err(|_| anyhow::anyhow!("Invalid duration format"))
+        .and_then(|seconds| DurationValue::from_secs_f64(seconds).map_err(anyhow::Error::msg))
 }
 
 /// Extracts a single frame at the specified timestamp

@@ -107,13 +107,9 @@ pub async fn record_segment(
     command.args(&ffmpeg_args);
 
     let recorder = StreamRecorder::new(&mut command).await?;
-    if let Some(interval_seconds) = Config::get().get_stream_metadata_refresh_interval_seconds() {
+    if let Some(refresh_interval) = Config::get().get_stream_metadata_refresh_interval() {
         recorder
-            .wait_with_metadata_refresh(
-                stream_info,
-                token,
-                Duration::from_secs_f64(interval_seconds),
-            )
+            .wait_with_metadata_refresh(stream_info, token, refresh_interval)
             .await?;
     } else {
         recorder.wait().await?;

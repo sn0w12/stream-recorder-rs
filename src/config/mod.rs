@@ -8,7 +8,10 @@ use std::path::PathBuf;
 use std::sync::OnceLock;
 use tiny_table::{Align, Cell, Color, Column, ColumnWidth, Table, Trunc};
 
-use crate::{types::FileSize, utils::app_config_dir};
+use crate::{
+    types::{DurationValue, FileSize},
+    utils::app_config_dir,
+};
 use types::ConfigType;
 
 static CONFIG: OnceLock<Config> = OnceLock::new();
@@ -325,11 +328,11 @@ fn write_markdown_table(output: &mut String, rows: &[[String; 3]]) {
 define_config! {
     monitoring: {
         monitors: types::StringList = Vec::<String>::new(), "List of usernames to monitor",
-        min_stream_duration: types::OptionalFloat = None, "Minimum stream duration before recording",
-        stream_reconnect_delay_minutes: types::OptionalFloat = None, "Delay in minutes to wait for stream continuation before post-processing. Streams resumed are merged.",
-        stream_metadata_refresh_interval_seconds: types::OptionalFloat<validators::PositiveF64> = None, "Refresh extracted stream metadata during active recordings every N seconds. Updates titles and avatars used by notifications and templates.",
-        step_delay_seconds: types::Float = 0.5, "Delay in seconds between each step in a platform",
-        fetch_interval_seconds: types::Float = 120.0, "The interval in seconds monitors are fetched at",
+        min_stream_duration: types::OptionalDuration = None, "Minimum recorded duration required before post-processing. Accepts values like 5m, 90s, or 1h.",
+        stream_reconnect_delay: types::OptionalDuration = None, "How long to wait for a stream continuation before post-processing. Accepts values like 5m, 30s, or 1h.",
+        stream_metadata_refresh_interval: types::OptionalDuration<validators::PositiveDuration> = None, "Refresh extracted stream metadata during active recordings. Accepts values like 30s, 5m, or 1h.",
+        step_delay: types::Duration = DurationValue::from_millis(500), "Delay between each step in a platform. Accepts values like 500ms, 2s, or 1m.",
+        fetch_interval: types::Duration = DurationValue::from_secs(120), "How often monitors are fetched. Accepts values like 30s, 2m, or 1h.",
     }
     video: {
         video_quality: types::U32<validators::VideoQuality> = 26, "Quality target for variable bitrate video encoding (lower is better)",
@@ -355,7 +358,7 @@ define_config! {
     storage: {
         output_directory: types::Text = "./recordings".to_string(), "Directory to save recordings",
         min_free_space: types::FileSize = FileSize::from_gb(20), "Minimum free disk space before cleanup (e.g. 20GB, 500MB)",
-        retention_max_age_days: types::OptionalU32<validators::PositiveU32> = None, "Delete recordings older than this many days",
+        retention_max_age: types::OptionalDuration<validators::PositiveDuration> = None, "Delete recordings older than this age. Accepts values like 7d, 48h, or 14d.",
         retention_keep_latest_per_user: types::OptionalU32<validators::PositiveU32> = None, "Keep only this many of the newest recordings per user",
     }
 }
@@ -746,13 +749,13 @@ mod readme_sync_tests {
         let mut config = Config::default();
 
         config
-            .set_value("retention_max_age_days", "14")
+            .set_value("retention_max_age", "14d")
             .expect("set_value should accept a positive retention age");
         config
             .set_value("retention_keep_latest_per_user", "3")
             .expect("set_value should accept a positive retention limit");
 
-        assert_eq!(config.get_value("retention_max_age_days"), "14");
+        assert_eq!(config.get_value("retention_max_age"), "14d");
         assert_eq!(config.get_value("retention_keep_latest_per_user"), "3");
     }
 
@@ -761,9 +764,9 @@ mod readme_sync_tests {
         let mut config = Config::default();
 
         let age_err = config
-            .set_value("retention_max_age_days", "0")
+            .set_value("retention_max_age", "0s")
             .expect_err("set_value should reject zero age retention");
-        assert!(age_err.to_string().contains("retention_max_age_days"));
+        assert!(age_err.to_string().contains("retention_max_age"));
 
         let keep_err = config
             .set_value("retention_keep_latest_per_user", "0")
