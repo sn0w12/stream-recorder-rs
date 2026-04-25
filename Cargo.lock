@@ -2082,9 +2082,9 @@ dependencies = [
 
 [[package]]
 name = "tiny-table"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee41fb13fd6766cdb4ceb26acb6cc92d1805bdbaa8108a7f2fcb1d149be71e2d"
+checksum = "1b25d77c0ef23108f246f7733e292e173db3c996bee63a619a589e80129410de"
 dependencies = [
  "terminal_size",
 ]

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, OnceLock, RwLock};
-use tiny_table::{Align, Cell, Color, Column, ColumnWidth, Table, Trunc};
+use tiny_table::{Align, Cell, Color, Column, ColumnWidth, Table, TableStyle, Trunc};
 
 use crate::{
     types::{DurationValue, FileSize},
@@ -415,19 +415,7 @@ impl Config {
     }
 
     pub fn markdown_table(&self) -> String {
-        let style = tiny_table::TableStyle {
-            top_left: "|",
-            top_right: "|",
-            bottom_left: "|",
-            bottom_right: "|",
-            horiz: "-",
-            vert: "|",
-            top_joint: "|",
-            mid_left: "|",
-            mid_right: "|",
-            mid_joint: "|",
-            bottom_joint: "|",
-        };
+        let style = TableStyle::from_string("||||-||||||").unwrap_or(TableStyle::unicode());
 
         let mut tables = vec![];
         for category in ConfigCategory::all() {
