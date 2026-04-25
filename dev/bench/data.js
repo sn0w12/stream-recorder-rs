@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777117112564,
+  "lastUpdate": 1777120380397,
   "repoUrl": "https://github.com/sn0w12/stream-recorder-rs",
   "entries": {
     "Rust Benchmark": [
@@ -3569,6 +3569,108 @@ window.BENCHMARK_DATA = {
             "name": "template_rendering/example_template",
             "value": 241710,
             "range": "± 1237",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "lucasskold49@gmail.com",
+            "name": "Sn0w123",
+            "username": "sn0w12"
+          },
+          "committer": {
+            "email": "lucasskold49@gmail.com",
+            "name": "Sn0w123",
+            "username": "sn0w12"
+          },
+          "distinct": true,
+          "id": "0b6a045b88ed3946459c64e15363919ff4d4d442",
+          "message": "Merge branch 'main' of https://github.com/sn0w12/stream-recorder-rs",
+          "timestamp": "2026-04-25T14:28:03+02:00",
+          "tree_id": "b411b033a45463583726883ca93ca4acc0c4a8f7",
+          "url": "https://github.com/sn0w12/stream-recorder-rs/commit/0b6a045b88ed3946459c64e15363919ff4d4d442"
+        },
+        "date": 1777120379674,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "json_path_extraction/extract_json_value/flat",
+            "value": 36,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "json_path_extraction/extract_json_value/nested",
+            "value": 95,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "json_path_extraction/extract_json_value/array",
+            "value": 95,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "json_path_extraction/extract_json_value/missing",
+            "value": 89,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "json_path_extraction/extract_json_value/null_or_missing",
+            "value": 61,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "pipeline_extraction_loop/extract_all_fields",
+            "value": 572,
+            "range": "± 3",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "live_check_matching/matches/path_exists",
+            "value": 95,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "live_check_matching/matches/equals_match",
+            "value": 99,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "live_check_matching/matches/equals_miss",
+            "value": 96,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "title_cleaning/clean_title/no_rules",
+            "value": 46,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "title_cleaning/clean_title/one_rule",
+            "value": 308996,
+            "range": "± 2015",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "title_cleaning/clean_title/three_rules",
+            "value": 371338,
+            "range": "± 3311",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "template_rendering/example_template",
+            "value": 206045,
+            "range": "± 991",
             "unit": "ns/iter"
           }
         ]
