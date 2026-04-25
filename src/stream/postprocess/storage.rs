@@ -180,7 +180,7 @@ fn retention_keep_latest_per_user(
     let keep_count = keep_latest_per_user as usize;
 
     for group in grouped.values_mut() {
-        group.sort_by(|left, right| right.modified.cmp(&left.modified));
+        group.sort_by_key(|right| std::cmp::Reverse(right.modified));
         for file in group.iter().take(keep_count) {
             keep.insert(file.path.clone());
         }
