@@ -1,5 +1,6 @@
 use crate::config::Config;
 use crate::platform::PlatformConfig;
+use crate::stream::messages::send_program_error_webhook;
 use crate::stream::monitor::monitor_stream;
 use crate::utils::split_monitor_reference;
 use anyhow::Result;
@@ -56,9 +57,28 @@ impl MonitorSupervisor {
                     && let Err(error) = self.reconcile(monitors).await
                 {
                     eprintln!("Error updating monitored users: {}", error);
+                    send_program_error_webhook(
+                        config.get_discord_webhook_url(),
+                        "Monitor reconciliation failed",
+                        &format!(
+                            "Failed to update monitored users after a config reload.\n\n{error}"
+                        ),
+                    )
+                    .await;
                 }
             }
-            Err(error) => eprintln!("Error reloading config: {}", error),
+            Err(error) => {
+                eprintln!("Error reloading config: {}", error);
+                let config = Config::get();
+                send_program_error_webhook(
+                    config.get_discord_webhook_url(),
+                    "Configuration reload failed",
+                    &format!(
+                        "The running process could not reload `config.toml` and kept the previous configuration.\n\n{error}"
+                    ),
+                )
+                .await;
+            }
         }
     }
 
@@ -93,6 +113,15 @@ impl MonitorSupervisor {
             Ok(pair) => pair,
             Err(_) => {
                 eprintln!("Malformed monitor string '{}', skipping.", monitor);
+                let config = Config::get();
+                send_program_error_webhook(
+                    config.get_discord_webhook_url(),
+                    "Monitor failed to start",
+                    &format!(
+                        "Configured monitor `{monitor}` is malformed. Expected the format `platform_id:username`."
+                    ),
+                )
+                .await;
                 return None;
             }
         };
@@ -104,6 +133,13 @@ impl MonitorSupervisor {
                     "Unknown platform '{}' for monitor '{}', skipping.",
                     platform_id, monitor
                 );
+                let config = Config::get();
+                send_program_error_webhook(
+                    config.get_discord_webhook_url(),
+                    "Monitor failed to start",
+                    &format!("Monitor `{monitor}` references unknown platform `{platform_id}`."),
+                )
+                .await;
                 return None;
             }
         };
@@ -115,6 +151,15 @@ impl MonitorSupervisor {
                     "Error getting token for platform '{}' while starting '{}': {}",
                     platform_id, monitor, error
                 );
+                let config = Config::get();
+                send_program_error_webhook(
+                    config.get_discord_webhook_url(),
+                    "Monitor failed to start",
+                    &format!(
+                        "Unable to resolve credentials for monitor `{monitor}` on platform `{platform_id}`.\n\n{error}"
+                    ),
+                )
+                .await;
                 return None;
             }
         };

@@ -8,6 +8,8 @@ use crate::{
 };
 use anyhow::Result;
 
+pub const PROGRAM_ERRORS_THREAD: &str = "stream-recorder-errors";
+
 fn sanitize_avatar_url(avatar_url: Option<String>) -> Option<String> {
     avatar_url.and_then(|url| {
         let trimmed = url.trim();
@@ -72,6 +74,43 @@ async fn send_components_to_thread(
         .send_to_thread(thread_name, None, Some(components), attachments, identity)
         .await?;
     Ok(())
+}
+
+pub async fn send_program_error_webhook(webhook_url: Option<&str>, title: &str, details: &str) {
+    let mut components = vec![Component::Text(TextComponent {
+        content: format!("**{}**", title),
+    })];
+
+    if !details.trim().is_empty() {
+        components.push(Component::Divider(DividerComponent {
+            visible: true,
+            spacing: 1,
+        }));
+        components.push(Component::Text(TextComponent {
+            content: details.trim().to_string(),
+        }));
+    }
+
+    let component = Component::Container(ContainerComponent {
+        accent_color: DiscordColor::rgb(255, 0, 0),
+        spoiler: false,
+        components,
+    });
+
+    if let Err(error) = send_components_to_thread(
+        webhook_url,
+        PROGRAM_ERRORS_THREAD,
+        vec![component],
+        None,
+        Identity {
+            username: "stream-recorder".to_string(),
+            avatar_url: None,
+        },
+    )
+    .await
+    {
+        eprintln!("Error sending program error webhook '{}': {}", title, error);
+    }
 }
 
 /// Sends a Discord webhook notification for recording start.
@@ -246,5 +285,10 @@ mod tests {
             sanitize_avatar_url(Some("https://example.com/avatar.png".into())),
             Some("https://example.com/avatar.png".into())
         );
+    }
+
+    #[test]
+    fn program_errors_thread_name_is_stable() {
+        assert_eq!(PROGRAM_ERRORS_THREAD, "stream-recorder-errors");
     }
 }

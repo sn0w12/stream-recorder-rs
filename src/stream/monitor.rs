@@ -1,6 +1,7 @@
 use crate::config::Config;
 use crate::platform::{PipelineOutcome, PlatformConfig};
 use crate::stream::api::run_pipeline;
+use crate::stream::messages::send_program_error_webhook;
 use crate::stream::postprocess::post_process_session;
 use crate::stream::recording::record_segment;
 use crate::types::DurationValue;
@@ -21,7 +22,18 @@ pub async fn monitor_stream(username: &str, platform: &PlatformConfig, token: &s
                 match StreamInfo::from_pipeline(username, platform, &vars) {
                     Some(stream_info) => record_session(stream_info, token).await,
                     None => {
-                        eprintln!("Pipeline returned Live but 'playback_url' was not extracted")
+                        let message = "Pipeline returned Live but 'playback_url' was not extracted";
+                        eprintln!("{message}");
+                        let config = Config::get();
+                        send_program_error_webhook(
+                            config.get_discord_webhook_url(),
+                            "Live stream metadata was incomplete",
+                            &format!(
+                                "Platform `{}` reported `{}` as live, but the pipeline did not extract `playback_url`.",
+                                platform.id, username
+                            ),
+                        )
+                        .await;
                     }
                 }
             }
@@ -55,6 +67,16 @@ async fn record_session(stream_info: StreamInfo, token: &str) {
                     "stream"
                 };
                 eprintln!("Error recording {} for {}: {}", label, username, error);
+                let config = Config::get();
+                send_program_error_webhook(
+                    config.get_discord_webhook_url(),
+                    "Recording failed",
+                    &format!(
+                        "Recording the {} for `{}` on platform `{}` failed.\n\n{}",
+                        label, username, platform.id, error
+                    ),
+                )
+                .await;
                 break;
             }
         }
@@ -92,6 +114,16 @@ async fn record_session(stream_info: StreamInfo, token: &str) {
     tokio::spawn(async move {
         if let Err(error) = post_process_session(session_info, session_files).await {
             eprintln!("Error post-processing session: {}", error);
+            let config = Config::get();
+            send_program_error_webhook(
+                config.get_discord_webhook_url(),
+                "Post-processing failed",
+                &format!(
+                    "Post-processing failed for `{}` on platform `{}`.\n\n{}",
+                    username, platform.id, error
+                ),
+            )
+            .await;
         }
     });
 }
@@ -120,6 +152,16 @@ async fn next_live_stream(
                     return Some(info);
                 }
                 eprintln!("Pipeline returned Live but 'playback_url' was not extracted");
+                let config = Config::get();
+                send_program_error_webhook(
+                    config.get_discord_webhook_url(),
+                    "Continuation stream metadata was incomplete",
+                    &format!(
+                        "Platform `{}` reported `{}` as live during the continuation window, but the pipeline did not extract `playback_url`.",
+                        platform.id, username
+                    ),
+                )
+                .await;
             }
             Ok(PipelineOutcome::Offline) => {}
             Err(error) => eprintln!(

@@ -16,6 +16,7 @@ use crate::config::Config;
 use crate::platform::PlatformConfig;
 use crate::print::section::StartupInfo;
 use crate::stream::encoding::{VideoEncoding, detect_best_hw_encoder, probe_hw_encoders};
+use crate::stream::messages::send_program_error_webhook;
 use crate::template::{TemplateValue, get_template_string, render_template};
 use crate::uploaders::UploaderType;
 use anyhow::Result;
@@ -190,11 +191,36 @@ async fn main() -> Result<()> {
                 Err(e) => {
                     eprintln!("Startup tests failed: {}", e);
                     eprintln!("Aborting startup. Fix the issue and try again.");
+                    let config = Config::get();
+                    send_program_error_webhook(
+                        config.get_discord_webhook_url(),
+                        "Startup verification failed",
+                        &format!(
+                            "The recorder aborted before starting any monitors because startup verification failed.\n\n{}",
+                            e
+                        ),
+                    )
+                    .await;
                     return Err(e);
                 }
             }
 
-            let platforms = PlatformConfig::load_all()?;
+            let platforms = match PlatformConfig::load_all() {
+                Ok(platforms) => platforms,
+                Err(error) => {
+                    let config = Config::get();
+                    send_program_error_webhook(
+                        config.get_discord_webhook_url(),
+                        "Platform configuration failed to load",
+                        &format!(
+                            "One or more installed platform definitions could not be loaded.\n\n{}",
+                            error
+                        ),
+                    )
+                    .await;
+                    return Err(error);
+                }
+            };
             run_recording(&platforms, cli.token).await?;
         }
     }

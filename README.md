@@ -228,9 +228,11 @@ The tool will send notifications when:
 
 - Recording starts
 - Recording completes
+- Startup and monitor/runtime errors that need attention
 - Uploads complete _(using your template)_
 
-Each monitor will create its own thread, keeping all streams organized.
+Each monitor creates its own recording thread, and the recorder also creates a
+separate `stream-recorder-errors` thread for general operational errors.
 
 ### Template System
 
