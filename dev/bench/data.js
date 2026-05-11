@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777120380397,
+  "lastUpdate": 1778501833084,
   "repoUrl": "https://github.com/sn0w12/stream-recorder-rs",
   "entries": {
     "Rust Benchmark": [
@@ -3671,6 +3671,108 @@ window.BENCHMARK_DATA = {
             "name": "template_rendering/example_template",
             "value": 206045,
             "range": "± 991",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "lucasskold49@gmail.com",
+            "name": "Sn0w123",
+            "username": "sn0w12"
+          },
+          "committer": {
+            "email": "lucasskold49@gmail.com",
+            "name": "Sn0w123",
+            "username": "sn0w12"
+          },
+          "distinct": true,
+          "id": "c37abe2ac0b8dc2a31cf0512f60fe1db5b5abece",
+          "message": "Fix a single bad platform breaking the entire program",
+          "timestamp": "2026-05-11T14:06:33+02:00",
+          "tree_id": "b43fb228522aac68ad4345ec2875d16aeaec2e75",
+          "url": "https://github.com/sn0w12/stream-recorder-rs/commit/c37abe2ac0b8dc2a31cf0512f60fe1db5b5abece"
+        },
+        "date": 1778501832765,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "json_path_extraction/extract_json_value/flat",
+            "value": 43,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "json_path_extraction/extract_json_value/nested",
+            "value": 114,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "json_path_extraction/extract_json_value/array",
+            "value": 117,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "json_path_extraction/extract_json_value/missing",
+            "value": 105,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "json_path_extraction/extract_json_value/null_or_missing",
+            "value": 69,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "pipeline_extraction_loop/extract_all_fields",
+            "value": 694,
+            "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "live_check_matching/matches/path_exists",
+            "value": 114,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "live_check_matching/matches/equals_match",
+            "value": 122,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "live_check_matching/matches/equals_miss",
+            "value": 116,
+            "range": "± 9",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "title_cleaning/clean_title/no_rules",
+            "value": 28,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "title_cleaning/clean_title/one_rule",
+            "value": 338794,
+            "range": "± 1352",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "title_cleaning/clean_title/three_rules",
+            "value": 404856,
+            "range": "± 2788",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "template_rendering/example_template",
+            "value": 239510,
+            "range": "± 2652",
             "unit": "ns/iter"
           }
         ]
