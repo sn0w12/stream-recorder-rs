@@ -1,9 +1,49 @@
 use crate::consts::*;
-use keyring::Entry;
+use anyhow::{Context, Result};
+use keyring_core::{CredentialStore, Entry};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 pub const SERVICE_NAME: &str = "stream_recorder";
+
+pub struct CredentialStoreGuard;
+
+impl Drop for CredentialStoreGuard {
+    fn drop(&mut self) {
+        let _ = keyring_core::unset_default_store();
+    }
+}
+
+/// Configure the platform-native keyring store used by `keyring-core`.
+pub fn init_credential_store() -> Result<CredentialStoreGuard> {
+    keyring_core::set_default_store(create_default_store()?);
+    Ok(CredentialStoreGuard)
+}
+
+#[cfg(target_os = "windows")]
+fn create_default_store() -> Result<Arc<CredentialStore>> {
+    let store = windows_native_keyring_store::Store::new()
+        .context("failed to initialize Windows Credential Manager store")?;
+    let store: Arc<CredentialStore> = store;
+    Ok(store)
+}
+
+#[cfg(target_os = "macos")]
+fn create_default_store() -> Result<Arc<CredentialStore>> {
+    let store = apple_native_keyring_store::Store::new()
+        .context("failed to initialize macOS Keychain store")?;
+    let store: Arc<CredentialStore> = store;
+    Ok(store)
+}
+
+#[cfg(target_os = "linux")]
+fn create_default_store() -> Result<Arc<CredentialStore>> {
+    let store = dbus_secret_service_keyring_store::Store::new()
+        .context("failed to initialize Secret Service keyring store")?;
+    let store: Arc<CredentialStore> = store;
+    Ok(store)
+}
 
 /// Returns the base application configuration directory:
 /// `<system_config_dir>/stream_recorder`.

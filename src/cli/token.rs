@@ -3,7 +3,7 @@ use crate::platform::PlatformConfig;
 use crate::utils;
 use anyhow::Result;
 use clap::Subcommand;
-use keyring::Entry;
+use keyring_core::Entry;
 
 #[derive(Subcommand)]
 pub enum TokenAction {

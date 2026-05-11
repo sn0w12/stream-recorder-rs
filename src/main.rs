@@ -96,6 +96,7 @@ enum TemplateAction {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
     Config::init()?;
+    let _credential_store_guard = utils::init_credential_store()?;
 
     match cli.command {
         Some(Commands::Token { action }) => handle_token_command(action)?,

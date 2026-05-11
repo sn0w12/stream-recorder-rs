@@ -31,18 +31,19 @@ semver = "1.0"
 handlebars = "6.4.0"
 bunkr-client = { version = "0.2", default-features = false }
 tiny-table = { version = "0.2.2" }
+keyring-core = "1.0"
 
 [dev-dependencies]
 criterion = "0.8.2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-keyring = { version = "3.6", features = ["windows-native"] }
+windows-native-keyring-store = "1.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-keyring = { version = "3.6", features = ["apple-native"] }
+apple-native-keyring-store = { version = "1.0", features = ["keychain"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-keyring = { version = "3.6", features = ["linux-native"] }
+dbus-secret-service-keyring-store = "1.0"
 
 [profile.release]
 opt-level = 3

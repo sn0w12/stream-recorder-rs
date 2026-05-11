@@ -49,7 +49,7 @@ stream-recorder -h
 
 2. **Save a platform API token** (if required by the platform):
 
-    Using keyring (recommended):
+    Using the system credential store (recommended):
 
     ```bash
     stream-recorder token save-platform PLATFORM_ID YOUR_TOKEN_HERE
