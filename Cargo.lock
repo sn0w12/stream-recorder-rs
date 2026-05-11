@@ -165,9 +165,9 @@ checksum = "5d20789868f4b01b2f2caec9f5c4e0213b41e3e5702a50157d699ae31ced2fcb"
 
 [[package]]
 name = "bunkr-client"
-version = "0.1.6"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48312c4b4a38adb0089d7e4988339af1508be1047b51ee5904d817659b9c4049"
+checksum = "6a14683541ffbb8935f28a8a5815ef4549cc8bf3b38abcf561bf19110214c325"
 dependencies = [
  "anyhow",
  "base64",
