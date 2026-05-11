@@ -980,6 +980,8 @@ mod tests {
         .expect("write invalid platform");
 
         let report = PlatformConfig::load_report().expect("load report");
+        std::fs::remove_file(platforms_dir.join("valid.json")).expect("cleanup valid platform");
+        std::fs::remove_file(platforms_dir.join("invalid.json")).expect("cleanup invalid platform");
 
         assert!(
             report
