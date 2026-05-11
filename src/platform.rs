@@ -890,8 +890,8 @@ mod tests {
     #[test]
     fn test_validate_accepts_compatible_sr_version_req() {
         let mut p = make_minimal_platform("goodreq");
-        // The app version is 0.1.0; "^0.1" should match.
-        p.stream_recorder_version = Some("^0.1".to_string());
+        // The app version is 0.2.0; "^0.2" should match.
+        p.stream_recorder_version = Some("^0.2".to_string());
         assert!(p.validate("test").is_ok());
     }
 
