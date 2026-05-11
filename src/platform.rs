@@ -8,7 +8,25 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+#[derive(Debug, Clone)]
+pub struct PlatformLoadError {
+    pub path: PathBuf,
+    pub error: String,
+}
+
+impl std::fmt::Display for PlatformLoadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.path.display(), self.error)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct PlatformLoadReport {
+    pub platforms: Vec<PlatformConfig>,
+    pub errors: Vec<PlatformLoadError>,
+}
 
 /// A single step in the platform fetch pipeline.
 ///
@@ -370,6 +388,40 @@ impl PlatformConfig {
         result
     }
 
+    fn load_from_file(path: &Path) -> Result<Self> {
+        let content = fs::read_to_string(path)
+            .map_err(|e| anyhow::anyhow!("Failed to read platform config {:?}: {}", path, e))?;
+        let config: PlatformConfig = serde_json::from_str(&content)
+            .map_err(|e| anyhow::anyhow!("Failed to parse platform config {:?}: {}", path, e))?;
+        config.validate(&format!("{:?}", path))?;
+        Ok(config)
+    }
+
+    pub fn load_report() -> Result<PlatformLoadReport> {
+        let dir = Self::platforms_dir();
+        let mut report = PlatformLoadReport::default();
+
+        if dir.exists() {
+            for entry in fs::read_dir(&dir)? {
+                let entry = entry?;
+                let path = entry.path();
+                if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                    continue;
+                }
+
+                match Self::load_from_file(&path) {
+                    Ok(config) => report.platforms.push(config),
+                    Err(error) => report.errors.push(PlatformLoadError {
+                        path,
+                        error: error.to_string(),
+                    }),
+                }
+            }
+        }
+
+        Ok(report)
+    }
+
     /// Loads all platform configs from the user's platforms directory.
     ///
     /// Returns an empty `Vec` when the directory does not exist or contains no
@@ -380,27 +432,11 @@ impl PlatformConfig {
     /// (bad `base_url`, empty `steps`, empty `version`, or incompatible
     /// `stream_recorder_version`).
     pub fn load_all() -> Result<Vec<Self>> {
-        let dir = Self::platforms_dir();
-        let mut platforms = Vec::new();
-
-        if dir.exists() {
-            for entry in fs::read_dir(&dir)? {
-                let entry = entry?;
-                let path = entry.path();
-                if path.extension().and_then(|e| e.to_str()) == Some("json") {
-                    let content = fs::read_to_string(&path).map_err(|e| {
-                        anyhow::anyhow!("Failed to read platform config {:?}: {}", path, e)
-                    })?;
-                    let config: PlatformConfig = serde_json::from_str(&content).map_err(|e| {
-                        anyhow::anyhow!("Failed to parse platform config {:?}: {}", path, e)
-                    })?;
-                    config.validate(&format!("{:?}", path))?;
-                    platforms.push(config);
-                }
-            }
+        let report = Self::load_report()?;
+        if let Some(error) = report.errors.into_iter().next() {
+            return Err(anyhow::anyhow!(error.to_string()));
         }
-
-        Ok(platforms)
+        Ok(report.platforms)
     }
 
     /// Looks up a platform by its `id` from a slice of loaded platforms.
@@ -474,6 +510,39 @@ impl PlatformConfig {
         Ok(config)
     }
 
+    fn parse_installed_platform_metadata(
+        file_path: &Path,
+        content: &str,
+        id: &str,
+    ) -> Result<(Option<String>, Option<String>)> {
+        let value: Value = serde_json::from_str(content).map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to parse existing platform config {:?}: {}",
+                file_path,
+                e
+            )
+        })?;
+
+        let source_url = value
+            .get("source_url")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let version = value
+            .get("version")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+
+        let source_url = source_url.ok_or_else(|| {
+            anyhow::anyhow!(
+                "Platform '{}' has no source URL saved. \
+             Re-install it with: stream-recorder platform install <url>",
+                id
+            )
+        })?;
+
+        Ok((Some(source_url), version))
+    }
+
     /// Re-downloads the platform config for `id` from its saved `source_url`
     /// and overwrites the stored file.
     ///
@@ -493,30 +562,15 @@ impl PlatformConfig {
         let existing_content = fs::read_to_string(&file_path).map_err(|e| {
             anyhow::anyhow!("Failed to read platform config {:?}: {}", file_path, e)
         })?;
-        let existing: PlatformConfig = serde_json::from_str(&existing_content).map_err(|e| {
-            anyhow::anyhow!(
-                "Failed to parse existing platform config {:?}: {}",
-                file_path,
-                e
-            )
-        })?;
-
-        let url = existing.source_url.ok_or_else(|| {
-            anyhow::anyhow!(
-                "Platform '{}' has no source URL saved. \
-             Re-install it with: stream-recorder platform install <url>",
-                id
-            )
-        })?;
-
-        let old_version = existing.version.clone();
+        let (source_url, old_version) =
+            Self::parse_installed_platform_metadata(&file_path, &existing_content, id)?;
+        let url = source_url.expect("source_url should be present after metadata parsing");
         let updated = Self::install_from_url(&url).await?;
 
         // Print a version diff only when both versions are valid semver.
-        if let (Ok(old), Ok(new)) = (
-            Version::parse(old_version.trim()),
-            Version::parse(updated.version.trim()),
-        ) {
+        if let (Some(old_version), Ok(new)) = (old_version, Version::parse(updated.version.trim()))
+            && let Ok(old) = Version::parse(old_version.trim())
+        {
             if old != new {
                 println!("  {} -> {}", old, new);
             } else {
@@ -527,20 +581,49 @@ impl PlatformConfig {
         Ok(updated)
     }
 
+    fn list_updatable_ids_in_dir(dir: &Path) -> Result<Vec<String>> {
+        let mut ids = Vec::new();
+
+        if !dir.exists() {
+            return Ok(ids);
+        }
+
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+                continue;
+            }
+
+            let Ok(content) = fs::read_to_string(&path) else {
+                continue;
+            };
+            let Ok(value) = serde_json::from_str::<Value>(&content) else {
+                continue;
+            };
+
+            if value.get("source_url").and_then(Value::as_str).is_some()
+                && let Some(id) = path.file_stem().and_then(|stem| stem.to_str())
+            {
+                ids.push(id.to_string());
+            }
+        }
+
+        ids.sort();
+        ids.dedup();
+        Ok(ids)
+    }
+
     /// Updates all installed platforms that have a saved `source_url`.
     ///
     /// Returns a list of `(platform_id, result)` pairs — one per platform
     /// that had a source URL.  Platforms installed manually (no URL) are
     /// silently skipped.
     pub async fn update_all() -> Result<Vec<(String, Result<Self>)>> {
-        let platforms = Self::load_all()?;
         let mut results = Vec::new();
-        for platform in platforms {
-            if platform.source_url.is_some() {
-                let id = platform.id.clone();
-                let result = Self::update_by_id(&id).await;
-                results.push((id, result));
-            }
+        for id in Self::list_updatable_ids_in_dir(&Self::platforms_dir())? {
+            let result = Self::update_by_id(&id).await;
+            results.push((id, result));
         }
         Ok(results)
     }
@@ -698,6 +781,32 @@ fn parse_path_segments(path: &str) -> Vec<PathSegment> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::OsString;
+
+    struct AppDataGuard {
+        original: Option<OsString>,
+    }
+
+    impl AppDataGuard {
+        fn set(path: &std::path::Path) -> Self {
+            let original = std::env::var_os("APPDATA");
+            unsafe {
+                std::env::set_var("APPDATA", path);
+            }
+            Self { original }
+        }
+    }
+
+    impl Drop for AppDataGuard {
+        fn drop(&mut self) {
+            unsafe {
+                match &self.original {
+                    Some(value) => std::env::set_var("APPDATA", value),
+                    None => std::env::remove_var("APPDATA"),
+                }
+            }
+        }
+    }
     use serde_json::json;
 
     #[test]
@@ -849,6 +958,121 @@ mod tests {
             "error message must mention 'has no source URL saved', got: {}",
             msg
         );
+    }
+
+    #[test]
+    fn test_load_report_keeps_valid_platforms_and_collects_invalid_files() {
+        let temp = tempfile::tempdir().expect("failed to create temp appdata dir");
+        let _guard = AppDataGuard::set(temp.path());
+        let platforms_dir = PlatformConfig::platforms_dir();
+        std::fs::create_dir_all(&platforms_dir).expect("failed to create platforms dir");
+
+        let valid = make_minimal_platform("valid");
+        std::fs::write(
+            platforms_dir.join("valid.json"),
+            serde_json::to_string(&valid).expect("serialize valid platform"),
+        )
+        .expect("write valid platform");
+        std::fs::write(
+            platforms_dir.join("invalid.json"),
+            r#"{"id":"broken","name":"Broken","base_url":"https://example.com/api/","steps":[],"version":"1.0.0"}"#,
+        )
+        .expect("write invalid platform");
+
+        let report = PlatformConfig::load_report().expect("load report");
+
+        assert!(
+            report
+                .platforms
+                .iter()
+                .any(|platform| platform.id == "valid"),
+            "expected the valid platform to be loaded"
+        );
+        assert!(
+            !report.errors.is_empty(),
+            "expected at least one invalid platform error"
+        );
+        assert!(
+            report.errors.iter().any(
+                |error| error.path.file_name().and_then(|name| name.to_str())
+                    == Some("invalid.json")
+            ),
+            "expected invalid.json to be reported, got: {:?}",
+            report
+                .errors
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_parse_installed_platform_metadata_reads_source_url_from_invalid_platform_shape() {
+        let file_path = Path::new("broken.json");
+        let content = r#"{
+            "id": "broken",
+            "source_url": "https://example.com/platform.json",
+            "version": "1.5.0",
+            "steps": []
+        }"#;
+
+        let (source_url, version) =
+            PlatformConfig::parse_installed_platform_metadata(file_path, content, "broken")
+                .expect("metadata parsing should succeed");
+
+        assert_eq!(
+            source_url.as_deref(),
+            Some("https://example.com/platform.json")
+        );
+        assert_eq!(version.as_deref(), Some("1.5.0"));
+    }
+
+    #[test]
+    fn test_list_updatable_ids_in_dir_includes_invalid_but_recoverable_files() {
+        let temp = tempfile::tempdir().expect("failed to create temp dir");
+        let dir = temp.path();
+
+        std::fs::write(
+            dir.join("valid.json"),
+            r#"{
+                "id": "valid",
+                "name": "Valid",
+                "base_url": "https://example.com/api/",
+                "headers": {},
+                "steps": [{"endpoint": "foo"}],
+                "version": "1.0.0",
+                "source_url": "https://example.com/valid.json"
+            }"#,
+        )
+        .expect("write valid platform");
+        std::fs::write(
+            dir.join("recoverable.json"),
+            r#"{
+                "id": "recoverable",
+                "version": "1.0.0",
+                "steps": [],
+                "source_url": "https://example.com/recoverable.json"
+            }"#,
+        )
+        .expect("write recoverable invalid platform");
+        std::fs::write(
+            dir.join("manual.json"),
+            r#"{
+                "id": "manual",
+                "name": "Manual",
+                "base_url": "https://example.com/api/",
+                "headers": {},
+                "steps": [{"endpoint": "foo"}],
+                "version": "1.0.0"
+            }"#,
+        )
+        .expect("write manual platform");
+
+        let ids = PlatformConfig::list_updatable_ids_in_dir(dir).expect("list updatable ids");
+
+        assert!(ids.contains(&"valid".to_string()));
+        assert!(ids.contains(&"recoverable".to_string()));
+        assert!(!ids.contains(&"manual".to_string()));
     }
 
     #[test]

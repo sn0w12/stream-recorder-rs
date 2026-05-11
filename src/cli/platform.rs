@@ -104,6 +104,13 @@ pub async fn handle_platform_command(action: PlatformAction) -> Result<()> {
                         }
                     }
                 }
+                let remaining_errors = PlatformConfig::load_report()?.errors;
+                if !remaining_errors.is_empty() {
+                    eprintln!("\nPlatform files still requiring manual attention:");
+                    for error in remaining_errors {
+                        eprintln!("  - {}", error);
+                    }
+                }
             } else if let Some(id) = platform_id {
                 println!("Updating platform '{}'...", id);
                 let config = PlatformConfig::update_by_id(&id).await?;
@@ -194,7 +201,8 @@ pub async fn handle_platform_command(action: PlatformAction) -> Result<()> {
 }
 
 fn handle_list_monitors() -> Result<()> {
-    let platforms = PlatformConfig::load_all()?;
+    let report = PlatformConfig::load_report()?;
+    let platforms = report.platforms;
     if platforms.is_empty() {
         println!("No platforms installed.");
         println!("Install one with: platform install <url>");
@@ -226,6 +234,15 @@ fn handle_list_monitors() -> Result<()> {
             );
         }
     }
+
+    if !report.errors.is_empty() {
+        eprintln!("\nIgnored invalid platform files:");
+        for error in report.errors {
+            eprintln!("  - {}", error);
+        }
+        eprintln!("Use 'platform update <id>' or 'platform remove <id>' to repair them.");
+    }
+
     Ok(())
 }
 
@@ -244,7 +261,14 @@ async fn handle_debug_command(
             ));
         }
     };
-    let platforms = PlatformConfig::load_all()?;
+    let report = PlatformConfig::load_report()?;
+    if !report.errors.is_empty() {
+        eprintln!("Ignored invalid platform files while loading debug target:");
+        for error in &report.errors {
+            eprintln!("  - {}", error);
+        }
+    }
+    let platforms = report.platforms;
     let platform = PlatformConfig::find_by_id(&platforms, &platform_id)
         .cloned()
         .ok_or_else(|| anyhow::anyhow!("Platform '{}' is not installed.", platform_id))?;
