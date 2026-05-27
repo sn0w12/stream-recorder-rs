@@ -14,40 +14,40 @@ struct FilesterResponse {
     success: bool,
     message: String,
     slug: String,
+    url: String,
     file_id: i32,
+    thumbnail_url: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[allow(dead_code)]
+struct FilesterFolderListResponse {
+    success: bool,
+    data: Option<Vec<FilesterFolder>>,
 }
 
 #[derive(Deserialize)]
 #[allow(dead_code)]
 struct FilesterFolder {
-    id: i32,
-    identifier: String,
+    id: String,
     name: String,
-    parent_id: i32,
-    path: String,
-    public: i32,
-}
-
-#[derive(Deserialize)]
-#[allow(dead_code)]
-struct FilesterFolderResponse {
-    success: bool,
-    folders: Option<Vec<FilesterFolder>>,
-    hierarchical: Option<Vec<FilesterFolder>>,
+    public: bool,
+    file_count: i32,
+    created_at: String,
 }
 
 /// Filester uploader implementation
 pub struct FilesterUploader {
     client: Client,
-    token: Option<String>,
+    api_key: Option<String>,
 }
 
 impl FilesterUploader {
     pub fn new() -> Self {
-        let token = crate::utils::get_filester_token();
+        let api_key = crate::utils::get_filester_token();
         Self {
             client: Client::new(),
-            token,
+            api_key,
         }
     }
 }
@@ -63,20 +63,23 @@ impl Uploader for FilesterUploader {
     async fn upload_file(
         &self,
         file_path: &str,
-        _config: &UploaderConfig,
+        config: &UploaderConfig,
     ) -> Result<UploadResult, UploadError> {
         let part = make_file_part(file_path).await?;
         let form = reqwest::multipart::Form::new().part("file", part);
         let mut req = self
             .client
-            .post("https://api.filester.me/upload")
+            .post("https://u1.filester.me/api/v1/upload")
             .multipart(form);
 
-        if let Some(folder_id) = &_config.folder_id {
+        if let Some(folder_id) = &config.folder_id {
             req = req.header("X-Folder-ID", folder_id);
         }
-        if let Some(token) = &self.token {
-            req = req.header(reqwest::header::COOKIE, format!("auth_token={}", token));
+        if let Some(api_key) = &self.api_key {
+            req = req.header(
+                reqwest::header::AUTHORIZATION,
+                format!("Bearer {}", api_key),
+            );
         }
 
         let response = req.send().await.map_err(map_reqwest_error)?;
@@ -90,19 +93,15 @@ impl Uploader for FilesterUploader {
 
         if !parsed.success {
             return Err(UploadError {
-                message: "Filester returned unsuccessful response".to_string(),
+                message: format!(
+                    "Filester returned unsuccessful response: {}",
+                    parsed.message
+                ),
                 status_code: Some(status_code),
             });
         }
 
-        let urls: Vec<String> = vec![format!("https://filester.me/d/{}", parsed.slug)];
-
-        if urls.is_empty() {
-            return Err(UploadError {
-                message: "Filester upload succeeded but no file URL was returned".to_string(),
-                status_code: Some(status_code),
-            });
-        }
+        let urls = vec![parsed.url];
 
         Ok(UploadResult {
             urls,
@@ -114,35 +113,40 @@ impl Uploader for FilesterUploader {
         &self,
         folder_name: &str,
     ) -> Result<Option<String>, UploadError> {
-        // Token is required for this endpoint
-        let token = match &self.token {
-            Some(t) => t,
-            None => {
-                return Err(UploadError {
-                    message: "no filester token set".to_string(),
-                    status_code: None,
-                });
-            }
-        };
+        let api_key = self.api_key.as_ref().ok_or_else(|| UploadError {
+            message: "no filester API key set".to_string(),
+            status_code: None,
+        })?;
 
         let resp = self
             .client
-            .get("https://filester.me/api/user/folders")
-            .header(reqwest::header::COOKIE, format!("auth_token={}", token))
+            .get("https://u1.filester.me/api/v1/folders")
+            .header(
+                reqwest::header::AUTHORIZATION,
+                format!("Bearer {}", api_key),
+            )
             .send()
             .await
             .map_err(map_reqwest_error)?;
 
         let status_code = resp.status().as_u16();
-        let folder_resp: FilesterFolderResponse = resp.json().await.map_err(|e| UploadError {
-            message: e.to_string(),
-            status_code: Some(status_code),
-        })?;
+        let folder_resp: FilesterFolderListResponse =
+            resp.json().await.map_err(|e| UploadError {
+                message: e.to_string(),
+                status_code: Some(status_code),
+            })?;
 
-        if let Some(folders) = folder_resp.folders {
+        if !folder_resp.success {
+            return Err(UploadError {
+                message: "Filester returned unsuccessful response when listing folders".to_string(),
+                status_code: Some(status_code),
+            });
+        }
+
+        if let Some(folders) = folder_resp.data {
             for f in folders {
                 if f.name.eq_ignore_ascii_case(folder_name) {
-                    return Ok(Some(f.identifier));
+                    return Ok(Some(f.id));
                 }
             }
         }
