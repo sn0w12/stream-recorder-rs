@@ -14,9 +14,7 @@ struct FilesterResponse {
     success: bool,
     message: String,
     slug: String,
-    url: String,
     file_id: i32,
-    thumbnail_url: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -101,8 +99,7 @@ impl Uploader for FilesterUploader {
             });
         }
 
-        let urls = vec![parsed.url];
-
+        let urls: Vec<String> = vec![format!("https://filester.me/d/{}", parsed.slug)];
         Ok(UploadResult {
             urls,
             raw_response: Some(raw_response),
