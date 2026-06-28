@@ -37,10 +37,41 @@ fn create_default_store() -> Result<Arc<CredentialStore>> {
     Ok(store)
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", feature = "linux-dbus-keyring"))]
 fn create_default_store() -> Result<Arc<CredentialStore>> {
-    let store = dbus_secret_service_keyring_store::Store::new()
-        .context("failed to initialize Secret Service keyring store")?;
+    match dbus_secret_service_keyring_store::Store::new() {
+        Ok(store) => {
+            let store: Arc<CredentialStore> = store;
+            Ok(store)
+        }
+        Err(e) => {
+            eprintln!("warning: the system D-Bus keyring is not available.");
+            eprintln!("  could not initialize Secret Service keyring store: {e}");
+            eprintln!("  The `linux-dbus-keyring` feature is enabled but the Secret Service");
+            eprintln!("  (e.g. gnome-keyring or kwallet) may not be running.");
+            eprintln!(
+                "  Falling back to in-memory mock store (tokens stored only for the session)."
+            );
+            let store =
+                keyring_core::mock::Store::new().context("failed to create fallback store")?;
+            let store: Arc<CredentialStore> = store;
+            Ok(store)
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", not(feature = "linux-dbus-keyring")))]
+fn create_default_store() -> Result<Arc<CredentialStore>> {
+    eprintln!("warning: the Linux D-Bus keyring is not available.");
+    eprintln!("  The `linux-dbus-keyring` cargo feature was not enabled at build time.");
+    eprintln!("  Without it, credential storage via the system keyring will not work.");
+    eprintln!("  To enable it, rebuild with:");
+    eprintln!("    cargo build --features linux-dbus-keyring");
+    eprintln!("  You also need the dbus-1 development library installed:");
+    eprintln!("    Ubuntu/Debian: sudo apt install libdbus-1-dev pkg-config");
+    eprintln!("    Fedora:        sudo dnf install dbus-devel pkgconf-pkg-config");
+    eprintln!("  Falling back to in-memory mock store (tokens stored only for the session).");
+    let store = keyring_core::mock::Store::new().context("failed to create fallback store")?;
     let store: Arc<CredentialStore> = store;
     Ok(store)
 }

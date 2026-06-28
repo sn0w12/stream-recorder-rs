@@ -9,6 +9,10 @@ homepage = "https://github.com/sn0w12/stream-recorder-rs"
 keywords = ["streaming", "recording", "live", "video"]
 categories = ["command-line-utilities"]
 
+[features]
+default = ["linux-dbus-keyring"]
+linux-dbus-keyring = ["dbus-secret-service-keyring-store"]
+
 [dependencies]
 clap = { version = "4.6", features = ["derive"] }
 reqwest = { version = "0.13", default-features = false, features = ["multipart", "stream", "json", "rustls", "query"] }
@@ -43,7 +47,7 @@ windows-native-keyring-store = "1.0"
 apple-native-keyring-store = { version = "1.0", features = ["keychain"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-dbus-secret-service-keyring-store = { version = "1.0", features = ["crypto-openssl"] }
+dbus-secret-service-keyring-store = { version = "1.0", features = ["crypto-openssl"], optional = true }
 
 [profile.release]
 opt-level = 3

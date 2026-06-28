@@ -19,8 +19,10 @@ jobs:
             - name: Setup Rust toolchain
               uses: dtolnay/rust-toolchain@stable
 
-            - name: Run cargo tests
+            - name: Install system dependencies
               run: |
                   sudo apt-get update
                   sudo apt-get install -y ffmpeg
-                  cargo test --locked
+
+            - name: Run cargo tests
+              run: cargo test --locked --no-default-features

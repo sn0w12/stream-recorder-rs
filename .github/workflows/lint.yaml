@@ -21,5 +21,5 @@ jobs:
 
             - name: Run cargo lints
               run: |
-                  cargo clippy -- -D warnings
+                  cargo clippy --no-default-features -- -D warnings
                   cargo fmt --check

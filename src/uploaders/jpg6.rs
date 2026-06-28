@@ -278,13 +278,19 @@ impl Uploader for Jpg6Uploader {
 
         let (cookie_header, xsrf_token) = {
             let state = self.cookies.lock().unwrap();
-            (state.jar.header_value(), state.jar.values.get("XSRF-TOKEN").cloned())
+            (
+                state.jar.header_value(),
+                state.jar.values.get("XSRF-TOKEN").cloned(),
+            )
         };
 
         let file = make_file_part(file_path).await?;
         let form = Form::new().part("file", file);
 
-        let mut upload_request = self.client.post("https://goonbox.cr/api/upload").multipart(form);
+        let mut upload_request = self
+            .client
+            .post("https://goonbox.cr/api/upload")
+            .multipart(form);
         if let Some(ch) = &cookie_header {
             upload_request = upload_request.header(COOKIE, ch);
         }
