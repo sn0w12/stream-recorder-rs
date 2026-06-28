@@ -269,7 +269,7 @@ async fn print_startup_info(platforms: &[PlatformConfig]) {
         ConfigError(String),
     }
 
-    fn get_uploader_status(
+    async fn get_uploader_status(
         uploader_type: UploaderType,
         name: &str,
         disabled: &[String],
@@ -302,10 +302,10 @@ async fn print_startup_info(platforms: &[PlatformConfig]) {
                 }
             }
             UploaderType::Jpg6 => {
-                if crate::utils::get_jpg6_token().is_some() {
-                    UploaderStatus::Enabled("token configured".to_string())
+                if crate::uploaders::jpg6::validate_cookies().await {
+                    UploaderStatus::Enabled("session valid".to_string())
                 } else {
-                    UploaderStatus::ConfigError("token required".to_string())
+                    UploaderStatus::ConfigError("session invalid".to_string())
                 }
             }
         }
@@ -373,7 +373,7 @@ async fn print_startup_info(platforms: &[PlatformConfig]) {
     let disabled_uploaders = Config::get().get_disabled_uploaders();
     let uploader_types_and_names = crate::uploaders::get_all_uploader_types_and_names().await;
     for (uploader_type, name) in uploader_types_and_names {
-        match get_uploader_status(uploader_type, &name, &disabled_uploaders) {
+        match get_uploader_status(uploader_type, &name, &disabled_uploaders).await {
             UploaderStatus::Enabled(note) => info.ok(&name, &note),
             UploaderStatus::UserDisabled => info.warn(&name, "disabled by user"),
             UploaderStatus::ConfigError(note) => info.err(&name, &note),

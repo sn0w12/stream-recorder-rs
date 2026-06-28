@@ -121,8 +121,10 @@ pub fn get_filester_token() -> Option<String> {
     get_token_from_sources(FILESTER_TOKEN_KEY)
 }
 
-pub fn get_jpg6_token() -> Option<String> {
-    get_token_from_sources(JPG6_TOKEN_KEY)
+pub const JPG6_COOKIES_FILE: &str = "jpg6_cookies.json";
+
+pub fn jpg6_cookies_path() -> PathBuf {
+    app_config_dir().join(JPG6_COOKIES_FILE)
 }
 
 #[derive(Debug)]
