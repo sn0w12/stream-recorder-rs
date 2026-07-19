@@ -7,6 +7,7 @@ use anyhow::Result;
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use tokio::task::JoinHandle;
+use tokio::time::sleep;
 
 pub struct MonitorSupervisor {
     platforms: Vec<PlatformConfig>,
@@ -94,6 +95,7 @@ impl MonitorSupervisor {
             }
         }
 
+        let spawn_delay = Config::get().get_monitor_spawn_delay();
         for monitor in &desired_monitors {
             if self.active_monitors.contains_key(monitor) {
                 continue;
@@ -102,6 +104,8 @@ impl MonitorSupervisor {
             if let Some(handle) = self.spawn_monitor_task(monitor).await {
                 self.active_monitors.insert(monitor.clone(), handle);
             }
+
+            sleep(spawn_delay).await;
         }
 
         self.last_monitors = desired_monitors;

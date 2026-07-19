@@ -300,6 +300,7 @@ define_config! {
         min_stream_duration: types::OptionalDuration = None, "Minimum recorded duration required before post-processing. Accepts values like 5m, 90s, or 1h.",
         stream_reconnect_delay: types::OptionalDuration = None, "How long to wait for a stream continuation before post-processing. Accepts values like 5m, 30s, or 1h.",
         stream_metadata_refresh_interval: types::OptionalDuration = None, "Refresh extracted stream metadata during active recordings. Accepts values like 30s, 5m, or 1h.",
+        monitor_spawn_delay: types::Duration = DurationValue::from_secs(10), "Delay between spawning each monitor task on startup or config reload. Accepts values like 500ms, 2s, or 5s.",
         step_delay: types::Duration = DurationValue::from_millis(500), "Delay between each step in a platform. Accepts values like 500ms, 2s, or 1m.",
         fetch_interval: types::Duration = DurationValue::from_secs(120), "How often monitors are fetched. Accepts values like 30s, 2m, or 1h.",
     }

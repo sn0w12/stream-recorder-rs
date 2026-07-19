@@ -135,14 +135,15 @@ The running recorder watches this file for changes. Most settings take effect th
 
 #### Monitoring
 
-| Setting                            | Description                                                                                            | Default |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------ | ------- |
-| `monitors`                         | List of usernames to monitor                                                                           | `none`  |
-| `min_stream_duration`              | Minimum recorded duration required before post-processing. Accepts values like 5m, 90s, or 1h.         | `none`  |
-| `stream_reconnect_delay`           | How long to wait for a stream continuation before post-processing. Accepts values like 5m, 30s, or 1h. | `none`  |
-| `stream_metadata_refresh_interval` | Refresh extracted stream metadata during active recordings. Accepts values like 30s, 5m, or 1h.        | `none`  |
-| `step_delay`                       | Delay between each step in a platform. Accepts values like 500ms, 2s, or 1m.                           | `500ms` |
-| `fetch_interval`                   | How often monitors are fetched. Accepts values like 30s, 2m, or 1h.                                    | `2m`    |
+| Setting                            | Description                                                                                                 | Default |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------- |
+| `monitors`                         | List of usernames to monitor                                                                                | `none`  |
+| `min_stream_duration`              | Minimum recorded duration required before post-processing. Accepts values like 5m, 90s, or 1h.              | `none`  |
+| `stream_reconnect_delay`           | How long to wait for a stream continuation before post-processing. Accepts values like 5m, 30s, or 1h.      | `none`  |
+| `stream_metadata_refresh_interval` | Refresh extracted stream metadata during active recordings. Accepts values like 30s, 5m, or 1h.             | `none`  |
+| `monitor_spawn_delay`              | Delay between spawning each monitor task on startup or config reload. Accepts values like 500ms, 2s, or 5s. | `10s`   |
+| `step_delay`                       | Delay between each step in a platform. Accepts values like 500ms, 2s, or 1m.                                | `500ms` |
+| `fetch_interval`                   | How often monitors are fetched. Accepts values like 30s, 2m, or 1h.                                         | `2m`    |
 
 #### Video
 
