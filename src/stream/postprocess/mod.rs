@@ -6,7 +6,8 @@ use super::{StreamResult, types::StreamInfo};
 use crate::cli::upload::try_upload;
 use crate::config::Config;
 use crate::stream::messages::{
-    send_minimum_duration_webhook, send_recording_complete_webhook, send_template_webhook,
+    send_minimum_duration_webhook, send_program_error_webhook, send_recording_complete_webhook,
+    send_template_webhook,
 };
 use crate::template::{TemplateValue, get_template_string, render_template};
 use crate::types::{DurationValue, FileSize};
@@ -70,6 +71,20 @@ pub async fn post_process_session(
                 "Failed to combine stream segments ({}), processing files individually...",
                 error
             );
+
+            let config = Config::get();
+            send_program_error_webhook(
+                config.get_discord_webhook_url(),
+                "Failed to combine stream segments",
+                &format!(
+                    "Recording for `{}` on platform `{}` produced {} segments that could not be combined into a single file.\nSegments will be processed individually.\n\n{}",
+                    stream_info.username,
+                    stream_info.platform.id,
+                    session_files.len(),
+                    error,
+                ),
+            )
+            .await;
 
             for file in session_files {
                 if let Err(post_process_error) =

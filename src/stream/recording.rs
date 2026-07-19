@@ -3,7 +3,7 @@ use crate::config::Config;
 use crate::platform::PipelineOutcome;
 use crate::stream::api::run_pipeline;
 use crate::stream::encoding::{VideoEncoding, build_ffmpeg_args, detect_best_hw_encoder};
-use crate::stream::messages::send_recording_start_webhook;
+use crate::stream::messages::{send_program_error_webhook, send_recording_start_webhook};
 use crate::utils::slugify;
 use chrono::{DateTime, Utc};
 use std::process::Stdio;
@@ -171,9 +171,21 @@ async fn refresh_stream_info(stream_info: &mut StreamInfo, token: &str) {
             }
         }
         Ok(PipelineOutcome::Offline) => {}
-        Err(error) => eprintln!(
-            "Error refreshing stream metadata for {}: {}",
-            stream_info.username, error
-        ),
+        Err(error) => {
+            eprintln!(
+                "Error refreshing stream metadata for {}: {}",
+                stream_info.username, error
+            );
+            let config = Config::get();
+            send_program_error_webhook(
+                config.get_discord_webhook_url(),
+                "Stream metadata refresh failed",
+                &format!(
+                    "Failed to refresh stream metadata for `{}` on platform `{}` during an active recording.\n\n{}",
+                    stream_info.username, stream_info.platform.id, error
+                ),
+            )
+            .await;
+        }
     }
 }

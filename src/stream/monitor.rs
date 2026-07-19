@@ -38,7 +38,19 @@ pub async fn monitor_stream(username: &str, platform: &PlatformConfig, token: &s
                 }
             }
             Ok(PipelineOutcome::Offline) => {}
-            Err(error) => eprintln!("Error running pipeline for {}: {}", username, error),
+            Err(error) => {
+                eprintln!("Error running pipeline for {}: {}", username, error);
+                let config = Config::get();
+                send_program_error_webhook(
+                    config.get_discord_webhook_url(),
+                    "Pipeline error",
+                    &format!(
+                        "Running the pipeline for `{}` on platform `{}` failed.\n\n{}",
+                        username, platform.id, error
+                    ),
+                )
+                .await;
+            }
         }
 
         sleep(fetch_interval).await;
@@ -164,10 +176,22 @@ async fn next_live_stream(
                 .await;
             }
             Ok(PipelineOutcome::Offline) => {}
-            Err(error) => eprintln!(
-                "Error running pipeline for {} during continuation window: {}",
-                username, error
-            ),
+            Err(error) => {
+                eprintln!(
+                    "Error running pipeline for {} during continuation window: {}",
+                    username, error
+                );
+                let config = Config::get();
+                send_program_error_webhook(
+                    config.get_discord_webhook_url(),
+                    "Pipeline error during continuation window",
+                    &format!(
+                        "Running the pipeline for `{}` on platform `{}` failed during the continuation window.\n\n{}",
+                        username, platform.id, error
+                    ),
+                )
+                .await;
+            }
         }
     }
 }

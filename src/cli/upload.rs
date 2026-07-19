@@ -1,5 +1,6 @@
 use crate::{
     config::Config,
+    stream::messages::send_program_error_webhook,
     uploaders::{Uploader, UploaderConfig, UploaderKindFilter, build_uploaders},
 };
 use anyhow::Result;
@@ -97,6 +98,18 @@ pub async fn try_upload(
         Ok(result) => result,
         Err(e) => {
             eprintln!("{} preprocessing failed: {}", uploader.name(), e);
+            let config = Config::get();
+            send_program_error_webhook(
+                config.get_discord_webhook_url(),
+                "Upload preprocessing failed",
+                &format!(
+                    "Preprocessing for upload to `{}` failed for file `{}`.\n\n{}",
+                    uploader.name(),
+                    file_path,
+                    e,
+                ),
+            )
+            .await;
             return;
         }
     };
@@ -176,6 +189,19 @@ async fn try_upload_single(
                             uploader.name(),
                             file_path
                         );
+                        let config = Config::get();
+                        send_program_error_webhook(
+                            config.get_discord_webhook_url(),
+                            "Upload failed after all retries",
+                            &format!(
+                                "Upload to `{}` for file `{}` failed after {} retries.\n\n{}",
+                                uploader.name(),
+                                file_path,
+                                max_retries,
+                                e,
+                            ),
+                        )
+                        .await;
                     }
                     return; // No more retries - exit
                 }

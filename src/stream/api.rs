@@ -116,8 +116,10 @@ pub async fn fetch_with_platform(
         }
 
         if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            let trimmed = body.chars().take(500).collect::<String>();
             if retry_count >= max_retries {
-                return Err(format!("HTTP error: {}", status).into());
+                return Err(format!("HTTP {status} on {full_url}: {trimmed}").into());
             }
             retry_count += 1;
             sleep(Duration::from_secs_f64(delay)).await;

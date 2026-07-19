@@ -239,8 +239,9 @@ impl Jpg6Uploader {
         }
 
         if !valid {
+            let config = crate::config::Config::get();
             send_program_error_webhook(
-                None,
+                config.get_discord_webhook_url(),
                 "jpg6 session expired",
                 "The jpg6 session cookies have expired. Please provide new cookies by editing the jpg6_cookies.json file in the config directory, then restart the recorder.",
             )
