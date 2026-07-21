@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784592778986,
+  "lastUpdate": 1784630095329,
   "repoUrl": "https://github.com/sn0w12/stream-recorder-rs",
   "entries": {
     "Rust Benchmark": [
@@ -4181,6 +4181,108 @@ window.BENCHMARK_DATA = {
             "name": "template_rendering/example_template",
             "value": 199580,
             "range": "± 919",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "105451515+sn0w12@users.noreply.github.com",
+            "name": "sn0w",
+            "username": "sn0w12"
+          },
+          "committer": {
+            "email": "105451515+sn0w12@users.noreply.github.com",
+            "name": "sn0w",
+            "username": "sn0w12"
+          },
+          "distinct": true,
+          "id": "1df8c970b31531a40bae84cdc78a90e019c26e46",
+          "message": "Update README.md",
+          "timestamp": "2026-07-21T12:29:23+02:00",
+          "tree_id": "2259c0e0123373fff03614f3a96cccae2921f06c",
+          "url": "https://github.com/sn0w12/stream-recorder-rs/commit/1df8c970b31531a40bae84cdc78a90e019c26e46"
+        },
+        "date": 1784630094859,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "json_path_extraction/extract_json_value/flat",
+            "value": 42,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "json_path_extraction/extract_json_value/nested",
+            "value": 116,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "json_path_extraction/extract_json_value/array",
+            "value": 112,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "json_path_extraction/extract_json_value/missing",
+            "value": 107,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "json_path_extraction/extract_json_value/null_or_missing",
+            "value": 71,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "pipeline_extraction_loop/extract_all_fields",
+            "value": 703,
+            "range": "± 4",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "live_check_matching/matches/path_exists",
+            "value": 116,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "live_check_matching/matches/equals_match",
+            "value": 121,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "live_check_matching/matches/equals_miss",
+            "value": 117,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "title_cleaning/clean_title/no_rules",
+            "value": 28,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "title_cleaning/clean_title/one_rule",
+            "value": 357630,
+            "range": "± 1632",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "title_cleaning/clean_title/three_rules",
+            "value": 424199,
+            "range": "± 1794",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "template_rendering/example_template",
+            "value": 193072,
+            "range": "± 687",
             "unit": "ns/iter"
           }
         ]
