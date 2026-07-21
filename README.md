@@ -212,6 +212,71 @@ stream-recorder config get-path
 stream-recorder config md
 ```
 
+## CLI Usage
+
+### Global Options
+
+| Option            | Description                                       |
+| ----------------- | ------------------------------------------------- |
+| `-t`, `--token`   | Platform API token (overrides stored credentials) |
+| `-h`, `--help`    | Print help information                            |
+| `-V`, `--version` | Print version information                         |
+
+### Commands
+
+#### `upload`
+
+Upload a file to configured hosting services.
+
+```bash
+stream-recorder upload file <path> [--uploader <name>...]
+stream-recorder upload list
+```
+
+**Subcommands:**
+
+| Subcommand | Description                                  |
+| ---------- | -------------------------------------------- |
+| `file`     | Upload a file to configured hosting services |
+| `list`     | List available uploaders                     |
+
+**Upload options:**
+
+| Option                    | Description                                                                           |
+| ------------------------- | ------------------------------------------------------------------------------------- |
+| `<path>`                  | Path to the file to upload                                                            |
+| `-u`, `--uploader <name>` | Only upload to specific services. Can be specified multiple times or comma-separated. |
+
+When `--uploader` is omitted, the tool auto-detects the file type from its extension and uploads only to the matching uploader kind (video uploaders for `.mp4`, `.mkv`, etc.; image uploaders for `.jpg`, `.png`, etc.). If the extension is unknown, it uploads to all configured and ready uploaders.
+
+**Examples:**
+
+```bash
+# Upload to all available uploaders (auto-detects video vs image)
+stream-recorder upload file recording.mp4
+
+# Upload to specific uploaders
+stream-recorder upload file recording.mp4 -u bunkr -u gofile
+
+# Upload to specific uploaders (comma-separated)
+stream-recorder upload file recording.mp4 -u bunkr,gofile
+
+# List available uploaders
+stream-recorder upload list
+```
+
+#### `platform`
+
+Install, search, and manage platform definitions.
+
+```bash
+stream-recorder platform install <url>
+stream-recorder platform search [<query>]
+stream-recorder platform list
+stream-recorder platform update [<id>]
+stream-recorder platform uninstall <id>
+```
+
 ## Features
 
 ### Discord Integration
