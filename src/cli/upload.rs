@@ -8,6 +8,7 @@ use bunkr_client::config::config::Config as BunkrConfig;
 use bunkr_client::preprocess::preprocess::{cleanup_preprocess, preprocess_file};
 use clap::Subcommand;
 use std::{collections::HashMap, time::Duration};
+use tiny_table::{Cell, Column, ColumnWidth, Table};
 use tokio::time::sleep;
 
 #[derive(Subcommand)]
@@ -16,16 +17,35 @@ pub enum UploadAction {
     File {
         /// Path to the file to upload
         file: String,
-        /// Only upload to this specific service, see `list` command for available uploaders
-        #[arg(short, long)]
-        uploader: Option<String>,
+        /// Only upload to these services, see `list` command for available uploaders (can be specified multiple times or comma-separated)
+        #[arg(short, long, value_delimiter = ',')]
+        uploader: Vec<String>,
     },
     /// List available uploaders
     #[clap(alias = "ls")]
     List,
 }
 
-pub async fn handle_upload_command(file: String, uploader: Option<String>) -> Result<()> {
+fn guess_uploader_kind(file: &str) -> UploaderKindFilter {
+    let ext = std::path::Path::new(file)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_lowercase());
+
+    match ext.as_deref() {
+        Some(
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "bmp" | "tiff" | "tif" | "svg" | "ico"
+            | "heic" | "heif" | "avif",
+        ) => UploaderKindFilter::Image,
+        Some(
+            "mp4" | "mkv" | "avi" | "mov" | "webm" | "flv" | "wmv" | "m4v" | "3gp" | "mpg" | "mpeg"
+            | "ts" | "mts" | "ogv",
+        ) => UploaderKindFilter::Video,
+        _ => UploaderKindFilter::All,
+    }
+}
+
+pub async fn handle_upload_command(file: String, uploader: Vec<String>) -> Result<()> {
     if !std::path::Path::new(&file).is_file() {
         return Err(anyhow::anyhow!(
             "File not found or is not a regular file: {}",
@@ -34,15 +54,18 @@ pub async fn handle_upload_command(file: String, uploader: Option<String>) -> Re
     }
 
     let max_retries = Config::get().get_max_upload_retries();
-    let uploaders = build_uploaders(UploaderKindFilter::All).await;
+    let filter = if uploader.is_empty() {
+        guess_uploader_kind(&file)
+    } else {
+        UploaderKindFilter::All
+    };
+    let uploaders = build_uploaders(filter).await;
 
     let mut matched = false;
     let mut upload_results: HashMap<String, Vec<String>> = HashMap::new();
 
     for (up, up_config) in &uploaders {
-        if let Some(ref name) = uploader
-            && !up.name().eq_ignore_ascii_case(name)
-        {
+        if !uploader.is_empty() && !uploader.iter().any(|n| up.name().eq_ignore_ascii_case(n)) {
             continue;
         }
         matched = true;
@@ -57,21 +80,25 @@ pub async fn handle_upload_command(file: String, uploader: Option<String>) -> Re
     }
 
     if !matched {
-        if let Some(name) = uploader {
+        if !uploader.is_empty() {
             return Err(anyhow::anyhow!(
-                "No uploader named '{}' is configured",
-                name
+                "No configured uploader matches: {}",
+                uploader.join(", ")
             ));
         }
         return Err(anyhow::anyhow!("No uploaders are configured"));
     }
 
-    for (name, urls) in &upload_results {
-        for url in urls {
-            println!("{}: {}", name, url);
-        }
+    let mut upload_table = Table::with_columns(vec![
+        Column::new("Uploader").max_width(0.2),
+        Column::new("URLs").max_width(ColumnWidth::fill()),
+    ]);
+
+    for (uploader, urls) in &upload_results {
+        upload_table.add_row(vec![Cell::new(uploader), Cell::new(urls.join(", "))]);
     }
 
+    upload_table.print();
     Ok(())
 }
 
