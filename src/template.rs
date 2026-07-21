@@ -35,12 +35,30 @@ pub fn get_template_string() -> Result<Option<String>> {
     Ok(None)
 }
 
+/// Returns `true` when the trimmed line contains a complete single‑line
+/// `{{#if}}…{{/if}}`, `{{#each}}…{{/each}}` or `{{#unless}}…{{/unless}}` block.
+fn is_standalone_block(line: &str) -> bool {
+    let line = line.trim();
+    let has_opener =
+        line.starts_with("{{#if") || line.starts_with("{{#each") || line.starts_with("{{#unless");
+    let has_closer =
+        line.contains("{{/if}}") || line.contains("{{/each}}") || line.contains("{{/unless}}");
+    has_opener && has_closer
+}
+
 /// Render the provided template using Handlebars.
 ///
-/// The function accepts the existing `TemplateValue` context type and converts it
-/// into a `serde_json::Value` map, adding a `<key>_len` numeric property for arrays
-/// (to preserve previous _len behavior). Errors during rendering are printed to
-/// stderr and an empty string is returned on failure.
+/// Lines that are standalone `{{#if}}` / `{{#each}}` / `{{#unless}}` blocks are
+/// rendered individually; if they produce empty output the line is omitted.
+/// All other lines are always kept, even when they render to nothing (e.g. a
+/// line containing only `{{date}}` when `date` is empty).
+///
+/// If the template contains multi‑line blocks (which cannot be rendered
+/// line‑by‑line) the function falls back to rendering the entire template at
+/// once, which preserves the original behaviour.
+///
+/// Errors during rendering are printed to stderr and an empty string is
+/// returned on failure.
 pub fn render_template(template: &str, context: &HashMap<String, TemplateValue>) -> String {
     let mut map = Map::new();
 
@@ -76,13 +94,34 @@ pub fn render_template(template: &str, context: &HashMap<String, TemplateValue>)
     reg.register_helper("lower", Box::new(lower));
     reg.register_helper("upper", Box::new(upper));
 
-    match reg.render_template(template, &data) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("handlebars render error: {}", e);
-            String::new()
+    // Try line‑by‑line rendering so standalone conditional/loop blocks that
+    // produce nothing can be suppressed.  Lines that are NOT standalone blocks
+    // are always kept – even when their output is empty.
+    let mut lines = Vec::new();
+    for line in template.lines() {
+        match reg.render_template(line, &data) {
+            Ok(s) => {
+                if is_standalone_block(line) && s.trim().is_empty() {
+                    continue;
+                }
+                lines.push(s);
+            }
+            Err(e) => {
+                // Multi‑line block – line‑by‑line won't work.  Fall back to
+                // full‑template rendering and stop collecting.
+                eprintln!("handlebars render error: {}", e);
+                return match reg.render_template(template, &data) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        eprintln!("handlebars render error: {}", e);
+                        String::new()
+                    }
+                };
+            }
         }
     }
+
+    lines.join("\n")
 }
 
 #[cfg(test)]
@@ -134,5 +173,107 @@ mod tests {
         );
 
         assert_eq!(rendered, "mixedcaseuser|LIVE SESSION");
+    }
+
+    #[test]
+    fn whitespace_only_line_is_preserved() {
+        let mut context = HashMap::new();
+        context.insert(
+            "title".to_string(),
+            TemplateValue::String("hello".to_string()),
+        );
+
+        let template = "line1\n   \n{{title}}";
+        let rendered = render_template(template, &context);
+
+        assert_eq!(rendered, "line1\n   \nhello");
+    }
+
+    #[test]
+    fn empty_variable_line_is_preserved() {
+        let context = HashMap::new();
+
+        let template = "before\n{{maybe}}\nafter";
+        let rendered = render_template(template, &context);
+
+        assert_eq!(rendered, "before\n\nafter");
+    }
+
+    #[test]
+    fn false_conditional_line_is_skipped() {
+        let mut context = HashMap::new();
+        context.insert(
+            "fileditch_urls".to_string(),
+            TemplateValue::Array(vec!["https://example.com/fd.mp4".to_string()]),
+        );
+
+        let template = "\
+[HR][/HR]
+{{#if bunkr_urls}}[CENTER]bunkr[/CENTER]{{/if}}
+{{#if fileditch_urls}}[CENTER]fileditch[/CENTER]{{/if}}";
+
+        let rendered = render_template(template, &context);
+
+        assert_eq!(rendered, "[HR][/HR]\n[CENTER]fileditch[/CENTER]");
+    }
+
+    #[test]
+    fn true_conditional_line_is_preserved() {
+        let mut context = HashMap::new();
+        context.insert(
+            "urls".to_string(),
+            TemplateValue::Array(vec!["https://example.com".to_string()]),
+        );
+
+        let template = "\
+before
+{{#if urls}}[CENTER]content[/CENTER]{{/if}}
+after";
+
+        let rendered = render_template(template, &context);
+
+        assert_eq!(rendered, "before\n[CENTER]content[/CENTER]\nafter");
+    }
+
+    #[test]
+    fn consecutive_true_conditionals_preserve_separator() {
+        let mut context = HashMap::new();
+        context.insert("a".to_string(), TemplateValue::Array(vec!["x".to_string()]));
+        context.insert("b".to_string(), TemplateValue::Array(vec!["y".to_string()]));
+
+        let template = "\
+{{#if a}}[CENTER]a[/CENTER]{{/if}}
+{{#if b}}[CENTER]b[/CENTER]{{/if}}";
+
+        let rendered = render_template(template, &context);
+
+        assert_eq!(rendered, "[CENTER]a[/CENTER]\n[CENTER]b[/CENTER]");
+    }
+
+    #[test]
+    fn multi_line_block_falls_back_to_full_render() {
+        let mut context = HashMap::new();
+        context.insert("cond".to_string(), TemplateValue::String("yes".to_string()));
+
+        let template = "start\n{{#if cond}}\nbody\n{{/if}}\nend";
+        let rendered = render_template(template, &context);
+
+        assert_eq!(rendered, "start\nbody\nend");
+    }
+
+    #[test]
+    fn both_false_and_true_conditionals_in_one_template() {
+        let mut context = HashMap::new();
+        context.insert("a".to_string(), TemplateValue::Array(vec!["x".to_string()]));
+
+        let template = "\
+header
+{{#if missing}}[CENTER]missing[/CENTER]{{/if}}
+{{#if a}}[CENTER]present[/CENTER]{{/if}}
+footer";
+
+        let rendered = render_template(template, &context);
+
+        assert_eq!(rendered, "header\n[CENTER]present[/CENTER]\nfooter");
     }
 }
