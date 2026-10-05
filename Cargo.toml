@@ -19,7 +19,6 @@ reqwest = { version = "0.13", default-features = false, features = ["multipart",
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.51", features = ["macros", "rt-multi-thread", "process", "signal", "fs"] }
-tokio-util = { version = "0.7", features = ["io"] }
 anyhow = "1.0"
 toml = "1.1"
 dirs = "6.0"
@@ -29,12 +28,11 @@ scopeguard = "1.2"
 regex = "1.10"
 fs2 = "0.4"
 walkdir = "2.5"
-async-trait = "0.1"
 paste = "1.0"
 apto = { path = "crates/apto" }
 semver = "1.0"
 handlebars = "6.4.0"
-bunkr-client = { version = "0.2", default-features = false }
+upio = { git = "https://github.com/sn0w12/upio" }
 tiny-table = { version = "0.2.2" }
 keyring-core = "1.0"
 

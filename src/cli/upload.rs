@@ -1,15 +1,32 @@
 use crate::{
     config::Config,
     stream::messages::send_program_error_webhook,
-    uploaders::{Uploader, UploaderConfig, UploaderKindFilter, build_uploaders},
+    uploaders::{UploadError, Uploader, UploaderKindFilter, build_uploaders},
 };
 use anyhow::Result;
-use bunkr_client::config::config::Config as BunkrConfig;
-use bunkr_client::preprocess::preprocess::{cleanup_preprocess, preprocess_file};
 use clap::Subcommand;
 use std::{collections::HashMap, time::Duration};
 use tiny_table::{Cell, Column, ColumnWidth, Table};
 use tokio::time::sleep;
+use upio::UploaderEndpointConfig;
+use upio::preprocess::{
+    PreprocessConfig, PreprocessRule, PreprocessStrategy, cleanup, preprocess_file,
+};
+
+/// Split a recording that exceeds the destination's limit into parts the
+/// service accepts. `upio` skips the rule when ffmpeg is absent rather than
+/// failing, so an oversized file is still attempted and the service rejects it.
+fn split_config() -> PreprocessConfig {
+    let mut rules = Vec::new();
+    if let Some(strategy) = PreprocessStrategy::by_id("split_video") {
+        rules.push(PreprocessRule::new(strategy));
+    }
+
+    PreprocessConfig {
+        enabled: true,
+        rules,
+    }
+}
 
 #[derive(Subcommand)]
 pub enum UploadAction {
@@ -59,7 +76,7 @@ pub async fn handle_upload_command(file: String, uploader: Vec<String>) -> Resul
     } else {
         UploaderKindFilter::All
     };
-    let uploaders = build_uploaders(filter).await;
+    let uploaders = build_uploaders(filter);
 
     let mut matched = false;
     let mut upload_results: HashMap<String, Vec<String>> = HashMap::new();
@@ -102,27 +119,31 @@ pub async fn handle_upload_command(file: String, uploader: Vec<String>) -> Resul
     Ok(())
 }
 
-/// Helper function to attempt upload with automatic retry logic using the unified Uploader interface.
-/// Preprocesses the file per-uploader (e.g. splitting videos that exceed the uploader's max file size),
-/// then retries automatically on server errors (5xx) with exponential backoff.
+/// Uploads a file to one service, splitting it first when it exceeds that
+/// service's size limit, and retrying on server errors (5xx) with exponential
+/// backoff.
 pub async fn try_upload(
     uploader: &dyn Uploader,
     file_path: &str,
-    config: &UploaderConfig,
+    config: &UploaderEndpointConfig,
     upload_results: &mut HashMap<String, Vec<String>>,
     max_retries: u32,
 ) {
-    // Use uploader-specific size limit directly in bytes.
-    let max_file_size_bytes = uploader.max_file_size().as_bytes();
+    // Token verification and capability discovery happen once per service, not
+    // once per part, so a split upload does not re-authenticate per segment.
+    if let Err(e) = uploader.init().await {
+        eprintln!("{} init failed: {}", uploader.name(), e);
+        return;
+    }
 
-    let bunkr_config = BunkrConfig {
-        preprocess_videos: Some(true),
-        ..Default::default()
-    };
-
-    // Preprocess the file (may split if too large for this uploader)
-    let preprocess_result = match preprocess_file(file_path, max_file_size_bytes, &bunkr_config) {
-        Ok(result) => result,
+    let prepared = match preprocess_file(
+        file_path,
+        uploader.max_file_size().as_bytes(),
+        &split_config(),
+    )
+    .await
+    {
+        Ok(prepared) => prepared,
         Err(e) => {
             eprintln!("{} preprocessing failed: {}", uploader.name(), e);
             let config = Config::get();
@@ -141,23 +162,26 @@ pub async fn try_upload(
         }
     };
 
-    for file in &preprocess_result.files_to_upload {
-        try_upload_single(uploader, file, config, upload_results, max_retries).await;
+    for part in &prepared.files {
+        try_upload_single(
+            uploader,
+            &part.to_string_lossy(),
+            config,
+            upload_results,
+            max_retries,
+        )
+        .await;
     }
 
-    cleanup_preprocess(
-        &preprocess_result.preprocess_id,
-        file_path,
-        &preprocess_result.files_to_upload,
-    );
+    if let Err(e) = cleanup(&prepared) {
+        eprintln!("{} cleanup of split parts failed: {}", uploader.name(), e);
+    }
 }
 
-/// Uploads a single file with automatic retry logic.
-/// Retries automatically on server errors (5xx) with exponential backoff.
 async fn try_upload_single(
     uploader: &dyn Uploader,
     file_path: &str,
-    config: &UploaderConfig,
+    config: &UploaderEndpointConfig,
     upload_results: &mut HashMap<String, Vec<String>>,
     max_retries: u32,
 ) {
@@ -183,20 +207,22 @@ async fn try_upload_single(
                 }
                 return; // Success - exit retry loop
             }
-            Err(e) => {
+            Err(UploadError {
+                status_code,
+                message,
+            }) => {
                 if retry_count == 0 {
-                    eprintln!("{} upload failed: {}", uploader.name(), e);
+                    eprintln!("{} upload failed: {}", uploader.name(), message);
                 } else {
                     eprintln!(
                         "{} upload failed on retry attempt {}: {}",
                         uploader.name(),
                         retry_count,
-                        e
+                        message
                     );
                 }
 
-                // Only retry on server errors and if we haven't exceeded max retries
-                if is_server_error(e.status_code) && retry_count < max_retries {
+                if is_server_error(status_code) && retry_count < max_retries {
                     let backoff = calculate_backoff(retry_count + 1);
                     println!(
                         "Retrying {} upload (attempt {}/{}) after {} seconds: {}",
@@ -225,7 +251,7 @@ async fn try_upload_single(
                                 uploader.name(),
                                 file_path,
                                 max_retries,
-                                e,
+                                message,
                             ),
                         )
                         .await;
@@ -239,7 +265,7 @@ async fn try_upload_single(
 
 /// Handle the list uploaders command
 pub async fn handle_list_command() -> Result<()> {
-    let uploaders = build_uploaders(UploaderKindFilter::All).await;
+    let uploaders = build_uploaders(UploaderKindFilter::All);
     for (uploader, _) in uploaders {
         println!("{}", uploader.name());
     }

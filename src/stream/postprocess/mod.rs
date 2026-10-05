@@ -290,10 +290,13 @@ async fn upload_with_stream(
     let max_retries = config.get_max_upload_retries();
     let mut upload_results = HashMap::new();
 
-    let uploaders = build_uploaders(filter).await;
+    let uploaders = build_uploaders(filter);
     for (uploader, uploader_config) in &uploaders {
         let mut uploader_settings = uploader_config.clone();
-        match uploader.get_folder_id_by_name(&stream_info.username).await {
+        match uploader
+            .get_or_create_folder(&stream_info.username, uploader_config)
+            .await
+        {
             Ok(Some(folder_id)) => uploader_settings.folder_id = Some(folder_id),
             Ok(None) => {}
             Err(_) => {}

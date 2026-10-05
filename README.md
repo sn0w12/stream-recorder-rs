@@ -347,15 +347,30 @@ stream-recorder template render
 
 ### Upload Services
 
-The tool supports uploading to multiple services. Tokens are stored securely and used automatically when available.
+The tool supports uploading to multiple services. Credentials are stored securely and used automatically when available.
 
-| Uploader  | Requires Token | Notes                                                                         |
-| --------- | :------------: | ----------------------------------------------------------------------------- |
-| Bunkr     |      Yes       | API token required; supports album/folder lookups.                            |
-| GoFile    |      Yes       | API token supported; configurable server and folder ID.                       |
-| Fileditch |       No       | Public file hosting uploader.                                                 |
-| Filester  |       No       | Public file hosting uploader; supports album/folder lookups if token provided |
-| JPG6      |      Yes       | Login token must be stored as `USERNAME:PASSWORD`.                            |
+Upload, retry, splitting, and folder handling come from the [upio](https://github.com/sn0w12/upio) library.
+
+| Uploader     | Credentials                | Notes                                                                                   |
+| ------------ | -------------------------- | --------------------------------------------------------------------------------------- |
+| Bunkr        | Token                      | Resolves or creates an album named after the streamer.                                  |
+| GoFile       | Token (optional)           | Anonymous uploads work; a token raises the limit and enables folders.                   |
+| Fileditch    | None                       | Public file hosting.                                                                     |
+| Filester     | Token (optional)           | Public file hosting; a token enables folder resolution.                                 |
+| Pixeldrain   | API key                    | Required. Create one at <https://pixeldrain.com/user/api_keys>. Folders are lists.       |
+| GoonBox      | Username and password      | Image host. Logs in on demand and solves a Cloudflare challenge with a real Chrome.      |
+
+Store credentials with the `token` command:
+
+```bash
+stream-recorder token save-bunkr <token>
+stream-recorder token save-pixeldrain <api-key>
+stream-recorder token save-goonbox <username> <password>
+```
+
+The recording is uploaded to every service that accepts video, and the thumbnail to every service that accepts only images. GoonBox is the only image-only service, so it receives the thumbnail.
+
+GoonBox needs a Chrome install for its Cloudflare challenge. On a headless Linux server, install Xvfb (`apt install xvfb`); the recorder starts it when `DISPLAY` is unset.
 
 ### File Organization
 

@@ -1,4 +1,3 @@
-use crate::consts::*;
 use anyhow::{Context, Result};
 use keyring_core::{CredentialStore, Entry};
 use std::fs;
@@ -138,24 +137,6 @@ fn get_token_from_sources(key_name: &str) -> Option<String> {
 /// `KEY_NAME` (uppercased) environment variable in the `.env` file.
 pub fn get_token_by_name(key_name: &str) -> Option<String> {
     get_token_from_sources(key_name)
-}
-
-pub fn get_bunkr_token() -> Option<String> {
-    get_token_from_sources(BUNKR_TOKEN_KEY)
-}
-
-pub fn get_gofile_token() -> Option<String> {
-    get_token_from_sources(GOFILE_TOKEN_KEY)
-}
-
-pub fn get_filester_token() -> Option<String> {
-    get_token_from_sources(FILESTER_TOKEN_KEY)
-}
-
-pub const JPG6_COOKIES_FILE: &str = "jpg6_cookies.json";
-
-pub fn jpg6_cookies_path() -> PathBuf {
-    app_config_dir().join(JPG6_COOKIES_FILE)
 }
 
 #[derive(Debug)]

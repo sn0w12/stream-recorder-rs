@@ -18,7 +18,7 @@ use crate::print::section::StartupInfo;
 use crate::stream::encoding::{VideoEncoding, detect_best_hw_encoder, probe_hw_encoders};
 use crate::stream::messages::send_program_error_webhook;
 use crate::template::{TemplateValue, get_template_string, render_template};
-use crate::uploaders::UploaderType;
+use crate::uploaders::UploaderStatus;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::collections::HashMap;
@@ -152,8 +152,14 @@ async fn main() -> Result<()> {
                         TemplateValue::Array(vec!["https://filester.example.com/file".to_string()]),
                     );
                     context.insert(
-                        "jpg6_urls".to_string(),
-                        TemplateValue::Array(vec!["https://jpg6.example.com/file".to_string()]),
+                        "pixeldrain_urls".to_string(),
+                        TemplateValue::Array(vec![
+                            "https://pixeldrain.example.com/file".to_string(),
+                        ]),
+                    );
+                    context.insert(
+                        "goonbox_urls".to_string(),
+                        TemplateValue::Array(vec!["https://goonbox.example.com/img".to_string()]),
                     );
                     let rendered = render_template(&template, &context);
                     println!("{}", rendered);
@@ -262,55 +268,6 @@ async fn startup_tests() -> Result<()> {
 }
 
 async fn print_startup_info(platforms: &[PlatformConfig]) {
-    #[derive(Debug)]
-    enum UploaderStatus {
-        Enabled(String),
-        UserDisabled,
-        ConfigError(String),
-    }
-
-    async fn get_uploader_status(
-        uploader_type: UploaderType,
-        name: &str,
-        disabled: &[String],
-    ) -> UploaderStatus {
-        let disabled_set: std::collections::HashSet<_> = disabled.iter().cloned().collect();
-        if disabled_set.contains(&name.to_lowercase()) {
-            return UploaderStatus::UserDisabled;
-        }
-        match uploader_type {
-            UploaderType::Fileditch => UploaderStatus::Enabled("always available".to_string()),
-            UploaderType::Bunkr => {
-                if crate::utils::get_bunkr_token().is_some() {
-                    UploaderStatus::Enabled("token configured".to_string())
-                } else {
-                    UploaderStatus::ConfigError("token required".to_string())
-                }
-            }
-            UploaderType::GoFile => {
-                if crate::utils::get_gofile_token().is_some() {
-                    UploaderStatus::Enabled("token configured".to_string())
-                } else {
-                    UploaderStatus::ConfigError("token required".to_string())
-                }
-            }
-            UploaderType::Filester => {
-                if crate::utils::get_filester_token().is_some() {
-                    UploaderStatus::Enabled("token configured".to_string())
-                } else {
-                    UploaderStatus::Enabled("no token, public limits".to_string())
-                }
-            }
-            UploaderType::Jpg6 => {
-                if crate::uploaders::jpg6::validate_cookies().await {
-                    UploaderStatus::Enabled("session valid".to_string())
-                } else {
-                    UploaderStatus::ConfigError("session invalid".to_string())
-                }
-            }
-        }
-    }
-
     let mut info = StartupInfo::new();
 
     info.begin_section("Info");
@@ -371,12 +328,19 @@ async fn print_startup_info(platforms: &[PlatformConfig]) {
 
     info.begin_section("Uploaders");
     let disabled_uploaders = Config::get().get_disabled_uploaders();
-    let uploader_types_and_names = crate::uploaders::get_all_uploader_types_and_names().await;
-    for (uploader_type, name) in uploader_types_and_names {
-        match get_uploader_status(uploader_type, &name, &disabled_uploaders).await {
-            UploaderStatus::Enabled(note) => info.ok(&name, &note),
-            UploaderStatus::UserDisabled => info.warn(&name, "disabled by user"),
-            UploaderStatus::ConfigError(note) => info.err(&name, &note),
+    let disabled_set: std::collections::HashSet<String> = disabled_uploaders
+        .iter()
+        .map(|name| name.to_lowercase())
+        .collect();
+
+    for (name, status) in crate::uploaders::uploader_statuses() {
+        if disabled_set.contains(name) {
+            info.warn(name, "disabled by user");
+            continue;
+        }
+        match status {
+            UploaderStatus::Ready(note) => info.ok(name, &note),
+            UploaderStatus::MissingCredentials(note) => info.err(name, &note),
         }
     }
 
