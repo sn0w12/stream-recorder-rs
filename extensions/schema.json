@@ -1,0 +1,131 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://raw.githubusercontent.com/sn0w12/stream-recorder-rs/refs/heads/main/extensions/schema.json",
+    "title": "Stream Recorder Extension Manifest",
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["id", "name", "version", "main", "hooks"],
+    "properties": {
+        "$schema": {
+            "type": "string",
+            "description": "URL of this schema."
+        },
+        "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$",
+            "description": "Unique extension ID."
+        },
+        "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Human-readable name."
+        },
+        "version": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Extension version."
+        },
+        "description": {
+            "type": "string",
+            "description": "Short description shown by extension list."
+        },
+        "author": {
+            "type": "string"
+        },
+        "icon": {
+            "type": "string",
+            "description": "Optional icon URL."
+        },
+        "stream_recorder_version": {
+            "type": "string",
+            "description": "Semver requirement for the recorder, for example ^0.2."
+        },
+        "api": {
+            "type": "integer",
+            "enum": [1],
+            "default": 1,
+            "description": "Extension API version."
+        },
+        "main": {
+            "type": "string",
+            "description": "Lua entry file, relative to the extension directory."
+        },
+        "files": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "Additional files downloaded on install. The main file is always included."
+        },
+        "hooks": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+                "type": "string",
+                "enum": [
+                    "before_recording",
+                    "after_recording",
+                    "before_upload",
+                    "after_upload",
+                    "on_error"
+                ]
+            }
+        },
+        "permissions": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+                "type": "string",
+                "enum": ["session.read", "network", "process"]
+            }
+        },
+        "limits": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "timeout_ms": {
+                    "type": "integer",
+                    "minimum": 1000,
+                    "maximum": 300000,
+                    "default": 30000
+                },
+                "memory_mb": {
+                    "type": "integer",
+                    "minimum": 8,
+                    "maximum": 512,
+                    "default": 64
+                }
+            }
+        },
+        "settings": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["type"],
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "string",
+                            "number",
+                            "integer",
+                            "boolean",
+                            "string_array",
+                            "toml"
+                        ]
+                    },
+                    "default": {},
+                    "description": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "source_url": {
+            "type": "string",
+            "description": "Set automatically by the installer."
+        }
+    }
+}

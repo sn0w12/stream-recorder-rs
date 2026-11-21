@@ -60,6 +60,18 @@ fn is_standalone_block(line: &str) -> bool {
 /// Errors during rendering are printed to stderr and an empty string is
 /// returned on failure.
 pub fn render_template(template: &str, context: &HashMap<String, TemplateValue>) -> String {
+    render_template_with_extensions(template, context, &Map::new())
+}
+
+/// Renders a template with an additional `ext` object available to it.
+///
+/// Extension values live under `ext.<extension_id>.<key>`. Passing an empty
+/// map produces the same output as [`render_template`].
+pub fn render_template_with_extensions(
+    template: &str,
+    context: &HashMap<String, TemplateValue>,
+    extensions: &Map<String, Value>,
+) -> String {
     let mut map = Map::new();
 
     for (k, v) in context.iter() {
@@ -70,6 +82,10 @@ pub fn render_template(template: &str, context: &HashMap<String, TemplateValue>)
                 Value::Number(Number::from(arr.len() as u64)),
             );
         }
+    }
+
+    if !extensions.is_empty() {
+        map.insert("ext".to_string(), Value::Object(extensions.clone()));
     }
 
     let data = Value::Object(map);
@@ -127,6 +143,29 @@ pub fn render_template(template: &str, context: &HashMap<String, TemplateValue>)
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn extension_values_are_nested_under_ext() {
+        let mut context = HashMap::new();
+        context.insert(
+            "username".to_string(),
+            TemplateValue::String("alice".to_string()),
+        );
+
+        let mut values = Map::new();
+        values.insert("deaths".to_string(), Value::from(12));
+        let mut extensions = Map::new();
+        extensions.insert("death_counter".to_string(), Value::Object(values));
+
+        assert_eq!(
+            render_template_with_extensions(
+                "{{username}}:{{ext.death_counter.deaths}}",
+                &context,
+                &extensions
+            ),
+            "alice:12"
+        );
+    }
 
     #[test]
     fn render_template_preserves_query_string_urls() {

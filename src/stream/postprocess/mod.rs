@@ -3,15 +3,17 @@ pub mod storage;
 pub mod thumb;
 
 use super::{StreamResult, types::StreamInfo};
-use crate::cli::upload::try_upload;
+use crate::cli::upload::{UploadFailure, try_upload};
 use crate::config::Config;
+use crate::extension::context::{ErrorContext, RecordingContext};
+use crate::extension::{hooks, store};
 use crate::stream::messages::{
     send_minimum_duration_webhook, send_program_error_webhook, send_recording_complete_webhook,
     send_template_webhook,
 };
-use crate::template::{TemplateValue, get_template_string, render_template};
+use crate::template::{TemplateValue, get_template_string, render_template_with_extensions};
 use crate::types::{DurationValue, FileSize};
-use crate::uploaders::{UploaderKindFilter, build_uploaders};
+use crate::uploaders::{UploaderKindFilter, UploaderList, build_uploaders};
 use chrono::Utc;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -33,11 +35,22 @@ struct RecordingFile {
     user_key: String,
 }
 
+struct ExtensionSessionGuard(String);
+
+impl Drop for ExtensionSessionGuard {
+    fn drop(&mut self) {
+        hooks::cleanup_session(&self.0);
+    }
+}
+
 /// Post-processes a complete recording session that may consist of multiple files.
 pub async fn post_process_session(
     stream_info: StreamInfo,
     session_files: Vec<String>,
+    session_id: String,
 ) -> StreamResult<()> {
+    let _extension_guard = ExtensionSessionGuard(session_id.clone());
+
     if session_files.is_empty() {
         return Ok(());
     }
@@ -76,13 +89,14 @@ pub async fn post_process_session(
             .into_iter()
             .next()
             .ok_or_else(|| anyhow::anyhow!("expected a single session file"))?;
-        post_process_stream(stream_info, file).await
+        post_process_stream(stream_info, file, &session_id, 1).await
     } else {
         println!(
             "Combining {} stream segments for {}...",
             session_files.len(),
             stream_info.username
         );
+        let segment_count = session_files.len();
 
         match concat_video_files(&session_files).await {
             Ok(combined_path) => {
@@ -99,7 +113,7 @@ pub async fn post_process_session(
                     }
                 }
 
-                post_process_stream(stream_info, combined_path).await
+                post_process_stream(stream_info, combined_path, &session_id, segment_count).await
             }
             Err(error) => {
                 eprintln!(
@@ -123,9 +137,19 @@ pub async fn post_process_session(
 
                 for file in session_files {
                     if let Err(post_process_error) =
-                        post_process_stream(stream_info.clone(), file).await
+                        post_process_stream(stream_info.clone(), file, &session_id, 1).await
                     {
                         eprintln!("Error post-processing segment: {}", post_process_error);
+                        hooks::on_error(
+                            Some(&session_id),
+                            Some(&stream_info),
+                            ErrorContext::new(
+                                "postprocess",
+                                format!("Post-processing a segment failed: {}", post_process_error),
+                            ),
+                            None,
+                        )
+                        .await;
                     }
                 }
 
@@ -141,7 +165,12 @@ pub async fn post_process_session(
     result
 }
 
-async fn post_process_stream(stream_info: StreamInfo, output_path: String) -> StreamResult<()> {
+async fn post_process_stream(
+    stream_info: StreamInfo,
+    output_path: String,
+    session_id: &str,
+    segments: usize,
+) -> StreamResult<()> {
     println!("Post-processing recorded stream: {}", output_path);
 
     let (file_size, duration) = get_video_metadata(&output_path).await?;
@@ -171,11 +200,69 @@ async fn post_process_stream(stream_info: StreamInfo, output_path: String) -> St
 
     let thumbnail_path = generate_thumbnail(&output_path).await;
 
-    let thumbnail_uploads =
-        upload_with_stream(&stream_info, &thumbnail_path, UploaderKindFilter::Image).await;
-    let upload_results =
-        upload_with_stream(&stream_info, &output_path, UploaderKindFilter::Video).await;
+    let recording_context = RecordingContext {
+        file: Some(output_path.clone()),
+        thumbnail: Some(thumbnail_path.clone()),
+        duration_seconds: Some(duration.as_secs_f64()),
+        size_bytes: Some(file_size.as_bytes()),
+        segments: Some(segments),
+        ..RecordingContext::default()
+    };
+
+    hooks::after_recording(
+        session_id,
+        &stream_info,
+        &output_path,
+        &thumbnail_path,
+        duration.as_secs_f64(),
+        file_size.as_bytes(),
+        segments,
+    )
+    .await;
+
+    let image_uploaders = build_uploaders(UploaderKindFilter::Image);
+    let video_uploaders = build_uploaders(UploaderKindFilter::Video);
+    hooks::before_upload(
+        session_id,
+        &stream_info,
+        &recording_context,
+        uploader_names(&video_uploaders),
+        uploader_names(&image_uploaders),
+    )
+    .await;
+
+    let (thumbnail_uploads, image_failures) =
+        upload_with_stream(&stream_info, &thumbnail_path, &image_uploaders).await;
+    let (upload_results, video_failures) =
+        upload_with_stream(&stream_info, &output_path, &video_uploaders).await;
     print_upload_results(&upload_results);
+
+    hooks::after_upload(
+        session_id,
+        &stream_info,
+        &recording_context,
+        &upload_results,
+        &thumbnail_uploads,
+    )
+    .await;
+
+    for failure in image_failures.into_iter().chain(video_failures) {
+        let error = ErrorContext {
+            stage: "upload".to_string(),
+            message: format!("Upload to `{}` failed", failure.uploader),
+            uploader: Some(failure.uploader),
+            file: Some(failure.file),
+            status_code: failure.status_code,
+            retryable: Some(failure.retryable),
+        };
+        hooks::on_error(
+            Some(session_id),
+            Some(&stream_info),
+            error,
+            Some(recording_context.clone()),
+        )
+        .await;
+    }
 
     let template_info = TemplateInfo {
         output_path: output_path.clone(),
@@ -185,9 +272,16 @@ async fn post_process_stream(stream_info: StreamInfo, output_path: String) -> St
         duration,
         file_size,
     };
-    send_template_notification(&stream_info, &template_info).await;
+    send_template_notification(&stream_info, &template_info, session_id).await;
 
     Ok(())
+}
+
+fn uploader_names(uploaders: &UploaderList) -> Vec<String> {
+    uploaders
+        .iter()
+        .map(|(uploader, _)| uploader.name().to_string())
+        .collect()
 }
 
 async fn concat_video_files(files: &[String]) -> StreamResult<String> {
@@ -284,14 +378,14 @@ async fn generate_thumbnail(output_path: &str) -> String {
 async fn upload_with_stream(
     stream_info: &StreamInfo,
     output_path: &str,
-    filter: UploaderKindFilter,
-) -> HashMap<String, Vec<String>> {
+    uploaders: &UploaderList,
+) -> (HashMap<String, Vec<String>>, Vec<UploadFailure>) {
     let config = Config::get();
     let max_retries = config.get_max_upload_retries();
     let mut upload_results = HashMap::new();
+    let mut failures = Vec::new();
 
-    let uploaders = build_uploaders(filter);
-    for (uploader, uploader_config) in &uploaders {
+    for (uploader, uploader_config) in uploaders {
         let mut uploader_settings = uploader_config.clone();
         match uploader
             .get_or_create_folder(&stream_info.username, uploader_config)
@@ -302,17 +396,19 @@ async fn upload_with_stream(
             Err(_) => {}
         }
 
-        try_upload(
-            uploader.as_ref(),
-            output_path,
-            &uploader_settings,
-            &mut upload_results,
-            max_retries,
-        )
-        .await;
+        failures.extend(
+            try_upload(
+                uploader.as_ref(),
+                output_path,
+                &uploader_settings,
+                &mut upload_results,
+                max_retries,
+            )
+            .await,
+        );
     }
 
-    upload_results
+    (upload_results, failures)
 }
 
 fn print_upload_results(upload_results: &HashMap<String, Vec<String>>) {
@@ -337,7 +433,11 @@ struct TemplateInfo {
     file_size: FileSize,
 }
 
-async fn send_template_notification(stream_info: &StreamInfo, template_info: &TemplateInfo) {
+async fn send_template_notification(
+    stream_info: &StreamInfo,
+    template_info: &TemplateInfo,
+    session_id: &str,
+) {
     let Ok(Some(template)) = get_template_string() else {
         return;
     };
@@ -392,7 +492,11 @@ async fn send_template_notification(stream_info: &StreamInfo, template_info: &Te
         );
     }
 
-    let content = format!("```\n{}\n```", render_template(&template, &context));
+    let extension_values = store::template_values(session_id);
+    let content = format!(
+        "```\n{}\n```",
+        render_template_with_extensions(&template, &context, &extension_values)
+    );
     let config = Config::get();
     let webhook_url = config.get_discord_webhook_url();
     if let Err(error) = send_template_webhook(
@@ -404,6 +508,13 @@ async fn send_template_notification(stream_info: &StreamInfo, template_info: &Te
     .await
     {
         eprintln!("Error sending template webhook: {}", error);
+        hooks::on_error(
+            Some(session_id),
+            Some(stream_info),
+            ErrorContext::new("template", "Sending the template notification failed"),
+            None,
+        )
+        .await;
     }
 }
 

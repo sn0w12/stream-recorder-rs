@@ -20,9 +20,9 @@ impl ConfigValidator<Option<u32>> for VideoQuality {
         if (1..=51).contains(value) {
             Ok(())
         } else {
-            Err(apto::ConfigError::InvalidValue(format!(
-                "video quality must be between 1 and 51"
-            )))
+            Err(apto::ConfigError::InvalidValue(
+                "video quality must be between 1 and 51".to_string(),
+            ))
         }
     }
 }
@@ -69,9 +69,9 @@ impl ConfigValidator<Option<String>> for FfmpegBitrate {
 
         let bitrate = value.trim();
         if bitrate.is_empty() {
-            return Err(apto::ConfigError::InvalidValue(format!(
-                "bitrate cannot be empty; use 'none' to clear the setting"
-            )));
+            return Err(apto::ConfigError::InvalidValue(
+                "bitrate cannot be empty; use 'none' to clear the setting".to_string(),
+            ));
         }
 
         let split_index = bitrate
@@ -80,40 +80,42 @@ impl ConfigValidator<Option<String>> for FfmpegBitrate {
         let (number_part, suffix) = bitrate.split_at(split_index);
 
         if number_part.is_empty() {
-            return Err(apto::ConfigError::InvalidValue(format!(
-                "bitrate must start with a number, e.g. 2500k or 6M"
-            )));
+            return Err(apto::ConfigError::InvalidValue(
+                "bitrate must start with a number, e.g. 2500k or 6M".to_string(),
+            ));
         }
 
         if number_part.starts_with('.') || number_part.ends_with('.') {
-            return Err(apto::ConfigError::InvalidValue(format!(
-                "bitrate number must be a whole number or decimal like 2.5M"
-            )));
+            return Err(apto::ConfigError::InvalidValue(
+                "bitrate number must be a whole number or decimal like 2.5M".to_string(),
+            ));
         }
 
         if number_part.chars().filter(|&ch| ch == '.').count() > 1 {
-            return Err(apto::ConfigError::InvalidValue(format!(
-                "bitrate number must contain at most one decimal point"
-            )));
+            return Err(apto::ConfigError::InvalidValue(
+                "bitrate number must contain at most one decimal point".to_string(),
+            ));
         }
 
         let numeric_value = number_part.parse::<f64>().map_err(|_| {
-            apto::ConfigError::InvalidValue(format!("bitrate must contain a valid positive number"))
+            apto::ConfigError::InvalidValue(
+                "bitrate must contain a valid positive number".to_string(),
+            )
         })?;
 
         if !numeric_value.is_finite() || numeric_value <= 0.0 {
-            return Err(apto::ConfigError::InvalidValue(format!(
-                "bitrate must be greater than zero"
-            )));
+            return Err(apto::ConfigError::InvalidValue(
+                "bitrate must be greater than zero".to_string(),
+            ));
         }
 
         let suffix = suffix.to_ascii_lowercase();
         if matches!(suffix.as_str(), "" | "k" | "m" | "g" | "ki" | "mi" | "gi") {
             Ok(())
         } else {
-            Err(apto::ConfigError::InvalidValue(format!(
-                "bitrate must use an ffmpeg-style suffix like 2500k, 6M, or 2.5Mi"
-            )))
+            Err(apto::ConfigError::InvalidValue(
+                "bitrate must use an ffmpeg-style suffix like 2500k, 6M, or 2.5Mi".to_string(),
+            ))
         }
     }
 }
@@ -127,9 +129,9 @@ impl ConfigValidator<Option<u32>> for PositiveU32 {
         if *value > 0 {
             Ok(())
         } else {
-            Err(apto::ConfigError::InvalidValue(format!(
-                "value must be greater than zero"
-            )))
+            Err(apto::ConfigError::InvalidValue(
+                "value must be greater than zero".to_string(),
+            ))
         }
     }
 }
@@ -143,9 +145,9 @@ impl ConfigValidator<Option<f64>> for PositiveF64 {
         if *value > 0.0 {
             Ok(())
         } else {
-            Err(apto::ConfigError::InvalidValue(format!(
-                "value must be greater than zero"
-            )))
+            Err(apto::ConfigError::InvalidValue(
+                "value must be greater than zero".to_string(),
+            ))
         }
     }
 }
@@ -159,9 +161,9 @@ impl ConfigValidator<Option<String>> for Url {
         if value.starts_with("https://") || value.starts_with("http://") {
             Ok(())
         } else {
-            Err(apto::ConfigError::InvalidValue(format!(
-                "URL must start with http:// or https://"
-            )))
+            Err(apto::ConfigError::InvalidValue(
+                "URL must start with http:// or https://".to_string(),
+            ))
         }
     }
 }

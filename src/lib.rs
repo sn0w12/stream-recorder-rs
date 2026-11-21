@@ -2,6 +2,7 @@ pub mod cli;
 pub mod config;
 pub mod consts;
 pub mod discord;
+pub mod extension;
 pub mod platform;
 pub mod print;
 pub mod stream;

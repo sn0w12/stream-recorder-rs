@@ -113,6 +113,47 @@ pub async fn send_program_error_webhook(webhook_url: Option<&str>, title: &str, 
     }
 }
 
+/// Sends a neutral notice to the program errors thread.
+pub async fn send_program_notice_webhook(webhook_url: Option<&str>, title: &str, details: &str) {
+    let mut components = vec![Component::Text(TextComponent {
+        content: format!("**{}**", title),
+    })];
+
+    if !details.trim().is_empty() {
+        components.push(Component::Divider(DividerComponent {
+            visible: true,
+            spacing: 1,
+        }));
+        components.push(Component::Text(TextComponent {
+            content: details.trim().to_string(),
+        }));
+    }
+
+    let component = Component::Container(ContainerComponent {
+        accent_color: DiscordColor::rgb(255, 200, 0),
+        spoiler: false,
+        components,
+    });
+
+    if let Err(error) = send_components_to_thread(
+        webhook_url,
+        PROGRAM_ERRORS_THREAD,
+        vec![component],
+        None,
+        Identity {
+            username: "stream-recorder".to_string(),
+            avatar_url: None,
+        },
+    )
+    .await
+    {
+        eprintln!(
+            "Error sending program notice webhook '{}': {}",
+            title, error
+        );
+    }
+}
+
 /// Sends a Discord webhook notification for recording start.
 pub async fn send_recording_start_webhook(
     webhook_url: Option<&str>,

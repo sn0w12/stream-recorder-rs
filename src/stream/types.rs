@@ -15,6 +15,7 @@ pub struct ExtractedStreamValues {
     pub playback_url: String,
     pub stream_title: Option<String>,
     pub avatar_url: Option<String>,
+    pub user_id: Option<String>,
 }
 
 impl StreamInfo {
@@ -48,6 +49,7 @@ impl StreamInfo {
                     .get("stream_title")
                     .map(|title| platform.clean_title(title)),
                 avatar_url: vars.get("avatar_url").cloned(),
+                user_id: vars.get("user_id").cloned(),
             },
         })
     }
@@ -71,6 +73,12 @@ impl StreamInfo {
             &mut self.extracted.avatar_url,
             vars.get("avatar_url").cloned(),
             "avatar_url",
+            &mut updated_fields,
+        );
+        Self::update_optional_field(
+            &mut self.extracted.user_id,
+            vars.get("user_id").cloned(),
+            "user_id",
             &mut updated_fields,
         );
 
@@ -101,6 +109,21 @@ mod tests {
             stream_recorder_version: None,
             title_clean_regex: None,
         }
+    }
+
+    #[test]
+    fn from_pipeline_extracts_user_id() {
+        let platform = test_platform();
+        let mut vars = HashMap::new();
+        vars.insert(
+            "playback_url".to_string(),
+            "https://example.com/live.m3u8".to_string(),
+        );
+        vars.insert("user_id".to_string(), "42".to_string());
+
+        let stream_info =
+            StreamInfo::from_pipeline("example_user", &platform, &vars).expect("stream info");
+        assert_eq!(stream_info.extracted.user_id.as_deref(), Some("42"));
     }
 
     #[test]

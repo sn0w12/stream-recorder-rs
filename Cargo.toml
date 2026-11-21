@@ -15,7 +15,7 @@ linux-dbus-keyring = ["dbus-secret-service-keyring-store"]
 
 [dependencies]
 clap = { version = "4.6", features = ["derive"] }
-reqwest = { version = "0.13", default-features = false, features = ["multipart", "stream", "json", "rustls", "query"] }
+reqwest = { version = "0.13", default-features = false, features = ["multipart", "stream", "json", "rustls", "query", "blocking"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.51", features = ["macros", "rt-multi-thread", "process", "signal", "fs"] }
@@ -35,6 +35,9 @@ handlebars = "6.4.0"
 upio = { git = "https://github.com/sn0w12/upio" }
 tiny-table = { version = "0.2.2" }
 keyring-core = "1.0"
+mlua = { version = "0.12", features = ["lua54", "vendored", "serialize"] }
+uuid = { version = "1", features = ["v4"] }
+command-group = "5.0"
 
 [dev-dependencies]
 criterion = "0.8.2"
@@ -51,7 +54,6 @@ dbus-secret-service-keyring-store = { version = "1.0", features = ["crypto-opens
 [profile.release]
 opt-level = 3
 lto = true
-panic = "abort"
 strip = true
 
 [lib]

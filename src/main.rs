@@ -2,6 +2,7 @@ mod cli;
 mod config;
 mod consts;
 mod discord;
+mod extension;
 mod monitoring;
 mod platform;
 mod print;
@@ -25,6 +26,7 @@ use std::collections::HashMap;
 use tiny_table::Color::*;
 
 use crate::cli::config::{ConfigAction, handle_config_command};
+use crate::cli::extension::{ExtensionAction, handle_extension_command};
 use crate::cli::platform::{PlatformAction, handle_platform_command};
 use crate::cli::thumbnail::{ThumbnailAction, handle_thumbnail_action};
 use crate::cli::token::{TokenAction, handle_token_command};
@@ -62,6 +64,11 @@ enum Commands {
     Platform {
         #[command(subcommand)]
         action: PlatformAction,
+    },
+    /// Manage extensions
+    Extension {
+        #[command(subcommand)]
+        action: ExtensionAction,
     },
     /// Probe and test hardware encoders
     Encoders {
@@ -171,6 +178,9 @@ async fn main() -> Result<()> {
         }
         Some(Commands::Platform { action }) => {
             handle_platform_command(action).await?;
+        }
+        Some(Commands::Extension { action }) => {
+            handle_extension_command(action).await?;
         }
         Some(Commands::Encoders { action }) => match action {
             EncoderAction::Test => {
@@ -300,6 +310,42 @@ async fn print_startup_info(platforms: &[PlatformConfig]) {
         }
     }
 
+    info.begin_section("Extensions");
+    let extensions = crate::extension::installed();
+    if extensions.is_empty() {
+        info.plain("No extensions installed", Some(Yellow));
+    } else {
+        for extension in extensions.iter() {
+            let hooks = extension.manifest.hooks.len();
+            let permissions = if extension.manifest.permissions.is_empty() {
+                "no permissions".to_string()
+            } else {
+                extension
+                    .manifest
+                    .permissions
+                    .iter()
+                    .map(|permission| permission.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            };
+            if extension
+                .manifest
+                .permissions
+                .contains(&crate::extension::manifest::Permission::Process)
+            {
+                info.warn(
+                    &extension.manifest.id,
+                    format!("{} hooks, {} (runs programs)", hooks, permissions),
+                );
+            } else {
+                info.ok(
+                    &extension.manifest.id,
+                    format!("{} hooks, {}", hooks, permissions),
+                );
+            }
+        }
+    }
+
     info.begin_section("Monitored Users");
     let monitors = Config::get().get_monitors();
     if monitors.is_empty() {
@@ -364,6 +410,10 @@ async fn print_startup_info(platforms: &[PlatformConfig]) {
 }
 
 async fn run_recording(platforms: &[PlatformConfig], cli_token: Option<String>) -> Result<()> {
+    let extension_report = extension::init();
+    for error in &extension_report.errors {
+        eprintln!("Extension error: {}", error);
+    }
     print_startup_info(platforms).await;
 
     MonitorSupervisor::new(platforms.to_vec(), cli_token)

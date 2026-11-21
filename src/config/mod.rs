@@ -90,6 +90,10 @@ define_config! {
         retention_keep_latest_per_user: apto::U32<validators::PositiveU32, apto::Optional> = None,
             "Keep only this many of the newest recordings per user",
     }
+    extensions {
+        disabled_extensions: types::StringList = Vec::<String>::new(),
+            "List of extension IDs to skip",
+    }
 }
 
 static CONFIG: OnceLock<RwLock<Arc<Config>>> = OnceLock::new();

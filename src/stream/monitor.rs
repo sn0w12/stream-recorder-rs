@@ -1,4 +1,6 @@
 use crate::config::Config;
+use crate::extension::context::{ErrorContext, RecordingContext};
+use crate::extension::{hooks, store};
 use crate::platform::{PipelineOutcome, PlatformConfig};
 use crate::stream::api::run_pipeline;
 use crate::stream::messages::send_program_error_webhook;
@@ -34,6 +36,8 @@ pub async fn monitor_stream(username: &str, platform: &PlatformConfig, token: &s
                             ),
                         )
                         .await;
+                        hooks::on_error(None, None, ErrorContext::new("pipeline", message), None)
+                            .await;
                     }
                 }
             }
@@ -48,6 +52,19 @@ pub async fn monitor_stream(username: &str, platform: &PlatformConfig, token: &s
                         "Running the pipeline for `{}` on platform `{}` failed.\n\n{}",
                         username, platform.id, error
                     ),
+                )
+                .await;
+                hooks::on_error(
+                    None,
+                    None,
+                    ErrorContext::new(
+                        "pipeline",
+                        format!(
+                            "Running the pipeline for `{}` on platform `{}` failed",
+                            username, platform.id
+                        ),
+                    ),
+                    None,
                 )
                 .await;
             }
@@ -65,12 +82,18 @@ async fn record_session(stream_info: StreamInfo, token: &str) {
     let mut session_info = stream_info.clone();
     let mut current_info = stream_info;
     let mut is_continuation = false;
+    let session_id = uuid::Uuid::new_v4().to_string();
+    store::ensure_session(&session_id);
 
     loop {
-        match record_segment(&mut current_info, token, is_continuation).await {
-            Ok(path) => {
+        match record_segment(&mut current_info, token, is_continuation, &session_id).await {
+            Ok(Some(path)) => {
                 session_files.push(path);
                 session_info = current_info.clone();
+            }
+            Ok(None) => {
+                hooks::cleanup_session(&session_id);
+                return;
             }
             Err(error) => {
                 let label = if is_continuation {
@@ -87,6 +110,19 @@ async fn record_session(stream_info: StreamInfo, token: &str) {
                         "Recording the {} for `{}` on platform `{}` failed.\n\n{}",
                         label, username, platform.id, error
                     ),
+                )
+                .await;
+                hooks::on_error(
+                    Some(&session_id),
+                    Some(&current_info),
+                    ErrorContext::new(
+                        "recording",
+                        format!("Recording the {} failed: {}", label, error),
+                    ),
+                    Some(RecordingContext {
+                        is_continuation: Some(is_continuation),
+                        ..RecordingContext::default()
+                    }),
                 )
                 .await;
                 break;
@@ -123,8 +159,10 @@ async fn record_session(stream_info: StreamInfo, token: &str) {
         }
     }
 
+    let error_info = session_info.clone();
+    let error_session_id = session_id.clone();
     tokio::spawn(async move {
-        if let Err(error) = post_process_session(session_info, session_files).await {
+        if let Err(error) = post_process_session(session_info, session_files, session_id).await {
             eprintln!("Error post-processing session: {}", error);
             let config = Config::get();
             send_program_error_webhook(
@@ -134,6 +172,13 @@ async fn record_session(stream_info: StreamInfo, token: &str) {
                     "Post-processing failed for `{}` on platform `{}`.\n\n{}",
                     username, platform.id, error
                 ),
+            )
+            .await;
+            hooks::on_error(
+                Some(&error_session_id),
+                Some(&error_info),
+                ErrorContext::new("postprocess", format!("Post-processing failed: {}", error)),
+                None,
             )
             .await;
         }
@@ -174,6 +219,19 @@ async fn next_live_stream(
                     ),
                 )
                 .await;
+                hooks::on_error(
+                    None,
+                    None,
+                    ErrorContext::new(
+                        "pipeline",
+                        format!(
+                            "Pipeline returned Live for `{}` on `{}` without playback_url during the continuation window",
+                            username, platform.id
+                        ),
+                    ),
+                    None,
+                )
+                .await;
             }
             Ok(PipelineOutcome::Offline) => {}
             Err(error) => {
@@ -189,6 +247,19 @@ async fn next_live_stream(
                         "Running the pipeline for `{}` on platform `{}` failed during the continuation window.\n\n{}",
                         username, platform.id, error
                     ),
+                )
+                .await;
+                hooks::on_error(
+                    None,
+                    None,
+                    ErrorContext::new(
+                        "pipeline",
+                        format!(
+                            "Pipeline failed during the continuation window for platform `{}`",
+                            platform.id
+                        ),
+                    ),
+                    None,
                 )
                 .await;
             }

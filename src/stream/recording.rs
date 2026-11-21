@@ -1,9 +1,12 @@
 use super::{StreamResult, types::StreamInfo};
 use crate::config::Config;
+use crate::extension::hooks;
 use crate::platform::PipelineOutcome;
 use crate::stream::api::run_pipeline;
 use crate::stream::encoding::{VideoEncoding, build_ffmpeg_args, detect_best_hw_encoder};
-use crate::stream::messages::{send_program_error_webhook, send_recording_start_webhook};
+use crate::stream::messages::{
+    send_program_error_webhook, send_program_notice_webhook, send_recording_start_webhook,
+};
 use crate::stream::postprocess::storage::{add_pending, remove_pending};
 use crate::utils::slugify;
 use chrono::{DateTime, Utc};
@@ -77,13 +80,15 @@ impl Drop for StreamRecorder {
 }
 
 /// Starts ffmpeg for the given stream and waits until the recording ends.
-/// Returns the output file path.
-/// When `is_continuation` is true, the recording-start webhook is suppressed.
+/// Returns the output file path, or `None` when an extension aborted the
+/// recording. When `is_continuation` is true, the recording-start webhook is
+/// suppressed.
 pub async fn record_segment(
     stream_info: &mut StreamInfo,
     token: &str,
     is_continuation: bool,
-) -> StreamResult<String> {
+    session_id: &str,
+) -> StreamResult<Option<String>> {
     println!(
         "Starting recording for stream: {} (title: {})",
         stream_info.username,
@@ -95,6 +100,26 @@ pub async fn record_segment(
     );
 
     let output_path = build_output_path(&stream_info.username)?;
+
+    if !is_continuation
+        && let Some(abort) =
+            hooks::before_recording(session_id, stream_info, &output_path, is_continuation).await
+    {
+        if abort.notify {
+            let config = Config::get();
+            send_program_notice_webhook(
+                config.get_discord_webhook_url().as_deref(),
+                "Recording skipped by extension",
+                &format!(
+                    "Recording for `{}` on platform `{}` was skipped.\n\n{}",
+                    stream_info.username, stream_info.platform.id, abort.reason
+                ),
+            )
+            .await;
+        }
+        return Ok(None);
+    }
+
     add_pending(std::slice::from_ref(&output_path));
 
     if !is_continuation {
@@ -125,7 +150,7 @@ pub async fn record_segment(
         return Err(e);
     }
 
-    Ok(output_path)
+    Ok(Some(output_path))
 }
 
 fn build_output_path(username: &str) -> StreamResult<String> {

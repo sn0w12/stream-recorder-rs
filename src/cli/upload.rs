@@ -86,7 +86,7 @@ pub async fn handle_upload_command(file: String, uploader: Vec<String>) -> Resul
             continue;
         }
         matched = true;
-        try_upload(
+        let _ = try_upload(
             up.as_ref(),
             &file,
             up_config,
@@ -119,21 +119,34 @@ pub async fn handle_upload_command(file: String, uploader: Vec<String>) -> Resul
     Ok(())
 }
 
+#[derive(Debug, Clone)]
+pub struct UploadFailure {
+    pub uploader: String,
+    pub file: String,
+    pub status_code: Option<u16>,
+    pub retryable: bool,
+}
+
 /// Uploads a file to one service, splitting it first when it exceeds that
 /// service's size limit, and retrying on server errors (5xx) with exponential
-/// backoff.
+/// backoff. Returns one failure per part that did not upload.
 pub async fn try_upload(
     uploader: &dyn Uploader,
     file_path: &str,
     config: &UploaderEndpointConfig,
     upload_results: &mut HashMap<String, Vec<String>>,
     max_retries: u32,
-) {
+) -> Vec<UploadFailure> {
     // Token verification and capability discovery happen once per service, not
     // once per part, so a split upload does not re-authenticate per segment.
     if let Err(e) = uploader.init().await {
         eprintln!("{} init failed: {}", uploader.name(), e);
-        return;
+        return vec![UploadFailure {
+            uploader: uploader.name().to_string(),
+            file: file_path.to_string(),
+            status_code: None,
+            retryable: false,
+        }];
     }
 
     let prepared = match preprocess_file(
@@ -158,24 +171,35 @@ pub async fn try_upload(
                 ),
             )
             .await;
-            return;
+            return vec![UploadFailure {
+                uploader: uploader.name().to_string(),
+                file: file_path.to_string(),
+                status_code: None,
+                retryable: false,
+            }];
         }
     };
 
+    let mut failures = Vec::new();
     for part in &prepared.files {
-        try_upload_single(
+        if let Some(failure) = try_upload_single(
             uploader,
             &part.to_string_lossy(),
             config,
             upload_results,
             max_retries,
         )
-        .await;
+        .await
+        {
+            failures.push(failure);
+        }
     }
 
     if let Err(e) = cleanup(&prepared) {
         eprintln!("{} cleanup of split parts failed: {}", uploader.name(), e);
     }
+
+    failures
 }
 
 async fn try_upload_single(
@@ -184,7 +208,7 @@ async fn try_upload_single(
     config: &UploaderEndpointConfig,
     upload_results: &mut HashMap<String, Vec<String>>,
     max_retries: u32,
-) {
+) -> Option<UploadFailure> {
     let mut retry_count = 0;
 
     loop {
@@ -205,7 +229,7 @@ async fn try_upload_single(
                 } else {
                     eprintln!("{} upload succeeded but no URLs found", uploader.name());
                 }
-                return; // Success - exit retry loop
+                return None; // Success - exit retry loop
             }
             Err(UploadError {
                 status_code,
@@ -256,7 +280,12 @@ async fn try_upload_single(
                         )
                         .await;
                     }
-                    return; // No more retries - exit
+                    return Some(UploadFailure {
+                        uploader: uploader.name().to_string(),
+                        file: file_path.to_string(),
+                        status_code,
+                        retryable: is_server_error(status_code),
+                    });
                 }
             }
         }

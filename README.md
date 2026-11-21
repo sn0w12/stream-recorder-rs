@@ -81,6 +81,24 @@ stream-recorder -h
 
 The tool will run continuously, monitoring for live streams and recording them automatically.
 
+## Extensions
+
+Extensions are sandboxed Lua scripts that run at defined points in the recording
+pipeline. They can inspect the session, call HTTP endpoints, run processes, and
+add values to the notification template.
+
+```bash
+stream-recorder extension install <url>
+stream-recorder extension list
+stream-recorder extension debug <id> <hook>
+```
+
+The `process` permission runs programs as your user, so only install extensions
+you trust. See [extensions/DOCS.md](./extensions/DOCS.md) for the manifest,
+hooks, Lua API, template values, and security model. Lua type definitions for
+the `sr` API and hook context are in
+[`extensions/sr.d.lua`](./extensions/sr.d.lua).
+
 ## Stream Recording Flow
 
 The diagram below shows the main phases of a recording session and how the major parts of the system interact.
@@ -189,6 +207,12 @@ The running recorder watches this file for changes. Most settings take effect th
 | `min_free_space`                 | Minimum free disk space before cleanup (e.g. 20GB, 500MB)                   | `20GB`         |
 | `retention_max_age`              | Delete recordings older than this age. Accepts values like 7d, 48h, or 14d. | `none`         |
 | `retention_keep_latest_per_user` | Keep only this many of the newest recordings per user                       | `none`         |
+
+#### Extensions
+
+| Setting               | Description                   | Default |
+| --------------------- | ----------------------------- | ------- |
+| `disabled_extensions` | List of extension IDs to skip | `none`  |
 
 ### Configuration Commands
 

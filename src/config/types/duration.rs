@@ -31,9 +31,9 @@ impl<V: ConfigValidator<Option<DurationValue>>> ConfigType for Duration<V, Requi
     fn parse(input: &str, default: &Self::Default) -> Result<Self::Stored, apto::ConfigError> {
         let is_none = input.eq_ignore_ascii_case("none");
         if is_none {
-            return Err(apto::ConfigError::InvalidValue(format!(
-                "'none' is not valid for a required duration field"
-            )));
+            return Err(apto::ConfigError::InvalidValue(
+                "'none' is not valid for a required duration field".to_string(),
+            ));
         }
         let parsed = parse_duration_cli(input).map(Some)?;
         Ok(normalize_optional_value(parsed, Some(*default)))
