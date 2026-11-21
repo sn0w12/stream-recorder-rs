@@ -74,6 +74,27 @@ return M
 Only hooks listed in `extension.json` are called. A hook can be absent from the
 table, but then it should not be listed in the manifest.
 
+## Creating an extension
+
+```bash
+stream-recorder extension new my_extension
+```
+
+This creates `my_extension/` in the current directory with:
+
+- `extension.json`
+- `main.lua`
+- `sr.d.lua`
+- `.luarc.json`
+- `.gitignore`
+
+Use `--path <dir>` to choose the parent directory and
+`--name "Display Name"` to set the display name. `extension create` is an
+alias.
+
+Copy the folder into the extensions directory to install it, then restart the
+recorder.
+
 ## Editor support
 
 LuaLS reports `Undefined global 'sr'` unless it has the API definitions. The

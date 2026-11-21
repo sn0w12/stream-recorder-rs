@@ -88,6 +88,7 @@ pipeline. They can inspect the session, call HTTP endpoints, run processes, and
 add values to the notification template.
 
 ```bash
+stream-recorder extension new <id>
 stream-recorder extension install <url>
 stream-recorder extension list
 stream-recorder extension debug <id> <hook>

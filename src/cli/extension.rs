@@ -1,15 +1,28 @@
 use crate::extension::context::{
     ErrorContext, HookContext, PlatformContext, RecordingContext, SessionContext, StreamContext,
 };
-use crate::extension::manifest::Hook;
+use crate::extension::manifest::{Hook, valid_id};
 use crate::extension::{self, hooks, install, store};
 use anyhow::Result;
 use clap::Subcommand;
 use serde_json::json;
-use std::path::Path;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 #[derive(Subcommand)]
 pub enum ExtensionAction {
+    /// Create a new extension scaffold
+    #[clap(alias = "create")]
+    New {
+        /// Extension ID, also used as the folder name
+        id: String,
+        /// Parent directory for the new folder (defaults to the current directory)
+        #[arg(short, long)]
+        path: Option<PathBuf>,
+        /// Human-readable extension name (defaults to the ID)
+        #[arg(short, long)]
+        name: Option<String>,
+    },
     /// List installed extensions
     #[clap(alias = "ls")]
     List,
@@ -57,6 +70,9 @@ pub enum ExtensionAction {
 
 pub async fn handle_extension_command(action: ExtensionAction) -> Result<()> {
     match action {
+        ExtensionAction::New { id, path, name } => {
+            create_extension(&id, path.as_deref(), name.as_deref())
+        }
         ExtensionAction::List => list_extensions(),
         ExtensionAction::Install { url, yes } => {
             let manifest = install::install_from_url(&url, yes).await?;
@@ -109,6 +125,114 @@ pub async fn handle_extension_command(action: ExtensionAction) -> Result<()> {
         } => debug_extension(&extension_id, &hook, file.as_deref()).await,
         ExtensionAction::Config { extension_id } => show_config(&extension_id),
     }
+}
+
+const SR_TYPES: &str = include_str!("../../extensions/sr.d.lua");
+
+const MAIN_LUA: &str = r#"---@type HookModule
+local M = {}
+
+---@param ctx HookContext
+function M.after_recording(ctx)
+  local recording = ctx.recording
+  sr.log.info("Recording finished: " .. (recording and recording.file or "unknown"))
+  sr.template.set("example", "hello")
+end
+
+return M
+"#;
+
+const LUARC: &str = r#"{
+    "runtime.version": "Lua 5.4",
+    "workspace.library": ["./sr.d.lua"]
+}
+"#;
+
+const GITIGNORE: &str = ".workspace/\nconfig.toml\n";
+
+fn display_name(id: &str) -> String {
+    id.split('_')
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            let mut chars = part.chars();
+            match chars.next() {
+                Some(first) => format!("{}{}", first.to_ascii_uppercase(), chars.as_str()),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn create_extension(id: &str, parent: Option<&Path>, name: Option<&str>) -> Result<()> {
+    if !valid_id(id) {
+        return Err(anyhow::anyhow!(
+            "Invalid extension id '{}'. Use ^[a-z][a-z0-9_]{{0,63}}$",
+            id
+        ));
+    }
+
+    let parent = parent.unwrap_or_else(|| Path::new("."));
+    let dir = parent.join(id);
+    if dir.exists() {
+        return Err(anyhow::anyhow!(
+            "Extension directory already exists: {}",
+            dir.display()
+        ));
+    }
+
+    fs::create_dir_all(&dir)?;
+
+    let display = name
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| display_name(id));
+
+    let manifest = json!({
+        "$schema": "https://raw.githubusercontent.com/sn0w12/stream-recorder-rs/refs/heads/main/extensions/schema.json",
+        "id": id,
+        "name": display,
+        "version": "1.0.0",
+        "api": 1,
+        "stream_recorder_version": "^0.2",
+        "main": "main.lua",
+        "files": ["main.lua", "sr.d.lua", ".luarc.json"],
+        "hooks": ["after_recording"],
+        "permissions": [],
+        "limits": {
+            "timeout_ms": 30000,
+            "memory_mb": 64
+        }
+    });
+
+    fs::write(
+        dir.join("extension.json"),
+        serde_json::to_string_pretty(&manifest)? + "\n",
+    )?;
+    fs::write(dir.join("main.lua"), MAIN_LUA)?;
+    fs::write(dir.join("sr.d.lua"), SR_TYPES)?;
+    fs::write(dir.join(".luarc.json"), LUARC)?;
+    fs::write(dir.join(".gitignore"), GITIGNORE)?;
+
+    println!("Created extension '{}' at {}", id, dir.display());
+    println!("  extension.json");
+    println!("  main.lua");
+    println!("  sr.d.lua");
+    println!("  .luarc.json");
+    println!("  .gitignore");
+    println!();
+    println!(
+        "Copy the folder to {} to install it.",
+        extension::extensions_dir().display()
+    );
+    println!("Then run:");
+    println!(
+        "  stream-recorder extension debug {} after_recording --file <recording>",
+        id
+    );
+
+    Ok(())
 }
 
 fn list_extensions() -> Result<()> {
@@ -333,4 +457,67 @@ async fn debug_extension(id: &str, hook_name: &str, file: Option<&str>) -> Resul
     hooks::cleanup_session(&session_id);
     let _ = std::fs::remove_dir_all(extension.workspace_dir(&session_id));
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::extension::manifest::ExtensionManifest;
+
+    #[test]
+    fn scaffold_creates_expected_files() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        create_extension("my_ext", Some(temp.path()), None).expect("scaffold");
+
+        let dir = temp.path().join("my_ext");
+        for file in [
+            "extension.json",
+            "main.lua",
+            "sr.d.lua",
+            ".luarc.json",
+            ".gitignore",
+        ] {
+            assert!(dir.join(file).is_file(), "missing {}", file);
+        }
+
+        let types = fs::read_to_string(dir.join("sr.d.lua")).expect("types");
+        assert!(types.contains("---@meta"));
+
+        let manifest = ExtensionManifest::load_from_dir(&dir).expect("manifest");
+        assert_eq!(manifest.id, "my_ext");
+        assert_eq!(manifest.name, "My Ext");
+        assert_eq!(manifest.hooks, vec![Hook::AfterRecording]);
+        assert_eq!(
+            manifest.files,
+            vec![
+                "main.lua".to_string(),
+                "sr.d.lua".to_string(),
+                ".luarc.json".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn scaffold_rejects_invalid_id() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        assert!(create_extension("Bad-Id", Some(temp.path()), None).is_err());
+        assert!(!temp.path().join("Bad-Id").exists());
+    }
+
+    #[test]
+    fn scaffold_rejects_existing_directory() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        fs::create_dir_all(temp.path().join("my_ext")).expect("existing dir");
+        assert!(create_extension("my_ext", Some(temp.path()), None).is_err());
+    }
+
+    #[test]
+    fn scaffold_uses_custom_name() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        create_extension("my_ext", Some(temp.path()), Some("Custom Name")).expect("scaffold");
+
+        let manifest =
+            ExtensionManifest::load_from_dir(&temp.path().join("my_ext")).expect("manifest");
+        assert_eq!(manifest.name, "Custom Name");
+    }
 }
